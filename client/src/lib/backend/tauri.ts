@@ -68,6 +68,10 @@ class DesktopConsole extends ConsoleLink implements Backend {
     return invoke<void>("auth_save", { auth });
   }
 
+  relayRefresh() {
+    return invoke<boolean>("relay_refresh");
+  }
+
   restartApp() {
     return invoke<void>("restart_app");
   }

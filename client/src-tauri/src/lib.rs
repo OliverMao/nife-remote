@@ -675,6 +675,20 @@ fn auth_get() -> String {
     config::settings().auth.clone()
 }
 
+/// 重新问账号服务要一次中转服务器（连接失败时界面会自动调；分配变了返回 true，界面再重启生效）
+#[tauri::command]
+async fn relay_refresh() -> Result<bool, Problem> {
+    let auth = config::settings().auth.clone();
+    if auth.is_empty() {
+        return Ok(false);
+    }
+    let before = (config::settings().server.clone(), config::settings().server_fp.clone());
+    let Some(relay) = relay::resolve(&auth).await else {
+        return Ok(false);
+    };
+    Ok(before != (relay.address(), relay.fingerprint))
+}
+
 /// 保存账号服务地址：马上问一次中转服务器，写进 config.toml，然后重启让连接用上新的
 #[tauri::command]
 async fn auth_save(auth: String) -> Result<(), Problem> {
@@ -842,6 +856,7 @@ pub fn run() {
             pairing_save,
             auth_get,
             auth_save,
+            relay_refresh,
             kick_all,
             kick_session,
             account_get,

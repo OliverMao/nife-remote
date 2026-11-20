@@ -369,6 +369,8 @@ export interface Backend {
    * `fp` 为空 = 首次连接时信任 */
   /** 保存账号服务地址（中转服务器由它分配，用户不用填） */
   saveAuth(auth: string): Promise<void>;
+  /** 重新问一次中转服务器（连接失败时自动调用）；分配变了返回 true */
+  relayRefresh(): Promise<boolean>;
   /** 重启程序，让新的服务器设置生效（只有桌面版） */
   restartApp(): Promise<void>;
   /** 改本机的配对码（6 位数字，本机生成的；马上生效，写进 config.toml）。只有桌面版 */

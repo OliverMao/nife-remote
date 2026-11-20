@@ -77,7 +77,25 @@ function Console() {
       }
     }, () => {});
     void supportedDecoders().then(store.setDecoders);
-    const unStatus = api.onServerStatus(store.setServer);
+    // 连不上中转服务器时自动再问一次账号服务：分配变了（换了地址 / 线路）就重启用新的
+    let asking = false;
+    const unStatus = api.onServerStatus((state) => {
+      store.setServer(state);
+      if (asking || state.state === "connected" || state.state === "connecting") return;
+      // 只有"连不上 / 断了"这类问题才值得再问一次账号服务（配置错、证书不符问了也没用）
+      if (state.state === "disconnected" && !["serverUnreachable", "serverLost"].includes(state.reason.kind)) {
+        return;
+      }
+      if (!store.get().app?.auth) return;
+      asking = true;
+      void api
+        .relayRefresh()
+        .then((changed) => (changed ? api.restartApp() : undefined))
+        .catch(() => {})
+        .finally(() => {
+          asking = false;
+        });
+    });
     const unOnline = api.onHostOnline(store.hostOnline);
     // 关闭窗口（标题栏的关闭按钮、任务栏、Alt+F4、macOS 的红灯）：有会话时先确认
     const unClose = api.frame?.onCloseRequested(allowClose);
