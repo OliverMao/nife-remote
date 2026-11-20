@@ -30,6 +30,10 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 # config.toml：修改时保留用户的注释和格式
 toml_edit = "0.25"
 base64 = "0.23"
+# 本地账号的密码摘要（见 src/accounts.rs）
+sha2 = "0.10"
+# 账号服务的 HTTP 调用（见 src/accounts.rs）
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
 rand = "0.9"
 anyhow = "1"

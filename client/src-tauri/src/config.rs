@@ -246,22 +246,49 @@ pub fn link() -> Arc<LinkConfig> {
     static LINK: LazyLock<Arc<LinkConfig>> = LazyLock::new(|| {
         let s = settings();
         let (name, os) = crate::sysinfo::host_identity();
-        Arc::new(
-            LinkConfig::new(s.server.clone(), &s.server_fp, name.clone(), os.clone())
-                .map(|l| l.with_store(Arc::new(FileTrust::default())))
-                .unwrap_or_else(|e| {
-                    // 指纹写错了：不能因此就不校验证书。用一个不可能对得上的指纹，连接时报"证书指纹不匹配"
-                    error!("config.toml: invalid server_fp ({e:#}), refusing to connect");
-                    LinkConfig {
-                        server: s.server.clone(),
-                        trust: Trust::Pinned([0; 32]),
-                        name,
-                        os,
-                    }
-                }),
-        )
+        let configured = server_configured();
+        let link = LinkConfig::new(s.server.clone(), &s.server_fp, name.clone(), os.clone())
+            .map(|l| l.with_store(Arc::new(FileTrust::default())))
+            .unwrap_or_else(|e| {
+                // 指纹写错了：不能因此就不校验证书。用一个不可能对得上的指纹，连接时报“证书指纹不匹配”
+                error!("config.toml: invalid server_fp ({e:#}), refusing to connect");
+                LinkConfig {
+                    server: s.server.clone(),
+                    trust: Trust::Pinned([0; 32]),
+                    name,
+                    os,
+                    configured,
+                }
+            });
+        // 没配置过服务器（用的是占位的 127.0.0.1:4433）：不连接、不重试
+        Arc::new(if configured { link } else { link.unconfigured() })
     });
     LINK.clone()
+}
+
+/// 配置过中转服务器没有：`config.toml` 里写了 `server`，或者构建时用 `NIFE_REMOTE_SERVER` 给了默认值。
+/// 都没给的话用的只是占位值（`127.0.0.1:4433`），不连接也不重试（见 `LinkConfig::configured`）
+pub fn server_configured() -> bool {
+    static CONFIGURED: LazyLock<bool> = LazyLock::new(|| {
+        if option_env!("NIFE_REMOTE_SERVER").is_some() {
+            return true;
+        }
+        let Some(path) = path() else {
+            return false;
+        };
+        let Ok(text) = std::fs::read_to_string(path) else {
+            return false;
+        };
+        text.parse::<DocumentMut>()
+            .ok()
+            .and_then(|doc| {
+                doc.get("server")
+                    .and_then(|v| v.as_str())
+                    .map(|v| !v.trim().is_empty())
+            })
+            .unwrap_or(false)
+    });
+    *CONFIGURED
 }
 
 /// 是否配置了固定的服务器证书指纹（否则第一次连接时记下，控制台据此说明）
@@ -723,6 +750,16 @@ pub fn check_server(server: &str, fp: &str) -> Result<()> {
     anyhow::ensure!(
         fingerprint_is_valid(fp.trim()),
         "the fingerprint must be 64 hex digits (or empty to trust on first use)"
+    );
+    Ok(())
+}
+
+/// 检查首页里填的配对码：6 位数字（本机生成的，可以自己改，见 [`crate::host::gate::DesktopGate::set_pairing_code`]）
+pub fn check_pairing(code: &str) -> Result<()> {
+    let code = code.trim();
+    anyhow::ensure!(
+        code.len() == 6 && code.bytes().all(|b| b.is_ascii_digit()),
+        "the pairing code must be 6 digits"
     );
     Ok(())
 }
@@ -1261,6 +1298,17 @@ mod tests {
                 nife_remote_link::net::parse_fingerprint(&s).is_ok(),
                 "{s:?}"
             );
+        }
+    }
+
+    /// 首页里填的配对码：只收 6 位数字（可以以 0 开头，和服务器分配的控制码不一样）
+    #[test]
+    fn pairing_code_edit_is_validated() {
+        for code in ["000000", "654321", " 123456 "] {
+            assert!(check_pairing(code).is_ok(), "{code:?}");
+        }
+        for code in ["", "12345", "1234567", "12345a", "１２３４５６"] {
+            assert!(check_pairing(code).is_err(), "{code:?}");
         }
     }
 

@@ -44,6 +44,7 @@ use crate::ServerState;
 pub use crate::direct::{DirectHub, HostLink};
 pub use crate::lanes::Router;
 use crate::net::{self, LinkConfig, Reconnect, Report};
+use crate::problem::Problem;
 use crate::tasks::OwnedTask;
 use crate::wire::{read_msg, write_msg};
 
@@ -62,6 +63,10 @@ pub use streams::{Admitted, ControllerReceiver, HostStreams, Writer};
 pub enum HostCmd {
     /// 断开所有正在控制本机的控制端
     KickAll,
+    /// 断开某一路控制端（被控中页列表里那一行的"断开远控"）
+    Kick {
+        session_id: u64,
+    },
     /// 断开所有控制端并更换控制码（旧控制码立即失效）
     NewCode,
 }
@@ -70,7 +75,7 @@ impl HostCmd {
     /// 告诉被断开的控制端的原因
     pub fn reason(self) -> ByeReason {
         match self {
-            HostCmd::KickAll => ByeReason::Kicked,
+            HostCmd::KickAll | HostCmd::Kick { .. } => ByeReason::Kicked,
             HostCmd::NewCode => ByeReason::CodeChanged,
         }
     }
@@ -134,6 +139,16 @@ pub async fn run<E, S, F>(
         let e = events.clone();
         Arc::new(move |s| e.server(s))
     };
+    // 还没填中转服务器（典型情况：刚装好、地址还是占位的 127.0.0.1:4433）：不连接、不重试，
+    // 只说一次，免得日志和界面上的“重连中…”刷个不停。填好地址后重启程序即可。
+    if !link.configured {
+        warn!("no relay server is configured, the host stays offline");
+        report(ServerState::Disconnected {
+            reason: Problem::NoServer,
+        });
+        while cmds.recv().await.is_some() {}
+        return;
+    }
     let mut reconnect = Reconnect::new(report);
     let mut id = Identity {
         reclaim,
@@ -238,8 +253,8 @@ where
         .ok();
 
     let mut sessions: JoinSet<u64> = JoinSet::new();
-    // 每次发送都会让所有会话向控制端发送 Bye（带上这个原因）并结束
-    let (kick_tx, _) = watch::channel(ByeReason::Kicked);
+    // 每一路控制端一条 kick 通道：往里面发（带上原因）就让那一路向控制端发送 Bye 并结束
+    let mut kicks: std::collections::HashMap<u64, watch::Sender<ByeReason>> = std::collections::HashMap::new();
     // 换钥过程中再次踢人：先保存当前回答，再轮换一次，覆盖两次操作之间发出的凭证。
     let mut rekey_again = false;
     loop {
@@ -247,6 +262,8 @@ where
             msg = rx.recv() => match msg {
                 Some(ServerMsg::Incoming { session_id, peer, observed, init }) => {
                     info!(session_id, name = %peer.name, ip = %peer.ip, "controller wants to connect");
+                    let (kick_tx, kick_rx) = watch::channel(ByeReason::Kicked);
+                    kicks.insert(session_id, kick_tx);
                     let run = session(Incoming {
                         conn: sig.conn.clone(),
                         router: router.clone(),
@@ -254,7 +271,7 @@ where
                         init,
                         code,
                         peer,
-                        kick: kick_tx.subscribe(),
+                        kick: kick_rx,
                         approvals: approvals.clone(),
                         direct: direct.as_ref().map(|(hub, _)| HostLink {
                             hub: hub.clone(),
@@ -285,6 +302,7 @@ where
             },
             Some(done) = sessions.join_next() => {
                 if let Ok(id) = done {
+                    kicks.remove(&id);
                     events.ended(id);
                 }
             }
@@ -303,7 +321,21 @@ where
                     }
                 }
                 events.kicked(cmd);
-                kick_tx.send_replace(cmd.reason());
+                match cmd {
+                    HostCmd::Kick { session_id } => {
+                        if let Some(tx) = kicks.get(&session_id) {
+                            tx.send_replace(ByeReason::Kicked);
+                        } else {
+                            warn!(session_id, "no such controller to kick");
+                        }
+                    }
+                    other => {
+                        let reason = other.reason();
+                        for tx in kicks.values() {
+                            tx.send_replace(reason);
+                        }
+                    }
+                }
                 if cmd == HostCmd::NewCode {
                     // 给会话一点时间把 Bye 发出去，然后放弃旧控制码重新注册
                     let _ = tokio::time::timeout(Duration::from_millis(800), async {

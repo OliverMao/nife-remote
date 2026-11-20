@@ -32,6 +32,8 @@ pub enum Problem {
     Incompatible { server: u16, client: u16 },
     /// 与服务器的连接断开了，或者连上之后出错
     ServerLost { detail: String },
+    /// 还没配置中转服务器地址（`config.toml` 里没有 `server`，编译时也没给）：不连接、不重试
+    NoServer,
 
     // ── 连接被控端 ──
     /// 还没有连上服务器
@@ -108,7 +110,7 @@ impl Problem {
 
     /// 重试也不会好的问题（版本不一致），应该放慢重连
     pub fn is_fatal(&self) -> bool {
-        matches!(self, Problem::Incompatible { .. })
+        matches!(self, Problem::Incompatible { .. } | Problem::NoServer)
     }
 
     /// 对方有意结束（或者对方的用户没有同意）的会话，要用户来决定的问题（身份变了、要配对码……），
@@ -146,6 +148,7 @@ impl fmt::Display for Problem {
                 )
             }
             Problem::ServerLost { detail } => write!(f, "lost connection to the server: {detail}"),
+            Problem::NoServer => f.write_str("no relay server is configured yet"),
             Problem::NotConnected => f.write_str("not connected to the server yet"),
             Problem::InvalidCode => f.write_str("the control code must be 6 digits"),
             Problem::CodeNotFound => f.write_str("control code not found, or the host is offline"),

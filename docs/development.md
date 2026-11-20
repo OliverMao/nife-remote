@@ -5,7 +5,7 @@
 ## Tests
 
 ```bash
-# repository root: protocol + link library + server (debug builds check the order of every server lock, see server/src/broker/lock.rs)
+# repository root: protocol + link library + server (debug builds check the order of every server lock, see server/core/src/broker/lock.rs)
 cargo test
 # the server only uses nife-remote-link's wire module (default client feature off); the cargo test above always builds it with client, so check this separately
 cargo test -p nife-remote-link --no-default-features

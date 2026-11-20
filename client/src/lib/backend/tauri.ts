@@ -6,7 +6,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { Backend, HostStatus, SavedDevice, WindowFrame } from "../api";
+import type { AccountInfo, Backend, HostStatus, Profile, SavedDevice, WindowFrame } from "../api";
 import { ConsoleLink } from "../console";
 import type { Lang } from "../i18n";
 
@@ -70,6 +70,70 @@ class DesktopConsole extends ConsoleLink implements Backend {
 
   restartApp() {
     return invoke<void>("restart_app");
+  }
+
+  savePairing(code: string) {
+    return invoke<void>("pairing_save", { code });
+  }
+
+  kickAll() {
+    return invoke<void>("kick_all");
+  }
+
+  kickSession(sessionId: number) {
+    return invoke<void>("kick_session", { sessionId });
+  }
+
+  accountGet() {
+    return invoke<AccountInfo | null>("account_get");
+  }
+  accountRefresh() {
+    return invoke<AccountInfo | null>("account_refresh");
+  }
+  accountServer() {
+    return invoke<string>("account_server");
+  }
+  accountRegister(name: string, password: string) {
+    return invoke<AccountInfo>("account_register", { name, password });
+  }
+  accountLogin(name: string, password: string) {
+    return invoke<AccountInfo>("account_login", { name, password });
+  }
+  accountLogout() {
+    return invoke<void>("account_logout");
+  }
+  accountChangePassword(oldPassword: string, newPassword: string) {
+    return invoke<AccountInfo>("account_change_password", { oldPassword, newPassword });
+  }
+  accountDevices() {
+    return invoke<string[]>("account_devices");
+  }
+  accountSaveDevices(codes: string[]) {
+    return invoke<void>("account_save_devices", { codes });
+  }
+
+  profileGet() {
+    return invoke<Profile>("profile_get");
+  }
+
+  profileSetAllow(allow: boolean) {
+    return invoke<Profile>("profile_set_allow", { allow });
+  }
+
+  profileSetVerify(verify: "pairing" | "approval" | "open") {
+    return invoke<Profile>("profile_set_verify", { verify });
+  }
+
+  favoriteToggle(code: string) {
+    return invoke<Profile>("favorite_toggle", { code });
+  }
+
+  recentPush(code: string, name: string) {
+    return invoke<Profile>("recent_push", { code, name });
+  }
+
+  recentDrop(code?: string) {
+    return invoke<Profile>("recent_drop", { code: code ?? null });
   }
 
   setLanguage(lang: Lang) {

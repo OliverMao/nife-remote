@@ -1,0 +1,6 @@
+# 只给构建机 / CI 用的覆盖文件：给主 compose 的 service 补上 build 段（image 名仍取自 docker-compose.yml）。
+services:
+  auth:
+    build:
+      context: .
+      dockerfile: Dockerfile

@@ -6,6 +6,7 @@
 //!   托盘里提示，本机用户换一个配对码才恢复：中间人（包括中转服务器）一共只能猜这么几次；
 //! * 更换控制码时配对码也换一个、配对过的控制端全部忘掉（见 [`DesktopGate::reset`]）。
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nife_remote_link::host::{Access, Admitted, Gate};
@@ -14,6 +15,7 @@ use nife_remote_proto::handshake::PublicKey;
 use tracing::{info, warn};
 
 use crate::config::{self, Paired};
+use crate::profile;
 use crate::status::StatusHub;
 
 /// 未成功和在途的配对尝试合计上限
@@ -21,7 +23,9 @@ pub const MAX_FAILURES: u32 = 5;
 
 pub struct DesktopGate {
     identity: Identity,
-    access: Access,
+    access: Mutex<Access>,
+    /// 界面里的"允许他人远程协助"：关掉之后不再接受任何控制端（正在控的由调用方断开）
+    allowed: std::sync::atomic::AtomicBool,
     state: Mutex<State>,
     hub: StatusHub,
 }
@@ -37,6 +41,15 @@ struct State {
 }
 
 /// 新的配对码：[`nife_remote_proto::PAIRING_DIGITS`] 位随机数字
+/// 界面里的验证方式 → 协议里的接入方式
+pub fn access_from_verify(v: profile::Verify) -> Access {
+    match v {
+        profile::Verify::Pairing => Access::Pairing,
+        profile::Verify::Approval => Access::Approval,
+        profile::Verify::Open => Access::Open,
+    }
+}
+
 fn new_code() -> String {
     format!("{:06}", rand::random_range(0..1_000_000u32))
 }
@@ -74,11 +87,14 @@ impl DesktopGate {
                 p
             }
         };
-        let access = config::settings().access;
+        // 界面里选过的验证方式优先（profile.json），没有就用 config.toml 的 access
+        let access = access_from_verify(profile::get().verify);
+        let allowed = profile::get().allow_assist;
         info!(?access, key = %hex(identity.public()), paired = saved.paired.len(), "host identity loaded");
         let gate = Arc::new(Self {
             identity,
-            access,
+            access: Mutex::new(access),
+            allowed: AtomicBool::new(allowed),
             state: Mutex::new(State {
                 pairing,
                 locked: saved.pairing_locked,
@@ -93,10 +109,26 @@ impl DesktopGate {
         gate
     }
 
+    /// 界面里换验证方式（配对码 / 本机同意 / 不用验证）：立刻生效，配过对的不用重配
+    pub fn set_access(&self, access: Access) {
+        *self.access.lock().unwrap() = access;
+        self.publish();
+    }
+
+    /// 界面里的"允许他人远程协助"
+    pub fn set_allowed(&self, on: bool) {
+        self.allowed.store(on, Ordering::Relaxed);
+        self.publish();
+    }
+
+    pub fn allowed(&self) -> bool {
+        self.allowed.load(Ordering::Relaxed)
+    }
+
     /// 托盘里显示的：配对码、暂停了没有、配对过几个
     fn publish(&self) {
         let st = self.state.lock().unwrap();
-        let pairing = (self.access == Access::Pairing).then(|| st.pairing.clone());
+        let pairing = (*self.access.lock().unwrap() == Access::Pairing).then(|| st.pairing.clone());
         let (locked, paired) = (st.locked, st.paired.len());
         drop(st);
         self.hub.send_if_modified(|s| {
@@ -112,8 +144,14 @@ impl DesktopGate {
 
     /// 本机用户换一个配对码（托盘菜单）：暂停的配对也随之恢复。配对过的控制端不受影响
     pub fn new_pairing_code(&self) {
+        self.set_pairing_code(&new_code());
+    }
+
+    /// 换成本机用户自己填的配对码（控制台首页）：格式由调用方校验过。
+    /// 和 [`Self::new_pairing_code`] 一样，暂停的配对随之恢复，配对过的控制端不受影响
+    pub fn set_pairing_code(&self, code: &str) {
         let mut st = self.state.lock().unwrap();
-        st.pairing = new_code();
+        st.pairing = code.to_string();
         st.locked = false;
         st.failures = 0;
         st.pending = 0;
@@ -122,7 +160,7 @@ impl DesktopGate {
             warn!("can't save the pairing code: {e:#}");
         }
         drop(st);
-        info!("new pairing code");
+        info!("pairing code changed");
         self.publish();
     }
 
@@ -181,10 +219,13 @@ impl Gate for DesktopGate {
     }
 
     fn access(&self) -> Access {
-        self.access
+        *self.access.lock().unwrap()
     }
 
     fn begin_pairing(&self) -> Option<Box<dyn PairingAttempt + '_>> {
+        if !self.allowed.load(Ordering::Relaxed) {
+            return None;
+        }
         let mut st = self.state.lock().unwrap();
         if st.locked || st.failures + st.pending >= MAX_FAILURES {
             return None;
@@ -199,6 +240,9 @@ impl Gate for DesktopGate {
     }
 
     fn is_known(&self, key: &PublicKey) -> bool {
+        if !self.allowed.load(Ordering::Relaxed) {
+            return false;
+        }
         let k = hex(key);
         self.state.lock().unwrap().paired.iter().any(|p| p.key == k)
     }

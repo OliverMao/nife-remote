@@ -70,6 +70,10 @@ pub struct AgentStatus {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ToAgent {
     KickAll,
+    /// 断开某一路控制端
+    Kick {
+        session_id: u64,
+    },
     NewCode,
     SetAutostart {
         on: bool,
@@ -86,6 +90,15 @@ pub enum ToAgent {
     },
     /// 换一个配对码（暂停了的配对随之恢复）
     NewPairingCode,
+    /// 换成本机用户填的配对码
+    SetPairingCode {
+        code: String,
+    },
+    /// 界面里选的验证方式 + 允许他人远程协助
+    SetAccess {
+        verify: String,
+        allow: bool,
+    },
     /// 忘掉所有配对过的控制端
     ForgetPaired,
     /// 控制台的身份（那个用户的 DPAPI 加密过，见 [`crate::config::controller_identity`]）写进 config.toml
@@ -244,6 +257,22 @@ async fn handle(msg: ToAgent, agent: &Agent) {
         ToAgent::NewPairingCode => {
             let gate = agent.gate.clone();
             let _ = tokio::task::spawn_blocking(move || gate.new_pairing_code()).await;
+        }
+        ToAgent::SetPairingCode { code } => {
+            let gate = agent.gate.clone();
+            let _ = tokio::task::spawn_blocking(move || gate.set_pairing_code(&code)).await;
+        }
+        ToAgent::Kick { session_id } => {
+            let _ = agent.cmds.send(crate::host::HostCmd::Kick { session_id });
+        }
+        ToAgent::SetAccess { verify, allow } => {
+            let gate = agent.gate.clone();
+            let verify = crate::profile::Verify::parse(&verify);
+            let _ = tokio::task::spawn_blocking(move || {
+                gate.set_access(crate::host::gate::access_from_verify(verify));
+                gate.set_allowed(allow);
+            })
+            .await;
         }
         ToAgent::ForgetPaired => {
             let gate = agent.gate.clone();

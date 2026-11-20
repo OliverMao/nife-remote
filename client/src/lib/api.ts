@@ -64,6 +64,8 @@ export type Problem =
   | { kind: "certMismatch" }
   | { kind: "incompatible"; server: number; client: number }
   | { kind: "serverLost"; detail: string }
+  /** 还没填中转服务器地址：不连接也不重试，见 client/src-tauri 的 config::server_configured */
+  | { kind: "noServer" }
   // 连接被控端
   | { kind: "notConnected" }
   | { kind: "invalidCode" }
@@ -121,12 +123,41 @@ export interface AppInfo {
   version: string;
   /** 中转服务器地址 */
   server: string;
+  /** 配置过中转服务器没有：false 时 `server` 只是占位的 127.0.0.1:4433，不连接也不重试 */
+  configured: boolean;
   pinned: boolean;
   /** 被控端看到的本控制端名称（桌面版是计算机名） */
   hostname: string;
   lang: Lang;
   /** 配置文件（也保存着"我的设备"）的路径；网页版没有 */
   configPath?: string | null;
+}
+
+/** 账号（在中转服务器旁边的账号服务里，见 server/auth；与 Rust 端 accounts::AccountInfo 对应）：不含密码 */
+export interface AccountInfo {
+  id: string;
+  name: string;
+  /** 注册时间（Unix 秒） */
+  createdAt: number;
+}
+
+/** 界面自己的偏好和记录（profile.json，与 Rust 端 profile::Profile 对应） */
+export interface Profile {
+  /** 允许他人远程协助（关掉之后正在控的全部断开，也不再接受新的） */
+  allowAssist: boolean;
+  /** 验证方式：配对码 / 本机同意 / 不用验证 */
+  verify: "pairing" | "approval" | "open";
+  /** 收藏的设备ID */
+  favorites: string[];
+  /** 最近连接（新的在前） */
+  recent: ProfileRecent[];
+}
+
+export interface ProfileRecent {
+  code: string;
+  name: string;
+  /** 最后一次连接的时间（Unix 秒） */
+  at: number;
 }
 
 /** 本机连接码等被控端状态（与 Rust 端 status::HostStatus 对应）：首页显示自己现在能不能被连 */
@@ -337,6 +368,41 @@ export interface Backend {
   saveServer(server: string, fp: string): Promise<void>;
   /** 重启程序，让新的服务器设置生效（只有桌面版） */
   restartApp(): Promise<void>;
+  /** 改本机的配对码（6 位数字，本机生成的；马上生效，写进 config.toml）。只有桌面版 */
+  savePairing(code: string): Promise<void>;
+  /** 断开所有正在控制本机的控制端 */
+  kickAll(): Promise<void>;
+  /** 断开某一路控制端 */
+  kickSession(sessionId: number): Promise<void>;
+  /** 现在登录的本机账号（没登录是 null） */
+  accountGet(): Promise<AccountInfo | null>;
+  /** 打开界面时刷新登录状态（凭证过期就变成没登录） */
+  accountRefresh(): Promise<AccountInfo | null>;
+  /** 账号服务的地址（显示 / 排查用） */
+  accountServer(): Promise<string>;
+  /** 注册一个账号（注册完直接登录） */
+  accountRegister(name: string, password: string): Promise<AccountInfo>;
+  accountLogin(name: string, password: string): Promise<AccountInfo>;
+  /** 改密码（成功后服务端作废旧凭证，本机换成新的） */
+  accountChangePassword(oldPassword: string, newPassword: string): Promise<AccountInfo>;
+  /** 账号下的设备ID列表 */
+  accountDevices(): Promise<string[]>;
+  /** 把设备ID列表存进账号 */
+  accountSaveDevices(codes: string[]): Promise<void>;
+  accountLogout(): Promise<void>;
+  /** 界面自己的偏好和记录 */
+  profileGet(): Promise<Profile>;
+  /** 允许他人远程协助 */
+  profileSetAllow(allow: boolean): Promise<Profile>;
+  /** 验证方式 */
+  profileSetVerify(verify: "pairing" | "approval" | "open"): Promise<Profile>;
+  /** 收藏 / 取消收藏一台设备 */
+  favoriteToggle(code: string): Promise<Profile>;
+  /** 记一条最近连接 */
+  recentPush(code: string, name: string): Promise<Profile>;
+  /** 最近连接：删一条（给 code）或全部清掉（不给） */
+  recentDrop(code?: string): Promise<Profile>;
+
   /** 读取本机剪贴板文本（用于"作为按键输入"） */
   localClipboardText(): Promise<string>;
   /** 切换界面语言（桌面版同时作用于托盘菜单） */

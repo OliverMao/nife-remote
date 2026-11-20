@@ -403,6 +403,10 @@ fn language_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
 
 fn server_problem(p: &Problem) -> String {
     match p {
+        Problem::NoServer => tr!(
+            "服务器：还没有填写地址（控制台里改）",
+            "Server: no address set yet (change it in the console)"
+        ),
         Problem::ServerUnreachable { .. } => tr!("服务器：无法连接", "Server: can't connect"),
         Problem::CertMismatch => tr!("服务器：证书指纹不匹配", "Server: certificate mismatch"),
         Problem::Incompatible { server, client } if server > client => {

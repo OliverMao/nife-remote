@@ -13,6 +13,7 @@
 // 最先声明：其它模块都要用到 `tr!`
 #[macro_use]
 mod i18n;
+mod accounts;
 mod clipboard;
 mod config;
 mod console;
@@ -24,6 +25,7 @@ mod fullscreen;
 pub mod host;
 #[cfg(target_os = "macos")]
 mod login_item;
+mod profile;
 mod single_instance;
 pub mod status;
 mod sysinfo;
@@ -77,10 +79,12 @@ enum Hosting {
 }
 
 /// 托盘菜单里对配对的操作
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum PairingCmd {
     /// 换一个配对码（暂停了的配对随之恢复）
     NewCode,
+    /// 换成本机用户填的配对码
+    Set(String),
     /// 忘掉所有配对过的控制端
     Forget,
 }
@@ -92,7 +96,26 @@ impl Hosting {
             #[cfg(windows)]
             Hosting::Service(link) => link.send(match cmd {
                 HostCmd::KickAll => winsvc::ipc::ToAgent::KickAll,
+                HostCmd::Kick { session_id } => winsvc::ipc::ToAgent::Kick { session_id },
                 HostCmd::NewCode => winsvc::ipc::ToAgent::NewCode,
+            }),
+        }
+    }
+
+    /// 界面上改了"验证方式 / 允许他人远程协助"：本进程里的被控端直接改，服务里的经管道通知
+    fn access(&self, verify: profile::Verify, allow: bool) {
+        match self {
+            Hosting::InProcess(h) => {
+                let gate = h.gate().clone();
+                std::thread::spawn(move || {
+                    gate.set_access(crate::host::gate::access_from_verify(verify));
+                    gate.set_allowed(allow);
+                });
+            }
+            #[cfg(windows)]
+            Hosting::Service(link) => link.send(winsvc::ipc::ToAgent::SetAccess {
+                verify: verify.as_str().to_string(),
+                allow,
             }),
         }
     }
@@ -104,12 +127,14 @@ impl Hosting {
                 // 要写配置文件，不在主线程上做
                 std::thread::spawn(move || match cmd {
                     PairingCmd::NewCode => gate.new_pairing_code(),
+                    PairingCmd::Set(code) => gate.set_pairing_code(&code),
                     PairingCmd::Forget => gate.forget_paired(),
                 });
             }
             #[cfg(windows)]
             Hosting::Service(link) => link.send(match cmd {
                 PairingCmd::NewCode => winsvc::ipc::ToAgent::NewPairingCode,
+                PairingCmd::Set(code) => winsvc::ipc::ToAgent::SetPairingCode { code },
                 PairingCmd::Forget => winsvc::ipc::ToAgent::ForgetPaired,
             }),
         }
@@ -395,6 +420,8 @@ pub(crate) fn on_tray_left_click(app: &AppHandle) {
 struct AppInfo {
     version: &'static str,
     server: String,
+    /// 配置过中转服务器没有（没有的话 `server` 只是占位的 127.0.0.1:4433，不连接也不重试）
+    configured: bool,
     pinned: bool,
     hostname: String,
     lang: Lang,
@@ -406,6 +433,7 @@ fn app_info() -> AppInfo {
     AppInfo {
         version: config::VERSION,
         server: config::settings().server.clone(),
+        configured: config::server_configured(),
         pinned: config::pinned(),
         hostname: sysinfo::host_identity().0,
         lang: i18n::current(),
@@ -490,6 +518,181 @@ async fn server_save(
         .await
         .map_err(Problem::failed)?
         .map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 断开某一路控制端（被控中页列表里那一行）
+#[tauri::command]
+fn kick_session(state: tauri::State<'_, AppState>, session_id: u64) -> Result<(), Problem> {
+    let sv = state.services.lock().unwrap();
+    let Some(host) = &sv.host else {
+        return Err(Problem::failed("the host isn't running"));
+    };
+    host.send(HostCmd::Kick { session_id });
+    Ok(())
+}
+
+/// 现在登录的账号（本机记着的登录状态；没登录返回 null）
+#[tauri::command]
+fn account_get() -> Option<accounts::AccountInfo> {
+    accounts::current()
+}
+
+/// 打开界面时刷新一下账号信息（凭证过期就变成没登录）
+#[tauri::command]
+async fn account_refresh() -> Option<accounts::AccountInfo> {
+    accounts::refresh().await
+}
+
+/// 注册一个账号（注册完直接登录）
+#[tauri::command]
+async fn account_register(name: String, password: String) -> Result<accounts::AccountInfo, Problem> {
+    accounts::register(&name, &password).await.map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 登录
+#[tauri::command]
+async fn account_login(name: String, password: String) -> Result<accounts::AccountInfo, Problem> {
+    accounts::login(&name, &password).await.map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 退出登录
+#[tauri::command]
+async fn account_logout() -> Result<(), Problem> {
+    accounts::logout().await.map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 改密码（旧密码、新密码）
+#[tauri::command]
+async fn account_change_password(old_password: String, new_password: String) -> Result<accounts::AccountInfo, Problem> {
+    accounts::change_password(&old_password, &new_password)
+        .await
+        .map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 账号下的设备列表（"本账号设备"）
+#[tauri::command]
+async fn account_devices() -> Result<Vec<String>, Problem> {
+    accounts::devices().await.map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 把设备列表存进账号
+#[tauri::command]
+async fn account_save_devices(codes: Vec<String>) -> Result<(), Problem> {
+    accounts::save_devices(&codes).await.map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 账号服务的地址（界面里显示 / 排查用）
+#[tauri::command]
+fn account_server() -> String {
+    accounts::base_url()
+}
+
+/// 界面自己的偏好和记录（profile.json）：允许协助、验证方式、收藏、最近连接
+#[tauri::command]
+fn profile_get() -> profile::Profile {
+    profile::get()
+}
+
+/// 允许他人远程协助：关掉之后正在控的全部断开，也不再接受新的
+#[tauri::command]
+fn profile_set_allow(state: tauri::State<'_, AppState>, allow: bool) -> Result<profile::Profile, Problem> {
+    let (p, ()) = profile::update(|p| {
+        let changed = p.allow_assist != allow;
+        p.allow_assist = allow;
+        (changed, ())
+    })
+    .map_err(|e| Problem::failed(format!("{e:#}")))?;
+    if let Some(host) = &state.services.lock().unwrap().host {
+        host.access(p.verify, p.allow_assist);
+        if !allow {
+            host.send(HostCmd::KickAll);
+        }
+    }
+    Ok(p)
+}
+
+/// 验证方式：pairing（配对码）/ approval（本机同意）/ open（不用验证）
+#[tauri::command]
+fn profile_set_verify(state: tauri::State<'_, AppState>, verify: String) -> Result<profile::Profile, Problem> {
+    let verify = profile::Verify::parse(&verify);
+    let (p, ()) = profile::update(|p| {
+        let changed = p.verify != verify;
+        p.verify = verify;
+        (changed, ())
+    })
+    .map_err(|e| Problem::failed(format!("{e:#}")))?;
+    if let Some(host) = &state.services.lock().unwrap().host {
+        host.access(p.verify, p.allow_assist);
+    }
+    Ok(p)
+}
+
+/// 收藏 / 取消收藏一台设备（按设备ID）
+#[tauri::command]
+fn favorite_toggle(code: String) -> Result<profile::Profile, Problem> {
+    let (p, _) = profile::update(|p| (true, p.toggle_favorite(&code)))
+        .map_err(|e| Problem::failed(format!("{e:#}")))?;
+    Ok(p)
+}
+
+/// 记一条最近连接（连上之后由界面调用）
+#[tauri::command]
+fn recent_push(code: String, name: String) -> Result<profile::Profile, Problem> {
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let (p, ()) = profile::update(|p| {
+        let before = p.recent.clone();
+        p.push_recent(&code, &name, at);
+        (p.recent != before, ())
+    })
+    .map_err(|e| Problem::failed(format!("{e:#}")))?;
+    Ok(p)
+}
+
+/// 最近连接里删掉一条 / 全部清掉
+#[tauri::command]
+fn recent_drop(code: Option<String>) -> Result<profile::Profile, Problem> {
+    let (p, ()) = profile::update(|p| {
+        let before = p.recent.clone();
+        match &code {
+            Some(c) => p.drop_recent(c),
+            None => p.clear_recent(),
+        }
+        (p.recent != before, ())
+    })
+    .map_err(|e| Problem::failed(format!("{e:#}")))?;
+    Ok(p)
+}
+
+/// 断开所有正在控制本机的控制端（左栏被控卡点开放大后那一页的按钮）
+#[tauri::command]
+fn kick_all(state: tauri::State<'_, AppState>) -> Result<(), Problem> {
+    let sv = state.services.lock().unwrap();
+    let Some(host) = &sv.host else {
+        return Err(Problem::failed("the host isn't running"));
+    };
+    host.send(HostCmd::KickAll);
+    Ok(())
+}
+
+/// 首页里填的配对码（6 位数字，本机生成的，可以自己改）：写进 `config.toml` 并马上生效。
+/// Windows 安装版：配置文件在安装目录里，由服务里的被控端维护（托盘没有写权限），经命名管道交给它
+#[tauri::command]
+async fn pairing_save(
+    state: tauri::State<'_, AppState>,
+    code: String,
+) -> Result<(), Problem> {
+    config::check_pairing(&code).map_err(|e| Problem::failed(format!("{e:#}")))?;
+    let code = code.trim().to_string();
+    {
+        let sv = state.services.lock().unwrap();
+        let Some(host) = &sv.host else {
+            return Err(Problem::failed("the host isn't running"));
+        };
+        host.pairing(PairingCmd::Set(code));
+    }
+    Ok(())
 }
 
 /// 重启程序：服务器地址和指纹在启动时读一次（见 [`config::settings`]），改完靠这个生效
@@ -601,6 +804,24 @@ pub fn run() {
             devices_load,
             devices_save,
             server_save,
+            pairing_save,
+            kick_all,
+            kick_session,
+            account_get,
+            account_refresh,
+            account_server,
+            account_change_password,
+            account_devices,
+            account_save_devices,
+            account_register,
+            account_login,
+            account_logout,
+            profile_get,
+            profile_set_allow,
+            profile_set_verify,
+            favorite_toggle,
+            recent_push,
+            recent_drop,
             restart_app,
         ])
         .setup(move |app| {

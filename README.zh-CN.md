@@ -139,7 +139,8 @@ NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker 
 | 目录 | 内容 |
 |---|---|
 | `crates/` | 协议（`nife-remote-proto`）和客户端到服务器的链路（`nife-remote-link`） |
-| `server/` | 中转服务器 |
+| `server/core/` | 中转服务器（Rust + QUIC） |
+| `server/auth/` | 账号服务（Python + FastAPI，账号与"本账号设备"） |
 | `web/` | 网页控制台服务 |
 | `client/` | 桌面客户端：Tauri（Rust）+ React 界面，界面也给网页控制台用 |
 

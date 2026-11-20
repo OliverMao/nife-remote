@@ -67,6 +67,7 @@ async fn run(socket: WebSocket, app: Arc<App>, peer: SocketAddr) {
         info: json!({
             "version": env!("CARGO_PKG_VERSION"),
             "server": app.link.server,
+            "configured": true,
             "pinned": app.link.pinned(),
             // 被控端看到的控制端名称
             "hostname": app.link.name,

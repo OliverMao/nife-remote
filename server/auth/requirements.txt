@@ -1,0 +1,4 @@
+# 账号服务（server/auth）。只用到标准库 + FastAPI 这一套，没有数据库驱动。
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4

@@ -50,10 +50,13 @@ pub struct LinkConfig {
     pub server: String,
     /// 怎样校验服务器的证书（见模块说明）
     pub trust: Trust,
-    /// 告诉服务器的本机名称（被控端的托盘里显示"谁在控制"），空字符串表示不知道
+    /// 告诉服务器的本机名称（被控端的托盘里显示“谁在控制”），空字符串表示不知道
     pub name: String,
     /// 本机操作系统，仅用于展示
     pub os: String,
+    /// 配置了中转服务器地址。`false`：客户端还没填过（编进程序的也只是占位值），
+    /// 直接报告 [`Problem::NoServer`]，不连接也不重试（见 [`LinkConfig::unconfigured`]）
+    pub configured: bool,
 }
 
 impl std::fmt::Debug for LinkConfig {
@@ -126,7 +129,14 @@ impl LinkConfig {
             trust,
             name: name.into(),
             os: os.into(),
+            configured: true,
         })
+    }
+
+    /// 还没填服务器地址：不连接、不重试，只把 [`Problem::NoServer`] 报给界面
+    pub fn unconfigured(mut self) -> Self {
+        self.configured = false;
+        self
     }
 
     /// 没有配置指纹时，第一次连上时记下的指纹存进 `store`（配置了指纹时不用它）

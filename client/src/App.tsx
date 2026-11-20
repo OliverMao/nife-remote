@@ -1,16 +1,19 @@
 import { useEffect, useRef } from "react";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { ConnectView } from "./components/ConnectView";
 import { GridView } from "./components/GridView";
 import { SessionView } from "./components/SessionView";
 import { TitleBar } from "./components/TitleBar";
 import { WebUnsupported, webUnsupported } from "./components/WebUnsupported";
-import { allowClose, applyFullscreen, closeTab, loadDevices, reopenLast } from "./lib/actions";
+import { allowClose, applyFullscreen, closeTab, loadDevices, reopenLast, syncDevicesFromAccount } from "./lib/actions";
 import { api } from "./lib/api";
 import { supportedDecoders } from "./lib/codec";
 import { setLang, useLang } from "./lib/i18n";
 import { markPlatform } from "./lib/platform";
 import { store, useStore } from "./lib/store";
+import { Sidebar } from "./components/Sidebar";
+import { DeviceView } from "./components/DeviceView";
+import { AssistView } from "./components/AssistView";
+import { HostView } from "./components/HostView";
 
 markPlatform();
 
@@ -63,6 +66,16 @@ function Console() {
     // 网页版没有被控端，这两个都是空的
     const unHost = api.onHostStatus(store.setHost);
     void loadDevices();
+    // 本机偏好（允许协助 / 验证方式 / 收藏 / 最近连接）
+    void api.profileGet().then((p) => store.setProfile(p), () => {});
+    void api.accountGet().then((a) => {
+      store.setAccount(a);
+      // 后台再问一下账号服务（凭证过期就自动变成没登录）
+      if (a) {
+        void api.accountRefresh().then((fresh) => store.setAccount(fresh), () => {});
+        void syncDevicesFromAccount();
+      }
+    }, () => {});
     void supportedDecoders().then(store.setDecoders);
     const unStatus = api.onServerStatus(store.setServer);
     const unOnline = api.onHostOnline(store.hostOnline);
@@ -120,16 +133,25 @@ function Console() {
 
   return (
     <div className={`app ${immersive ? "immersive" : ""}`}>
-      {!immersive && <TitleBar />}
-      <main className="main">
-        {view === "grid" && sessions.length > 0 ? (
+      {!immersive && <Sidebar />}
+      <div className="workspace">
+        {!immersive && <TitleBar />}
+        <main className="main">
+        {view === "host" ? (
+          <HostView />
+        ) : view === "assist" || view === "new" ? (
+          <AssistView />
+        ) : view === "device" ? (
+          <DeviceView />
+        ) : view === "grid" && sessions.length > 0 ? (
           <GridView />
         ) : active ? (
           <SessionView key={active.id} s={active} />
         ) : (
-          <ConnectView />
+          <AssistView />
         )}
-      </main>
+        </main>
+      </div>
       <ConfirmDialog />
     </div>
   );

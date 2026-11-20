@@ -3,7 +3,7 @@
 // 会话和桌面版一样走 WebSocket（console.ts），连的是同一个端口的 `/ws`。网页版自己的：
 // * 剪贴板在浏览器里同步（navigator.clipboard），规则与桌面版相同：只同步连接之后的变化，并抑制回声；
 // * 没有被控端模式、托盘和窗口；"我的设备"不保存。
-import type { AppInfo, Backend, Command, ConnectOptions, Problem, SessionEvent, SessionInfo } from "../api";
+import type { AccountInfo, AppInfo, Backend, Command, ConnectOptions, HostStatus, Problem, Profile, SessionEvent, SessionInfo } from "../api";
 import { ConsoleLink, type MediaView } from "../console";
 import { getLang } from "../i18n";
 
@@ -18,6 +18,12 @@ interface Clip {
 }
 
 /** 与 nife_remote_proto::session::MAX_CLIPBOARD_TEXT 相同（按字符数粗略限制，服务端还会按字节检查） */
+/** 网页版没有本地文件，账号也只在这次页面里有效 */
+let webAccount: { info: AccountInfo; password: string } | null = null;
+
+/** 网页版没有本地文件，这份偏好只放在内存里 */
+let defaultProfile: Profile = { allowAssist: true, verify: "pairing", favorites: [], recent: [] };
+
 const MAX_CLIPBOARD = 1 << 20;
 const CLIPBOARD_POLL_MS = 1000;
 
@@ -194,8 +200,21 @@ class WebConsole extends ConsoleLink implements Backend {
     return text;
   }
 
-  // 网页版没有被控端、托盘和窗口
-  async hostStatus() {
+  // 网页版没有被控端、托盘和窗口。
+  // 开发时加 ?preview=host 可以看桌面版才有的"本机被控中"卡片（只是看样式用，正式构建里没有）
+  async hostStatus(): Promise<HostStatus | null> {
+    // 开发模式由 main.tsx 打上标记（正式构建里没有这个标记，也就不可能被 URL 参数打开）
+    const dev = (globalThis as { __NIFE_DEV__?: boolean }).__NIFE_DEV__ === true;
+    if (dev && typeof location !== "undefined" && location.search.includes("preview=host")) {
+      return {
+        server: { state: "connected" },
+        code: 260778,
+        controllers: [{ sessionId: 1, peer: { name: "PC-01", ip: "10.0.0.8" }, safety: null }],
+        pairing: "430316",
+        pairingLocked: false,
+        paired: 0,
+      };
+    }
     return null;
   }
   onHostStatus() {
@@ -209,11 +228,109 @@ class WebConsole extends ConsoleLink implements Backend {
   onWindowFullscreenExit() {
     return () => {};
   }
-  // 网页版不保存"我的设备"（不写浏览器的存储）：只在本页面的内存里，刷新后清空
+  // 网页版不保存"我的设备"（不写浏览器的存储）：只在本页面的内存里，刷新后清空。
+  // 开发时加 ?preview=host 也给两台假的，方便看设备页
   async loadDevices() {
+    const dev = (globalThis as { __NIFE_DEV__?: boolean }).__NIFE_DEV__ === true;
+    if (dev && typeof location !== "undefined" && location.search.includes("preview=host")) {
+      return [
+        {
+          code: "260778",
+          alias: null,
+          name: "MAO7",
+          os: "Windows 11",
+          resume: null,
+          lastUsed: Date.now() - 60_000,
+          quality: null,
+          hostKey: null,
+        },
+        {
+          code: "318890",
+          alias: "公司电脑",
+          name: "DESKTOP-78TN",
+          os: "Windows 11",
+          resume: null,
+          lastUsed: Date.now() - 3_600_000,
+          quality: null,
+          hostKey: null,
+        },
+      ];
+    }
     return null;
   }
   async saveDevices() {}
+  // 网页版没有被控端，也就没有配对码
+  async savePairing(): Promise<void> {
+    throw new Error("the web console has no host, so there is no pairing code");
+  }
+  async kickAll(): Promise<void> {
+    throw new Error("the web console has no host");
+  }
+  async kickSession(): Promise<void> {
+    throw new Error("the web console has no host");
+  }
+
+  // 网页版没有本地文件：这份偏好放在内存里（刷新就回到默认值）
+  async accountGet(): Promise<AccountInfo | null> {
+    return webAccount?.info ?? null;
+  }
+  async accountRefresh(): Promise<AccountInfo | null> {
+    return webAccount?.info ?? null;
+  }
+  async accountServer(): Promise<string> {
+    return "（网页版没有账号服务）";
+  }
+  async accountRegister(name: string, password: string): Promise<AccountInfo> {
+    webAccount = { info: { id: "uweb", name, createdAt: Math.floor(Date.now() / 1000) }, password };
+    return webAccount.info;
+  }
+  async accountLogin(name: string, password: string): Promise<AccountInfo> {
+    if (!webAccount || webAccount.info.name !== name || webAccount.password !== password) {
+      throw new Error("no such account on this computer");
+    }
+    return webAccount.info;
+  }
+  async accountLogout(): Promise<void> {
+    webAccount = null;
+  }
+  async accountChangePassword(oldPassword: string, newPassword: string): Promise<AccountInfo> {
+    if (!webAccount || webAccount.password !== oldPassword) {
+      throw new Error("the current password is wrong");
+    }
+    webAccount.password = newPassword;
+    return webAccount.info;
+  }
+  async accountDevices(): Promise<string[]> {
+    return webAccount ? [...(await this.profileGet()).recent.map(() => "")].filter(Boolean) : [];
+  }
+  async accountSaveDevices(): Promise<void> {}
+
+  async profileGet(): Promise<Profile> {
+    return { ...defaultProfile };
+  }
+  async profileSetAllow(allow: boolean): Promise<Profile> {
+    return { ...defaultProfile, allowAssist: allow };
+  }
+  async profileSetVerify(verify: Profile["verify"]): Promise<Profile> {
+    return { ...defaultProfile, verify };
+  }
+  async favoriteToggle(code: string): Promise<Profile> {
+    const favorites = defaultProfile.favorites.includes(code)
+      ? defaultProfile.favorites.filter((c) => c !== code)
+      : [code, ...defaultProfile.favorites];
+    defaultProfile = { ...defaultProfile, favorites };
+    return { ...defaultProfile };
+  }
+  async recentPush(code: string, name: string): Promise<Profile> {
+    const recent = [{ code, name, at: Math.floor(Date.now() / 1000) }, ...defaultProfile.recent.filter((r) => r.code !== code)].slice(0, 20);
+    defaultProfile = { ...defaultProfile, recent };
+    return { ...defaultProfile };
+  }
+  async recentDrop(code?: string): Promise<Profile> {
+    const recent = code ? defaultProfile.recent.filter((r) => r.code !== code) : [];
+    defaultProfile = { ...defaultProfile, recent };
+    return { ...defaultProfile };
+  }
   // 网页版的服务器地址和指纹是启动容器时的环境变量，界面里改不了（见 web/.env.example）
   async saveServer(): Promise<void> {
     throw new Error(

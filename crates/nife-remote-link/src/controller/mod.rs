@@ -622,6 +622,13 @@ impl Drop for ControllerService {
 }
 
 async fn run(inner: Arc<Inner>, report: Report) {
+    // 还没填中转服务器：不连接、不重试（见 `LinkConfig::configured`）
+    if !inner.cfg.configured {
+        report(ServerState::Disconnected {
+            reason: Problem::NoServer,
+        });
+        return;
+    }
     let mut reconnect = Reconnect::new(report.clone());
     loop {
         reconnect.begin();

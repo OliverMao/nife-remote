@@ -2,7 +2,7 @@
 // "我的设备"保存在 config.toml 里（见 actions.ts 的 saveDevices）；画面增强、本地光标是这台电脑自己显示的偏好，
 // 和对方无关，存在 WebView / 浏览器的 localStorage 里；其余只在控制台打开期间有效。
 import { useCallback, useSyncExternalStore } from "react";
-import type { AppInfo, Codec, HostStatus, Problem, QualitySettings, SavedDevice, ServerState } from "./api";
+import type { AccountInfo, AppInfo, Codec, HostStatus, Problem, Profile, QualitySettings, SavedDevice, ServerState } from "./api";
 import { fmtCode } from "./devices";
 import { ENHANCE_LEVELS, type EnhanceLevel } from "./enhance";
 import { DEFAULT_PRESET, type PresetId } from "./presets";
@@ -38,7 +38,13 @@ interface State {
   view: View;
   /** 新建连接标签（总在会话标签后面）；没有会话时一定有 */
   draft: Draft | null;
+  /** 设备页显示的是哪台（`view === "device"` 时有效，见 DeviceView） */
+  device: string | null;
   recent: Recent[];
+  /** 本机偏好和记录（profile.json，见 Rust 的 profile 模块） */
+  profile: Profile;
+  /** 现在登录的本机账号（accounts.json，没登录是 null） */
+  account: AccountInfo | null;
   /** 我的设备：连接过的电脑，最近连过的在前面 */
   devices: SavedDevice[];
   /** 我的设备能不能保存（桌面版：config.toml）；网页版只在本页面的内存里 */
@@ -108,7 +114,10 @@ let state: State = {
   sessions: [],
   view: "new",
   draft: emptyDraft(),
+  device: null,
   recent: [],
+  profile: { allowAssist: true, verify: "pairing", favorites: [], recent: [] },
+  account: null,
   devices: [],
   devicesSaved: false,
   confirm: null,
@@ -179,6 +188,12 @@ export const store = {
     if (view === "new" && !state.draft) return store.newTab();
     set({ view, immersive: view === "new" || view === "grid" ? false : state.immersive });
   },
+  /** 打开一台设备的详情页（照 UU：点左栏的设备先进这个页面） */
+  showDevice: (code: string) => set({ view: "device", device: code, immersive: false }),
+  /** 打开发起协助的页面（左栏"开始协助"） */
+  showAssist: () => set({ view: "assist", immersive: false }),
+  /** 被控中那一页（左栏被控卡的放大按钮） */
+  showHost: () => set({ view: "host", immersive: false }),
   setImmersive: (immersive: boolean) => set({ immersive }),
   /** 画面增强：记下来，所有会话马上按它重画 */
   setEnhance: (enhance: EnhanceLevel) => {
@@ -259,6 +274,11 @@ export const store = {
     if (v) store.setView(v);
   },
   setDevices: (devices: SavedDevice[], saved = state.devicesSaved) => set({ devices, devicesSaved: saved }),
+  /** 最近连接：删除一条或清空（只改内存，连上时会重新记） */
+  setRecent: (recent: Recent[]) => set({ recent }),
+  /** 桌面端从 profile.json 读到的偏好（网页版是内存里的默认值） */
+  setProfile: (profile: Profile) => set({ profile }),
+  setAccount: (account: AccountInfo | null) => set({ account }),
 
   setConfirm: (confirm: Confirm) => set({ confirm }),
 };

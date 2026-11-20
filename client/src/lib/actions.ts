@@ -1,6 +1,8 @@
 // 跨组件的操作：连接、我的设备、重新打开关闭的会话、关闭控制台（先确认）、全屏。
 import { api, toProblem, type QualitySettings, type SavedDevice } from "./api";
 import * as devices from "./devices";
+import { bestCodec } from "./codec";
+import { DEFAULT_PRESET, presetSettings } from "./presets";
 import { OS } from "./platform";
 import { RemoteSession } from "./session";
 import { emptyDraft, store } from "./store";
@@ -124,10 +126,49 @@ function setDevices(list: SavedDevice[]) {
   if (list === store.get().devices) return;
   store.setDevices(list);
   saveDevices();
+  syncDevicesToAccount();
+}
+
+/** 设备列表同步到账号（没登录就什么都不做）：账号服务里存着"本账号设备"的 ID */
+let syncing = false;
+export function syncDevicesToAccount() {
+  if (syncing || !store.get().account) return;
+  const codes = store.get().devices.map((d) => d.code);
+  syncing = true;
+  void api.accountSaveDevices(codes).catch((e) => console.warn("can't sync the devices to the account", e)).finally(() => {
+    syncing = false;
+  });
+}
+
+/** 登录之后：把账号里的设备拉回来（本机没有的补进"我的设备"，用默认画质），再把本机的补上去 */
+export async function syncDevicesFromAccount(): Promise<void> {
+  if (!store.get().account) return;
+  try {
+    const codes = await api.accountDevices();
+    const now = store.get().devices;
+    const missing = codes.filter((c) => !now.some((d) => d.code === c));
+    if (missing.length > 0) {
+      const preset = presetSettings(DEFAULT_PRESET, bestCodec(store.get().decoders));
+      // 从账号拉回来的只记 ID：名字先当控制码、画质用默认，连一次之后会自动补全
+      let merged = now;
+      for (const code of missing) {
+        const seen = { code, name: devices.fmtCode(code), os: "", resume: null, quality: preset, hostKey: null };
+        merged = devices.remember(merged, seen, Date.now());
+      }
+      merged = devices.sortDevices(merged);
+      store.setDevices(merged.slice(0, devices.MAX_DEVICES), store.get().devicesSaved);
+      saveDevices();
+    }
+    syncDevicesToAccount();
+  } catch (e) {
+    console.warn("can't load the devices from the account", e);
+  }
 }
 
 /** 连上了：记下这台电脑（名字、系统、重连凭证、画质、时间） */
 export function rememberSession(s: RemoteSession) {
+  // 最近连接记在 profile.json 里（远程协助页显示）
+  void api.recentPush(s.code, s.hostName).then((p) => store.setProfile(p), () => {});
   const seen = {
     code: s.code,
     name: s.hostName,

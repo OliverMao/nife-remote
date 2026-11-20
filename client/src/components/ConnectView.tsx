@@ -2,7 +2,7 @@
 //
 // 输入的内容放在 store 里（Draft），切到别的标签再回来时还在。
 import { useEffect, useRef, useState } from "react";
-import { api, type SavedDevice } from "../lib/api";
+import type { SavedDevice } from "../lib/api";
 import { fmtCode, forgetDevice, openSession, renameDevice, resetDraft, restoreDevice } from "../lib/actions";
 import { deviceTitle, matchDevice, relativeTime } from "../lib/devices";
 import { getLang, useT } from "../lib/i18n";
@@ -14,7 +14,7 @@ import { store, useSession, useStore, type Draft } from "../lib/store";
 
 /** 这些问题要用户输入配对码（对方的身份变了也是：重新配对才认新的身份） */
 const PAIRING_PROBLEMS = new Set(["pairingRequired", "pairingFailed", "pairingUnavailable", "hostKeyChanged"]);
-import { IconBolt, IconCheck, IconClose, IconCopy, IconMonitor, IconPencil, IconSearch, IconWarn } from "./Icons";
+import { IconBolt, IconClose, IconMonitor, IconPencil, IconSearch, IconWarn, IconWinMark } from "./Icons";
 
 export function ConnectView() {
   const t = useT();
@@ -23,6 +23,7 @@ export function ConnectView() {
   const serverProblem = useStore((s) => s.serverProblem);
   const decoders = useStore((s) => s.decoders);
   const devices = useStore((s) => s.devices);
+  const recent = useStore((s) => s.recent);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   // 新建连接标签总是有的时候才显示这一页；万一没有（例如状态不一致），补一个
@@ -83,81 +84,81 @@ export function ConnectView() {
     void openSession(code, presetSettings(preset, codec), { pairing: pairingReady ? pairing : null });
   };
 
-  /** 我的设备：用上次的画质连（没记下画质的用默认预设） */
-  const openDevice = (d: SavedDevice) => void openSession(d.code, d.quality ?? presetSettings(preset, codec));
-
   return (
     <div className="newtab">
       <div className="nt-wrap">
-        <MyCode />
-        <section className="nt-card">
-          <div className="nt-head">
-            <div className="hero-icon">
-              <IconMonitor size={26} />
-            </div>
-            <h1>{t("connect.title")}</h1>
-            <p className="muted">{t("connect.hint")}</p>
-          </div>
+        <div className="nt-page-head">
+          <h1>{t("connect.title")}</h1>
+          <p className="muted small">{t("connect.hint")}</p>
+        </div>
 
-          <div className="nt-field">
-            <div className="nt-label">
-              <span>
-                {t("connect.code")}
-                {known && <span className="nt-known">{t("devices.known", { name: deviceTitle(known) })}</span>}
-              </span>
-              {code.length > 0 && !busy && (
-                <button className="text-btn" onClick={() => (resetDraft(), inputs.current[0]?.focus())}>
-                  {t("connect.clear")}
-                </button>
-              )}
+        <section className="nt-card">
+          {/* 控制码 + 连接：一行，照 UU 的"伙伴的设备ID + 连接" */}
+          <div className="nt-row">
+            <div className="nt-field grow">
+              <div className="nt-label">
+                <span>
+                  {t("connect.code")}
+                  {known && <span className="nt-known">{t("devices.known", { name: deviceTitle(known) })}</span>}
+                </span>
+                {code.length > 0 && !busy && (
+                  <button className="text-btn" onClick={() => (resetDraft(), inputs.current[0]?.focus())}>
+                    {t("connect.clear")}
+                  </button>
+                )}
+              </div>
+              <div
+                className={`code-inputs ${error ? "invalid" : ""}`}
+                onPaste={(e) => (e.preventDefault(), setFrom(0, e.clipboardData.getData("text")))}
+              >
+                {digits.map((d, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      inputs.current[i] = el;
+                    }}
+                    className={`code-box ${d ? "filled" : ""} ${i === 3 ? "gap" : ""}`}
+                    value={d}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={1}
+                    disabled={busy}
+                    aria-label={`${t("connect.code")} ${i + 1}`}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v.length > 1) return setFrom(i, v);
+                      if (/^\d$/.test(v)) setFrom(i, v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Backspace") {
+                        e.preventDefault();
+                        const next = [...digits];
+                        if (next[i]) next[i] = "";
+                        else if (i > 0) {
+                          next[i - 1] = "";
+                          inputs.current[i - 1]?.focus();
+                        }
+                        store.patchDraft({ digits: next, error: null });
+                      } else if (e.key === "Delete") {
+                        e.preventDefault();
+                        const next = [...digits];
+                        next[i] = "";
+                        store.patchDraft({ digits: next, error: null });
+                      } else if (e.key === "ArrowLeft" && i > 0) inputs.current[i - 1]?.focus();
+                      else if (e.key === "ArrowRight" && i < 5) inputs.current[i + 1]?.focus();
+                      else if (e.key === "Home") inputs.current[0]?.focus();
+                      else if (e.key === "End") inputs.current[5]?.focus();
+                      else if (e.key === "Enter") connect();
+                    }}
+                  />
+                ))}
+              </div>
             </div>
-            <div
-              className={`code-inputs ${error ? "invalid" : ""}`}
-              onPaste={(e) => (e.preventDefault(), setFrom(0, e.clipboardData.getData("text")))}
-            >
-              {digits.map((d, i) => (
-                <input
-                  key={i}
-                  ref={(el) => {
-                    inputs.current[i] = el;
-                  }}
-                  className={`code-box ${d ? "filled" : ""} ${i === 3 ? "gap" : ""}`}
-                  value={d}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={1}
-                  disabled={busy}
-                  aria-label={`${t("connect.code")} ${i + 1}`}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v.length > 1) return setFrom(i, v);
-                    if (/^\d$/.test(v)) setFrom(i, v);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Backspace") {
-                      e.preventDefault();
-                      const next = [...digits];
-                      if (next[i]) next[i] = "";
-                      else if (i > 0) {
-                        next[i - 1] = "";
-                        inputs.current[i - 1]?.focus();
-                      }
-                      store.patchDraft({ digits: next, error: null });
-                    } else if (e.key === "Delete") {
-                      e.preventDefault();
-                      const next = [...digits];
-                      next[i] = "";
-                      store.patchDraft({ digits: next, error: null });
-                    } else if (e.key === "ArrowLeft" && i > 0) inputs.current[i - 1]?.focus();
-                    else if (e.key === "ArrowRight" && i < 5) inputs.current[i + 1]?.focus();
-                    else if (e.key === "Home") inputs.current[0]?.focus();
-                    else if (e.key === "End") inputs.current[5]?.focus();
-                    else if (e.key === "Enter") connect();
-                  }}
-                />
-              ))}
-            </div>
+            <button className="primary-btn nt-connect" disabled={!ready || busy || !online} onClick={connect}>
+              {busy ? <span className="spinner" /> : <IconBolt size={17} />}
+              <span>{busy ? t("connect.busy") : !online ? t("connect.waitServer") : t("connect.go")}</span>
+            </button>
           </div>
 
           {showPairing && (
@@ -187,6 +188,9 @@ export function ConnectView() {
           <div className="nt-field">
             <div className="nt-label">
               <span>{t("connect.quality")}</span>
+              <span className="preset-desc muted small">
+                {presetDesc(preset)} · {t("connect.prefer", { codec: CODEC_LABEL[codec] })}
+              </span>
             </div>
             <div className="segmented presets">
               {PRESETS.map((p) => (
@@ -200,9 +204,6 @@ export function ConnectView() {
                   {presetName(p.id)}
                 </button>
               ))}
-            </div>
-            <div className="preset-desc muted small">
-              {presetDesc(preset)} · {t("connect.prefer", { codec: CODEC_LABEL[codec] })}
             </div>
           </div>
 
@@ -225,13 +226,26 @@ export function ConnectView() {
             </div>
           )}
 
-          <button className="primary-btn" disabled={!ready || busy || !online} onClick={connect}>
-            {busy ? <span className="spinner" /> : <IconBolt size={18} />}
-            <span>{busy ? t("connect.busy") : !online ? t("connect.waitServer") : t("connect.go")}</span>
-          </button>
+          {/* 最近连接：照 UU 的"最近连接"一串小方块，点一下直接连 */}
+          {recent.length > 0 && (
+            <div className="nt-recent">
+              <div className="nt-recent-head small">{t("connect.recent")}</div>
+              <div className="nt-chips">
+                {recent.map((r) => (
+                  <button
+                    key={r.code}
+                    className="nt-chip"
+                    title={r.name || fmtCode(r.code)}
+                    onClick={() => void openSession(r.code, r.settings)}
+                  >
+                    <span className="mono">{fmtCode(r.code)}</span>
+                    <span className="nt-chip-name">{r.name || t("devices.unknown")}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
-
-        <MyDevices onOpen={openDevice} disabled={busy || !online} />
       </div>
     </div>
   );
@@ -240,72 +254,8 @@ export function ConnectView() {
 /** 超过这么多台时显示搜索框 */
 const SEARCH_FROM = 7;
 
-/**
- * 首页顶部：本机的连接码（别人用这个连本机）和它的状态。被控端一直在跑，所以随时都能连。
- * 网页版没有被控端，不显示
- */
-function MyCode() {
-  const t = useT();
-  const host = useStore((s) => s.host);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  if (api.kind === "web" || !host) return null;
-  const code = host.code === null ? null : fmtCode(String(host.code).padStart(6, "0"));
-  const controllers = host.controllers.length;
-  // 连不上服务器时说明原因；连上了就什么都不说（码本身已经够了）
-  const state =
-    host.server.state === "disconnected" ? problemText(host.server.reason) : t("host.connecting");
-
-  return (
-    <div className={`my-code ${code ? "ready" : ""}`}>
-      <div className="mc-main">
-        <div className="mc-label">
-          <span className="dot" />
-          {t("host.title")}
-        </div>
-        {code ? (
-          <div className="mc-code mono">{code}</div>
-        ) : (
-          <div className="mc-state muted small">{state}</div>
-        )}
-        {controllers > 0 && <div className="mc-others small">{t("host.controllers", { n: controllers })}</div>}
-      </div>
-      <div className="mc-side">
-        {code && (
-          <button
-            className={`chip-btn ${copied ? "done" : ""}`}
-            onClick={() =>
-              void navigator.clipboard?.writeText(code.replace(" ", "")).then(
-                () => setCopied(true),
-                () => {},
-              )
-            }
-          >
-            {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
-            <span>{t(copied ? "host.copied" : "host.copy")}</span>
-          </button>
-        )}
-        {host.pairing && (
-          <div className="mc-pairing small mono">
-            {host.pairingLocked
-              ? t("host.pairingLocked")
-              : t("host.pairing", { code: fmtCode(host.pairing) })}
-          </div>
-        )}
-        <div className="mc-hint muted small">{t("host.hint")}</div>
-      </div>
-    </div>
-  );
-}
-
 /** 我的设备：连接过的电脑，最近连过的在前面。点一下就连；可以重命名、移除（能撤销） */
-function MyDevices({ onOpen, disabled }: { onOpen: (d: SavedDevice) => void; disabled: boolean }) {
+export function MyDevices({ onOpen, disabled, compact = false }: { onOpen: (d: SavedDevice) => void; disabled: boolean; compact?: boolean }) {
   const t = useT();
   const devices = useStore((s) => s.devices);
   const saved = useStore((s) => s.devicesSaved);
@@ -322,15 +272,15 @@ function MyDevices({ onOpen, disabled }: { onOpen: (d: SavedDevice) => void; dis
   }, [removed]);
 
   if (devices.length === 0 && !removed) {
-    // 第一次用：告诉用户连过的电脑会出现在这里
-    return saved ? <p className="nt-empty muted small">{t("devices.empty")}</p> : null;
+    // 第一次用：告诉用户连过的电脑会出现在这里（左栏里一直显示这句，不然那儿是空的）
+    return saved || compact ? <p className="nt-empty muted small">{t("devices.empty")}</p> : null;
   }
   const open = new Map(sessions.map((s) => [s.code, s]));
   const shown = devices.filter((d) => matchDevice(d, query));
 
   return (
-    <section className="nt-devices">
-      <div className="section-title">
+    <section className={`nt-devices ${compact ? "compact" : ""}`}>
+      {!compact && <div className="section-title">
         <span>
           <IconMonitor size={14} />
           {t("devices.title")}
@@ -349,7 +299,7 @@ function MyDevices({ onOpen, disabled }: { onOpen: (d: SavedDevice) => void; dis
         ) : (
           <span className="small">{t(saved ? "devices.hint" : "devices.hintWeb")}</span>
         )}
-      </div>
+      </div>}
 
       {removed && (
         <div className="undo-bar" role="status">
@@ -431,7 +381,9 @@ function DeviceItem({
       onClick={() => !off && !editing && onOpen()}
       onKeyDown={(e) => e.key === "Enter" && !off && !editing && onOpen()}
     >
-      <span className="avatar">{title.slice(0, 1).toUpperCase()}</span>
+      <span className="device-mark">
+        <IconWinMark size={16} />
+      </span>
       <span className="device-meta">
         {editing ? (
           <input

@@ -140,7 +140,8 @@ See [Security](docs/security.md) for details.
 | Directory | Contents |
 |---|---|
 | `crates/` | The protocol (`nife-remote-proto`) and the client-to-relay link (`nife-remote-link`) |
-| `server/` | Relay server |
+| `server/core/` | Relay server (Rust + QUIC) |
+| `server/auth/` | Account service (Python + FastAPI: accounts and their devices) |
 | `web/` | Web console service |
 | `client/` | Desktop client: Tauri (Rust) + React UI, which the web console uses too |
 

@@ -3,13 +3,13 @@
 // * 设置（SettingsButton）：本机名称与控制码、语言、配置文件、快捷键说明。
 //
 // 以前主菜单在最左边的 Logo 上：macOS 上和系统的红绿灯按钮挤在一起，点服务器状态也会在最左边弹出菜单。
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, toProblem, type Problem } from "../lib/api";
 import { focusActive } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { serverStatus, useStore } from "../lib/store";
-import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconServer, IconSettings, IconWarn } from "./Icons";
+import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconMenuLines, IconServer, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { Popover } from "./Popover";
 
@@ -26,20 +26,27 @@ function useMenu() {
 
 // ───────────────────────── 设置 ─────────────────────────
 
-export function SettingsButton() {
+export function SettingsButton({ label, burger }: { label?: string; burger?: boolean }) {
   const t = useT();
   const { open, close, toggle } = useMenu();
   return (
     <div className="menu-anchor">
-      <button
-        className={`title-btn ${open ? "on" : ""}`}
-        title={t("menu.title")}
-        aria-label={t("menu.title")}
-        aria-expanded={open}
-        onClick={toggle}
-      >
-        <IconSettings size={17} />
-      </button>
+      {label ? (
+        <button className={`sb-item ${open ? "on" : ""}`} aria-expanded={open} onClick={toggle}>
+          <IconSettings size={17} />
+          <span>{label}</span>
+        </button>
+      ) : (
+        <button
+          className={`ta-icon ${open ? "on" : ""}`}
+          title={t("menu.title")}
+          aria-label={t("menu.title")}
+          aria-expanded={open}
+          onClick={toggle}
+        >
+          {burger ? <IconMenuLines size={17} /> : <IconSettings size={17} />}
+        </button>
+      )}
       {open && <AppMenu onClose={close} />}
     </div>
   );
@@ -62,6 +69,7 @@ function AppMenu({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="am-group">
+        <ServerRow />
         <div className="am-row">
           <span className="am-label">{t("menu.name")}</span>
           <span className="am-value" title={web ? t("menu.nameHintWeb") : (app?.hostname ?? undefined)}>
@@ -109,6 +117,27 @@ function AppMenu({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </Popover>
+  );
+}
+
+/** 菜单里的服务器一行：状态 + 改地址/指纹（原来顶栏那个胶囊搬进来） */
+function ServerRow() {
+  const t = useT();
+  const server = useStore((s) => s.server);
+  const status = useStore(serverStatus);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="am-row am-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="am-label">{t("server.title")}</span>
+        <span className={`am-value srv ${status} ${server.state === "connecting" ? "trying" : ""}`}>
+          <span className="dot" />
+          {t(`server.${server.state}`)}
+          <IconChevron size={13} className="am-chevron" />
+        </span>
+      </button>
+      {open && <ServerPanel onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -216,12 +245,14 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
   const server = useStore((s) => s.server);
   const problem = useStore((s) => s.serverProblem);
   const app = useStore((s) => s.app);
-  // 服务器地址和指纹可以装机后再填（桌面版）；网页版是容器启动时的环境变量，改不了
+  // 服务器地址和指纹可以装机后再填（桌面版）；网页版是容器启动时的环境变量，改不了。
+  // 还没填过（`app.configured` 为 false）时直接进入编辑：不填就没法用
   const [editing, setEditing] = useState(false);
   const [addr, setAddr] = useState("");
   const [fp, setFp] = useState("");
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<Problem | null>(null);
+  const autoEdit = useRef(false);
 
   const startEdit = () => {
     setAddr(app?.server ?? "");
@@ -229,6 +260,12 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
     setSaveError(null);
     setEditing(true);
   };
+
+  useEffect(() => {
+    if (autoEdit.current || api.kind !== "desktop" || !app || app.configured) return;
+    autoEdit.current = true;
+    startEdit();
+  }, [app]);
 
   // 服务器地址在启动时读一次，所以保存完重启程序让它生效
   const save = async (e: FormEvent) => {
@@ -265,6 +302,13 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
             {problemText(problem)}
             <span className="block sp-retry">{t(server.state === "connecting" ? "server.retrying" : "server.retryLater")}</span>
           </span>
+        </div>
+      )}
+
+      {app && !app.configured && !editing && (
+        <div className="error-box left" role="status">
+          <IconWarn size={15} />
+          <span>{t("server.notSet")}</span>
         </div>
       )}
 

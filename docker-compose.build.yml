@@ -6,10 +6,10 @@
 #     docker push <NIFE_REMOTE_IMAGE 指向的仓库名>:<tag>
 #
 #   构建机的架构决定镜像的架构；部署机是 amd64 而构建机是 Apple 芯片时，用 buildx 指定：
-#     docker buildx build --platform linux/amd64 -f server/Dockerfile \
+#     docker buildx build --platform linux/amd64 -f server/core/Dockerfile \
 #       -t <registry>/nife-remote-server:<version> --push .
 services:
   nife-remote:
     build:
       context: .
-      dockerfile: server/Dockerfile
+      dockerfile: server/core/Dockerfile

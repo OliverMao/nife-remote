@@ -42,6 +42,16 @@ export const IconGrid = (p: P) =>
       <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" />
     </>,
   );
+/** Windows 的四块（"我的设备"里每台电脑的图标）：平涂，缩到 12px 也认得出 */
+export const IconWinMark = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="win-mark">
+    <path d="M3 4.4h8.2v6.8H3z" fill="currentColor" />
+    <path d="M13.3 4.4H21v6.8h-7.7z" fill="currentColor" opacity="0.75" />
+    <path d="M3 12.9h8.2V19.7H3z" fill="currentColor" opacity="0.75" />
+    <path d="M13.3 12.9H21V19.7h-7.7z" fill="currentColor" />
+  </svg>
+);
+
 export const IconMonitor = (p: P) =>
   base(
     p,
@@ -51,6 +61,44 @@ export const IconMonitor = (p: P) =>
     </>,
   );
 export const IconClose = (p: P) => base(p, <path d="M6 6l12 12M18 6L6 18" />);
+/** 垃圾桶（删除） */
+export const IconTrash = (p: P) =>
+  base(p, <path d="M4 7h16M9.5 7V5.4A1.4 1.4 0 0 1 10.9 4h2.2a1.4 1.4 0 0 1 1.4 1.4V7M6.5 7l.8 11.2A1.9 1.9 0 0 0 9.2 20h5.6a1.9 1.9 0 0 0 1.9-1.8L17.5 7" />);
+
+/** 眼睛（显示/隐藏验证码） */
+export const IconEye = (p: P) =>
+  base(p, <><path d="M2.6 12S6 6.6 12 6.6 21.4 12 21.4 12 18 17.4 12 17.4 2.6 12 2.6 12Z" /><circle cx="12" cy="12" r="2.6" /></>);
+
+/** 眼睛加一道斜线（已隐藏） */
+export const IconEyeOff = (p: P) =>
+  base(p, <><path d="M4 5l16 14" /><path d="M9.6 6.9A9.7 9.7 0 0 1 12 6.6c6 0 9.4 5.4 9.4 5.4a15 15 0 0 1-2.7 3.2" /><path d="M6.2 8.5A15.2 15.2 0 0 0 2.6 12S6 17.4 12 17.4c1 0 1.9-.1 2.7-.4" /></>);
+
+/** 星星（收藏） */
+export const IconStar = ({ size = 14, filled = false }: { size?: number; filled?: boolean }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round">
+    <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8L3.6 9.7l5.8-.8z" />
+  </svg>
+);
+
+/** 通知（铃铛） */
+export const IconBell = (p: P) =>
+  base(p, <path d="M6.5 16.5V10a5.5 5.5 0 0 1 11 0v6.5M4.8 16.5h14.4M10 19.5a2.2 2.2 0 0 0 4 0" />);
+
+/** 账号（人像） */
+export const IconUser = (p: P) =>
+  base(p, <><circle cx="12" cy="8.4" r="3.6" /><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0" /></>);
+
+/** 三横线（应用菜单） */
+export const IconMenuLines = (p: P) => base(p, <path d="M4 7h16M4 12h16M4 17h16" />);
+
+/** 竖三点（更多操作） */
+export const IconKebab = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <circle cx="12" cy="5" r="1.7" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.7" fill="currentColor" />
+    <circle cx="12" cy="19" r="1.7" fill="currentColor" />
+  </svg>
+);
 export const IconSliders = (p: P) =>
   base(
     p,

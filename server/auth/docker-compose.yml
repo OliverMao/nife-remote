@@ -1,0 +1,41 @@
+# Nife Remote 账号服务（FastAPI）。和中转服务器（仓库根的 docker-compose.yml）分开部署，互不影响。
+#
+#   部署机只拉镜像：
+#     cp .env.example .env       # 填 NIFE_REMOTE_AUTH_IMAGE
+#     docker compose pull && docker compose up -d
+#     curl -s localhost:8080/health
+#
+#   构建机（仓库根目录）：
+#     docker compose -f server/auth/docker-compose.yml -f server/auth/docker-compose.build.yml build
+#     docker push <镜像名>:<tag>
+#
+#   对外建议放在 HTTPS 反向代理后面（例如 Caddy：handle /auth/* 和 /health 转发到 127.0.0.1:8080），
+#   客户端默认按 https 访问账号接口。
+name: nife-remote-auth
+services:
+  auth:
+    image: ${NIFE_REMOTE_AUTH_IMAGE:?set NIFE_REMOTE_AUTH_IMAGE in .env, e.g. registry.example.com/nife-remote-auth:0.0.1}
+    container_name: nife-remote-auth
+    restart: unless-stopped
+    ports:
+      - "${NIFE_REMOTE_AUTH_PORT:-8080}:8080"
+    volumes:
+      - ./data:/data # accounts.json（账号 + 登录凭证 + 每个账号的设备列表）
+    environment:
+      NIFE_REMOTE_AUTH_DATA: /data
+      NIFE_REMOTE_AUTH_DB: /data/accounts.json
+      # 登录凭证有效期（秒），默认 30 天
+      NIFE_REMOTE_AUTH_TOKEN_TTL: ${NIFE_REMOTE_AUTH_TOKEN_TTL:-2592000}
+      # open 允许注册，closed 关闭注册
+      NIFE_REMOTE_AUTH_REGISTRATION: ${NIFE_REMOTE_AUTH_REGISTRATION:-open}
+      NIFE_REMOTE_AUTH_MAX_USERS: ${NIFE_REMOTE_AUTH_MAX_USERS:-1000}
+      # 密码摘要迭代次数（调大更安全、登录更慢；老账号登录成功后自动升级）
+      NIFE_REMOTE_AUTH_ROUNDS: ${NIFE_REMOTE_AUTH_ROUNDS:-200000}
+      # 服务器上一个账号都没有时自动建的账号（第一次登录用，登录后请改密码）
+      NIFE_REMOTE_AUTH_DEFAULT_USER: ${NIFE_REMOTE_AUTH_DEFAULT_USER:-niferemote}
+      NIFE_REMOTE_AUTH_DEFAULT_PASSWORD: ${NIFE_REMOTE_AUTH_DEFAULT_PASSWORD:-niferemote}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

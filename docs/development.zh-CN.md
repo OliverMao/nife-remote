@@ -5,7 +5,7 @@
 ## 测试
 
 ```bash
-# 仓库根目录：协议 + 链路库 + 服务器（调试构建里服务器的每次加锁都检查先后，见 server/src/broker/lock.rs）
+# 仓库根目录：协议 + 链路库 + 服务器（调试构建里服务器的每次加锁都检查先后，见 server/core/src/broker/lock.rs）
 cargo test
 # 服务器只用 nife-remote-link 的 wire（关掉了默认的 client）：上面的 cargo test 总是带着 client 编译它，这里单独检查一下
 cargo test -p nife-remote-link --no-default-features

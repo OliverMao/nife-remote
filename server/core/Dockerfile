@@ -4,7 +4,7 @@ FROM rust:1-slim-bookworm AS builder
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-COPY server ./server
+COPY server/core ./server/core
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked -p nife-remote-server \

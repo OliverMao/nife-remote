@@ -4,7 +4,7 @@
 
 ## Host and controller at the same time
 
-Double-click to run (on Windows install it first, see [Windows installation](#windows-installation)): the console window opens, and **the top of the home page shows this computer's control code**. Others use that code to connect here, and you can connect out from the same window; the two halves don't affect each other. Closing the window only disconnects your own sessions, this computer stays reachable, and **Open console** in the tray brings the window back.
+Double-click to run (on Windows install it first, see [Windows installation](#windows-installation)): the console window opens, and **the top of the home page shows this computer's control code and pairing code**. The pairing code has a **Change** button: pick your own 6 digits and it takes effect immediately. Others use that code to connect here, and you can connect out from the same window; the two halves don't affect each other. Closing the window only disconnects your own sessions, this computer stays reachable, and **Open console** in the tray brings the window back.
 
 The tray icon sits in the bottom-right corner. Grey means not connected to the server, coloured means connected. The right-click menu contains:
 
@@ -17,7 +17,7 @@ The tray icon sits in the bottom-right corner. Grey means not connected to the s
 
 After a network drop the host reconnects automatically with exponential backoff and **gets its old control code back**, even after a server restart. The code is **fixed**: it's saved in `config.toml`, and the server keeps it for this computer however long it stays offline (codes unused for 180 days are released), so it stays the same across restarts and upgrades until you change it.
 
-**Pairing**: the relay server assigns control codes, so it knows all of them; the control code alone therefore doesn't get anyone in (otherwise the server could connect by itself). The first time a controller connects to this computer it has to enter the 6-digit **pairing code** from the tray menu; the pairing code never goes through the server. After that this computer remembers the controller and the control code is enough. After 5 wrong pairing codes in a row pairing is paused (the tray says so) until you pick a new pairing code. If you don't want pairing codes (e.g. you only use a relay server you trust), set `access = "open"` in `config.toml`. See [Security → End-to-end encryption](security.md#end-to-end-encryption).
+**Pairing**: the relay server assigns control codes, so it knows all of them; the control code alone therefore doesn't get anyone in (otherwise the server could connect by itself). The first time a controller connects to this computer it has to enter the 6-digit **pairing code** from the tray menu (or the console's home page); the pairing code never goes through the server. After that this computer remembers the controller and the control code is enough. After 5 wrong pairing codes in a row pairing is paused (the tray says so) until you pick a new pairing code. If you don't want pairing codes (e.g. you only use a relay server you trust), set `access = "open"` in `config.toml`. See [Security → End-to-end encryption](security.md#end-to-end-encryption).
 
 ## Windows installation
 
