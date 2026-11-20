@@ -2,27 +2,22 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](usage.md)
 
-## 被控端（默认）
+## 被控端和控制端同时在跑
 
-双击运行（Windows 要先安装，见 [Windows 安装版](#windows-安装版)），右下角（macOS 是屏幕顶部的菜单栏，Linux 是顶栏 / 任务栏的状态区）出现托盘图标：灰色表示没连上服务器，彩色表示已连接。右键（macOS 上单击）菜单里有：
+双击运行（Windows 要先安装，见 [Windows 安装版](#windows-安装版)）就会打开控制台窗口，**首页顶部是本机的连接码**：别人用这个码连本机，你也能在同一个窗口里连别人，两边互不影响。关掉窗口只断你自己的会话，本机还是能被别人连；从托盘菜单能再把窗口打开。
 
-- 当前模式、服务器状态
-- **控制码**和“复制控制码”
+右下角是托盘图标：灰色表示没连上服务器，彩色表示已连接。右键菜单里有：
+
+- 本机控制码（也可以选“复制控制码”）、服务器状态
 - **配对码**、“复制配对码”和**更换配对码**：没配对过的控制端第一次连接本机时，除了控制码还要输入配对码（见下面的“配对”）
 - 正在控制本机的控制端（连接后面是**安全码**），以及**断开所有控制端**
 - **更换控制码**：旧码立即失效，已连接的控制端会被断开；配对码也换一个，配对过的控制端全部忘掉
 - **忘掉已配对的控制端**：它们下次连接要重新输入配对码
-- 打开控制台、**开机自动启动**（Windows）/ 切换为控制端（macOS、Linux）、**登录时自动启动**（macOS）/ 语言 / **卸载 Nife Remote…**（macOS，见[卸载](#卸载)）/ 退出
+- **打开控制台**、**开机自动启动** / 语言 / 退出
 
 掉线后会按指数退避自动重连，并且**取回原来的控制码**（服务器重启后也能取回）。控制码是**固定的**：保存在 `config.toml` 里，服务器为这台电脑一直保留它，离线多久都不会分给别人（180 天没有上线才释放），所以重启、升级之后都不变，直到你主动更换。
 
 **配对**：控制码是中转服务器分配的，服务器知道所有控制码，所以只凭控制码不能连上本机（否则服务器自己就能连上来）。一台控制端第一次连接本机时，要输入托盘菜单里的 6 位**配对码**；配对码不经过服务器。配对之后本机记住这台控制端，以后只要控制码。有人连续输错 5 次配对码时配对会暂停，托盘里会提示，换一个配对码就恢复。不想要配对码（例如只在自己信任的服务器上用）时，在 `config.toml` 里写 `access = "open"`。详见[安全 → 端到端加密](security.zh-CN.md#端到端加密)。
-
-> Linux 的托盘图标走 AppIndicator：Ubuntu、KDE、Xfce 等开箱即用，原版 GNOME 需要装 “AppIndicator and KStatusNotifierItem Support” 扩展。没有 AppIndicator 库时程序照常作为被控端运行，控制码打印在日志（stderr）里。
-
-> macOS 上被控端需要两项系统权限：**屏幕与系统录音**（采集画面和声音）和**辅助功能**（操作键盘鼠标）。第一次启动时系统会弹窗询问；没有授权时菜单里会有提示，点一下就打开“系统设置 → 隐私与安全性”里对应的页面；连上来的控制端也会看到对方缺少哪一项权限（按控制端自己的语言显示），对方授权后提示自动消失。授予“屏幕与系统录音”后需要重新打开 Nife Remote。Nife Remote 平时只在菜单栏里，打开控制台时才出现在程序坞中。
-
-> macOS 上的**登录时自动启动**（菜单栏图标的菜单里切换）：登录后 Nife Remote 自动在菜单栏里运行，本机重启之后照样能被控制（macOS 上程序只能在登录之后运行，登录界面本来也采集不了；Mac 设置了自动登录的话就相当于开机启动）。它就是“系统设置 → 通用 → 登录项”（有的系统版本叫“登录项与扩展”）里“登录时打开”的那一项，在那里关掉也一样，菜单会跟着变。**第一次从“应用程序”文件夹运行时默认打开**（系统会弹出“已添加登录项”的通知），只打开这一次：之后你关掉了就一直关着，Nife Remote 不会自己再打开。只有放在“应用程序”文件夹（`/Applications` 或 `~/Applications`）里的 Nife Remote 才能打开它：从下载目录、磁盘映像里直接打开的，系统会把它挪到临时位置运行，登记了下次也找不到，菜单里会提示先拖进“应用程序”文件夹。
 
 ## Windows 安装版
 
@@ -32,17 +27,15 @@ Windows 上用安装程序安装（装到 `C:\Program Files\Nife Remote`，所�
 - **开机自动启动**（托盘菜单，默认开启）：开机时启动服务，登录之前就能被控制；登录后出现托盘图标
 - 配置文件 `config.toml` 在安装目录里（安装时生成，见[配置文件](#配置文件)），由服务维护；要用管理员身份修改
 - **卸载**（设置 → 应用）会停止并删除服务、开机启动项、`config.toml` 和程序，不留下任何东西（见[卸载](#卸载)）。在旧版本上安装新版本时保留 `config.toml`（也就保留了控制码和我的设备），选择“先卸载旧版本”也一样
-- 没有安装的 `nife-remote.exe` 不能直接运行：发布版会提示运行安装程序。调试构建（`npm run tauri dev`）和 macOS、Linux 一样在托盘进程里运行被控端，`config.toml` 放在程序旁边（`client/src-tauri/target/debug/`）
+- 没有安装的 `nife-remote.exe` 不能直接运行：发布版会提示运行安装程序。调试构建（`npm run tauri dev`）在托盘进程里运行被控端，`config.toml` 放在程序旁边（`client/src-tauri/target/debug/`）
 
 ## 配置文件
 
-Nife Remote 要保存的东西都在一个 `config.toml` 里（里面有注释）。控制台左上角的菜单里也能看到它的位置：
+Nife Remote 要保存的东西都在一个 `config.toml` 里（里面有注释）。控制台的设置里也能看到它的位置：
 
-| 系统 | 位置 |
+| 位置 | 说明 |
 |---|---|
-| Windows | 安装目录：`C:\Program Files\Nife Remote\config.toml`（没有安装的调试构建在程序旁边） |
-| macOS | `~/Library/Application Support/app.nife-remote.client/config.toml` |
-| Linux | `$XDG_CONFIG_HOME/nife-remote/config.toml`，默认 `~/.config/nife-remote/config.toml` |
+| `C:\Program Files\Nife Remote\config.toml` | 安装目录（没有安装的调试构建在程序旁边） |
 
 | 键 | 说明 |
 |---|---|
@@ -50,7 +43,7 @@ Nife Remote 要保存的东西都在一个 `config.toml` 里（里面有注释�
 | `server_fp` | 中转服务器的证书指纹；`""` 表示不固定指纹：第一次连接时记住服务器的证书（`[server_trust]`），之后证书变了就拒绝连接；不设置时使用编译进程序的指纹 |
 | `[server_trust]` | 由 Nife Remote 写入：没有设置指纹时，第一次连上中转服务器时记下的证书指纹。服务器确实换了证书时删掉这一段 |
 | `access` | 没配对过的控制端能不能连本机：`"pairing"`（默认）要输入托盘里的配对码；`"open"` 知道控制码就能连（等于信任中转服务器） |
-| `autostart` | Windows：开机自动启动（托盘菜单里也可以切换）。macOS：登录时自动启动的记录，以系统设置为准，只改这一项不起作用；没有这一项表示还没有按默认打开过（见上面） |
+| `autostart` | 开机自动启动（托盘菜单里也可以切换） |
 | `[code]` | 本机的控制码，以及取回它用的密钥。删掉 `code` 和 `secret` 就会重新分配 |
 | `[host]` | 由 Nife Remote 维护：本机作为被控端的端到端加密身份（`key`）、配对码和它有没有暂停，都是加密保存的。删掉 `key` 会生成新的身份：连过本机的控制端会提示本机的身份变了 |
 | `[[paired]]` | 由 Nife Remote 维护：配对过的控制端（公钥、名称、配对的时间），不用配对码就能连。删掉一项就是忘掉那个控制端 |
@@ -58,13 +51,13 @@ Nife Remote 要保存的东西都在一个 `config.toml` 里（里面有注释�
 | `[[device]]` | 控制台的**我的设备**：连接过的电脑（控制码、对方的名字、自己起的名字、上次的画质、最后连接的时间、对方的公钥 `host_key`），连上时自动保存，最多 50 台。手动添加时 `code` 写 6 位数字就行 |
 
 - 改了设置要重新启动 Nife Remote 才生效（退出，再打开）。Nife Remote 保存控制码和设备时会保留你改过的内容和注释
-- **不小心删掉了**（这个文件或者整个目录）：启动时、以及运行中几秒之内，按默认配置重新生成；本机的控制码、开机自动启动（macOS 是登录时自动启动的记录）、端到端加密的身份、配对过的控制端和我的设备从删掉之前的内容接着用，不会丢，其余设置回到默认
-- 控制码能直接控制对应的电脑，相当于钥匙。macOS / Linux 上只有你的账户能读写这个文件（权限 600，目录 700）。Windows 上文件在安装目录里，本机的所有账户都能读：本机的密钥用 SYSTEM 账户的 DPAPI 加密，我的设备里的控制码用保存它的那个 Windows 账户加密，别的账户、别的电脑都解不开（同一台电脑上每个账户只看得到自己的设备）
-- Windows 卸载时删除；macOS / Linux 上删掉程序后它还在（系统的惯例），要一起删掉，见[卸载](#卸载)
+- **不小心删掉了**（这个文件或者整个目录）：启动时、以及运行中几秒之内，按默认配置重新生成；本机的控制码、开机自动启动、端到端加密的身份、配对过的控制端和我的设备从删掉之前的内容接着用，不会丢，其余设置回到默认
+- 控制码能直接控制对应的电脑，相当于钥匙。文件在安装目录里，本机的所有账户都能读：本机的密钥用 SYSTEM 账户的 DPAPI 加密，我的设备里的控制码用保存它的那个 Windows 账户加密，别的账户、别的电脑都解不开（同一台电脑上每个账户只看得到自己的设备）
+- 卸载时删除，见[卸载](#卸载)
 
 ## 卸载
 
-按下面的步骤做完，Nife Remote 在这台电脑上不会留下什么（macOS 上有两样受系统保护的东西 Nife Remote 删不掉，见 [macOS](#macos) 的最后）。配置文件里有本机的控制码和“我的设备”里别的电脑的控制码（相当于钥匙），不再用 Nife Remote 的话请一定删掉。
+按下面的步骤做完，Nife Remote 在这台电脑上不会留下什么。配置文件里有本机的控制码和“我的设备”里别的电脑的控制码（相当于钥匙），不再用 Nife Remote 的话请一定删掉。
 
 ### Windows
 
@@ -72,97 +65,19 @@ Nife Remote 要保存的东西都在一个 `config.toml` 里（里面有注释�
 
 （升级时选择“先卸载旧版本”不算卸载：会保留 `config.toml`，见 [Windows 安装版](#windows-安装版)。）
 
-### macOS
-
-macOS 的 App 没有卸载程序，拖进废纸篓只删掉了程序本身。除了程序，Nife Remote 在 macOS 上还会留下这几样（按卸载的顺序）：
-
-| 项目 | 位置 | 说明 |
-|---|---|---|
-| 登录时自动启动 | “系统设置 → 通用 → 登录项”（有的系统版本叫“登录项与扩展”）里“登录时打开”和“后台 App 活动”两处 | 要由 Nife Remote 自己注销：先删掉 App 的话，两处都会留下一个失效的 Nife Remote |
-| 权限记录 | “系统设置 → 隐私与安全性”里的“屏幕与系统录音”“辅助功能”等 | 要在 App 还在的时候清除，App 删掉之后系统就找不到它了 |
-| 配置文件 | `~/Library/Application Support/app.nife-remote.client/` | 里面有控制码，一定要删 |
-| 系统为它生成的缓存 | 系统的缓存目录和临时目录（`getconf DARWIN_USER_CACHE_DIR`、`DARWIN_USER_TEMP_DIR`）里的 `*app.nife-remote.client` | Metal、WebKit 以 Nife Remote 的名字建的，大多是空的，最多是一点 GPU 着色器缓存。临时目录里 WebKit 的几个删不掉，见最后 |
-| 崩溃报告 | `~/Library/Logs/DiagnosticReports/nife-remote-*.ips`、`~/Library/Application Support/CrashReporter/nife_remote_*.plist` | 只有 Nife Remote 崩溃过才有 |
-| 菜单栏图标的设置 | `~/Library/Preferences/app.nife-remote.client.plist` | Nife Remote 自己不用这个文件，平时也没有：按住 ⌘ 拖动过菜单栏图标（记下位置）、或者在“系统设置 → 菜单栏”里关掉过它（记下不显示）时由系统写入。不删的话，重新安装后图标还是藏着的 |
-
-**用菜单卸载**：点菜单栏里的 Nife Remote 图标，选**卸载 Nife Remote…**，确认之后会按上表的顺序全部清掉（受系统保护、删不掉的跳过，见最后），再把 Nife Remote 移到废纸篓并退出，清空废纸篓就彻底删掉了。哪一项没做成，最后的提示里会列出来，用下面手动卸载里对应的命令补上。
-
-**手动卸载**：Nife Remote 打不开、或者想自己动手时用。前两步要在删掉 App 之前做，**顺序不能乱**。
-
-1. 点菜单栏里的 Nife Remote 图标，**关掉“登录时自动启动”**，然后选**退出**（旧版本的菜单里没有这一项，也就没有登记过登录项，直接退出）。
-2. 打开“终端”，清除权限记录（只影响 Nife Remote）：
-
-   ```bash
-   tccutil reset All app.nife-remote.client
-   ```
-
-   看到 `Successfully reset All approval status for app.nife-remote.client` 就好了。如果提示 `No such bundle identifier`，说明 App 已经删掉了，见下面的“已经直接删掉了 App”。
-3. 删除其余几样和程序：
-
-   ```bash
-   rm -rf ~/Library/Application\ Support/app.nife-remote.client
-   find "$(getconf DARWIN_USER_CACHE_DIR)" "$(getconf DARWIN_USER_TEMP_DIR)" -maxdepth 1 -name '*app.nife-remote.client' -exec rm -rf {} + 2>/dev/null
-   find ~/Library/Logs/DiagnosticReports ~/Library/Application\ Support/CrashReporter -maxdepth 1 -name 'nife-remote[-_]*' -delete 2>/dev/null
-   defaults delete app.nife-remote.client 2>/dev/null; rm -f ~/Library/Preferences/app.nife-remote.client.plist
-   rm -rf /Applications/Nife Remote.app ~/Applications/Nife Remote.app
-   ```
-
-   一行一项，依次是配置文件、系统为它生成的缓存、崩溃报告、菜单栏图标的设置和程序。最后一行也可以换成在“应用程序”文件夹里把 Nife Remote 拖进废纸篓（再清空废纸篓）。`find` 会碰到别的 App 受保护的目录，那些报错已经忽略了，不影响结果。菜单栏图标的设置先用 `defaults delete` 经过系统的偏好设置服务删，它会留下一个空文件，再用 `rm` 删掉。
-
-**检查**：下面的命令除了临时目录里 WebKit 的几个空目录（删不掉，见最后）之外什么都不输出，并且“系统设置 → 通用 → 登录项”和“隐私与安全性 → 屏幕与系统录音 / 辅助功能”里都没有 Nife Remote，就是删干净了。
-
-```bash
-ls -d ~/Library/Application\ Support/app.nife-remote.client ~/Library/Preferences/app.nife-remote.client.plist /Applications/Nife Remote.app ~/Applications/Nife Remote.app 2>/dev/null
-find "$(getconf DARWIN_USER_CACHE_DIR)" "$(getconf DARWIN_USER_TEMP_DIR)" -maxdepth 1 -name '*app.nife-remote.client' 2>/dev/null
-find ~/Library/Logs/DiagnosticReports ~/Library/Application\ Support/CrashReporter -maxdepth 1 -name 'nife-remote[-_]*' 2>/dev/null
-```
-
-**已经直接删掉了 App**（没有先做第 1、2 步）：把 Nife Remote.app 重新放回原来的位置（例如从下载的 `.dmg` 里再拖进“应用程序”文件夹），打开它，再从第 1 步做起。系统还记着原来的登录项，在菜单里关掉就会把“登录时打开”和“后台 App 活动”里的两处一起删掉。不想再装一次的话也可以手动删：“登录项”里在“登录时打开”中选中 Nife Remote 点“−”，“隐私与安全性 → 屏幕与系统录音 / 辅助功能”里选中 Nife Remote 点“−”，然后做第 3 步。
-
-**Nife Remote 删不掉的**：下面两样受系统保护。
-
-- 系统临时目录里 WebKit 的几个目录 `com.apple.WebKit.*+app.nife-remote.client`（打开过控制台才有）：有系统完整性保护（SIP），谁都删不掉，删除时提示 `Operation not permitted`，用菜单卸载时会跳过它们。里面是空的；用到 WebKit 的 App（包括 Safari）在这里都有这样的目录。
-- macOS 26 起，“系统设置 → 菜单栏”里允许在菜单栏显示的 App 列表（Allow in the Menu Bar）可能还有 Nife Remote。这份列表由系统记在受保护的文件里，系统没有提供删除单个 App 的办法，只能按下面的方法把整个列表重置。它只是一条记录，不重置也不影响什么；以后重新安装时，如果之前在这里关掉过 Nife Remote，菜单栏里不会出现它的图标，在这里重新打开就行。
-
-**重置菜单栏的 App 列表**（可选，macOS 26 起）：这个列表记在 `~/Library/Group Containers/group.com.apple.controlcenter/Library/Preferences/group.com.apple.controlcenter.plist` 的 `trackedApplications` 一项里。删掉这一项、注销再登录之后列表就清空了，以后有菜单栏图标的 App 运行时会重新加进来，已经删掉的 App 不会再出现。这不是苹果提供的功能，而是改系统自己的文件，**会把所有 App 在这个列表里的选择一起清掉**：之前关掉的菜单栏图标会重新出现，要再到“系统设置 → 菜单栏”里关一遍。
-
-1. 给“终端”完全磁盘访问权限：在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”里打开“终端”（列表里没有就点“+”添加“应用程序 → 实用工具 → 终端”），然后退出终端再重新打开。这个文件在受保护的目录里，没有这个权限读不到也改不了。
-2. 退出“系统设置”，在终端里先备份，再删掉这一项：
-
-   ```bash
-   cd ~/Library/Group\ Containers/group.com.apple.controlcenter/Library/Preferences
-   cp group.com.apple.controlcenter.plist ~/group.com.apple.controlcenter.plist.bak
-   defaults delete "$PWD/group.com.apple.controlcenter.plist" trackedApplications
-   ```
-
-   要用 `defaults` 删，不要直接改文件：系统的偏好设置服务里还缓存着它，直接改文件的话，可能又被缓存里的旧内容写回来。
-3. 注销再登录（或者重新启动），再打开“系统设置 → 菜单栏”看一下。
-4. 回到“完全磁盘访问权限”里把“终端”关掉。
-
-想恢复原来的列表：同样在有完全磁盘访问权限的终端里运行 `defaults import ~/Library/Group\ Containers/group.com.apple.controlcenter/Library/Preferences/group.com.apple.controlcenter.plist ~/group.com.apple.controlcenter.plist.bak`，再注销、登录。
-
-### Linux
-
-```bash
-sudo apt remove nife-remote     # 删除程序（.deb 安装的）
-rm -rf ~/.config/nife-remote    # 配置文件：apt（包括 purge）不会删用户目录里的东西
-```
-
-Linux 上没有开机启动项和系统权限要清理。托盘图标、控制台的临时目录（`$XDG_RUNTIME_DIR/nife-remote-run-*`、`/tmp/nife-remote-webview-*`）在 Nife Remote 退出时就删掉了；只有进程被强制结束过才会留下（下次启动时会清理），通常注销 / 重启时系统也会清空它们，也可以手动删掉：`rm -rf "$XDG_RUNTIME_DIR"/nife-remote-run-* /tmp/nife-remote-webview-*`。
-
 ## 控制端
 
-托盘 →**切换为控制端**，打开控制台。关闭控制台窗口会回到被控端模式。Windows 上这一项是**打开控制台**：控制台打开期间，服务里的被控端照常运行。
+控制台窗口就是控制端。启动时就会打开，关掉之后从托盘菜单的**打开控制台**再打开。关闭控制台窗口只断开你自己的会话（连着的时候会先确认），被控端照常跑，别人还是能连本机。
 
 - 界面和浏览器一样：每台电脑一个**标签**，可以拖动排序，中键或 × 关闭（= 断开）。点 **+** 新建连接，输入 6 位控制码（可以直接粘贴 `123 456`），连上后这个标签就变成那台电脑。连着两台以上时最左边有**多屏总览**标签
 - **第一次连接一台电脑**：对方（桌面版默认）要求配对码时，新建连接页上多出一栏“配对码”，输入对方托盘菜单里的 6 位配对码再连（也可以一次粘贴 12 位：控制码 + 配对码）。配对之后对方记住本机，以后不用再输
 - **端到端加密**：会话是端到端加密的，中转服务器看不到画面和键盘输入。第一次连上一台电脑时记下它的身份；之后它的身份变了（重装过，或者有人冒充它），控制台会提示、不会自动重连，确认是对方重装了之后，输入对方托盘里现在的配对码重新配对。鼠标停在工具栏的控制码上能看到**安全码**，和对方托盘里显示的一样就说明中间没有人
 - **我的设备**：连接过的电脑自动保存（在 `config.toml` 里），下次在新建连接页点一下就连，用上次的画质；可以重命名、移除（能撤销），设备多了可以搜索。对方不在线时不报错：打开标签等它上线，一上线就连上（带着上次的重连凭证，不算猜码）
-- 窗口没有系统标题栏：拖动标签栏的空白处移动窗口，双击最大化。最左边的图标是菜单：本机名称、服务器状态、语言、切换为被控端。还有连接时关闭控制台（包括任务栏、Alt+F4）会先确认
+- 窗口没有系统标题栏：拖动标签栏的空白处移动窗口，双击最大化。标签栏右侧的齿轮是设置：本机名称、语言、配置文件、快捷键说明。还有连接时关闭控制台（包括任务栏、Alt+F4）会先确认
 - 快捷键（不在操作远程电脑时）：Ctrl+T 新建连接、Ctrl+W 关闭标签、Ctrl+Tab / Ctrl+Shift+Tab 切换标签、Ctrl+1~9、Ctrl+Shift+T 重新打开刚关闭的连接。远程画面有焦点时按键都发给对方
 - 工具栏（像地址栏）：对方名称、控制码、帧率 / 码率 / 延迟、编码器；显示器切换、**画质**、快捷键、剪贴板（双向同步 / 以键盘输入方式发送）、声音（静音 / 音画同步）、麦克风（对方能接时才有，见下面的[麦克风](#麦克风)）、1:1 原始大小、全屏、断开
-- 全屏时标签栏隐藏，鼠标移到屏幕顶端出现工具栏，点对方名称可以切换到其它连接（仍然全屏）。全屏时会尝试锁定键盘，Win 键、Alt+Tab 这类系统快捷键也发给远端。macOS 上全屏不另开桌面空间，系统菜单栏和程序坞不出现（免得挡住工具栏和远程的任务栏，切到别的程序时照常显示），用工具栏的按钮退出全屏；点窗口绿色按钮进入的是系统全屏，菜单栏、程序坞照常
-- **游戏里转视角**：对方的光标隐藏时（例如魔兽世界里按住右键转视角、第一人称游戏），鼠标自动改发相对移动，本机指针锁定在画面上，拖多远都不会碰到屏幕边停下；对方的光标重新出现时自动解除（按着鼠标键时等松开再解除：有的游戏转视角时光标会一闪一闪），也可以按 **Ctrl+Alt+Shift+M** 或长按 Esc（约 1 秒）解除（全屏时键盘被锁定，短按的 Esc 照常发给对方）。对方是 Mac（检测不到光标隐藏）或者游戏没有隐藏光标时，用工具栏的鼠标按钮或 **Ctrl+Alt+Shift+M** 手动锁定，同样用 Ctrl+Alt+Shift+M 或长按 Esc 解除
+- 全屏时标签栏隐藏，鼠标移到屏幕顶端出现工具栏，点对方名称可以切换到其它连接（仍然全屏）。全屏时会尝试锁定键盘，Win 键、Alt+Tab 这类系统快捷键也发给远端
+- **游戏里转视角**：对方的光标隐藏时（例如魔兽世界里按住右键转视角、第一人称游戏），鼠标自动改发相对移动，本机指针锁定在画面上，拖多远都不会碰到屏幕边停下；对方的光标重新出现时自动解除（按着鼠标键时等松开再解除：有的游戏转视角时光标会一闪一闪），也可以按 **Ctrl+Alt+Shift+M** 或长按 Esc（约 1 秒）解除（全屏时键盘被锁定，短按的 Esc 照常发给对方）。游戏没有隐藏光标时，用工具栏的鼠标按钮或 **Ctrl+Alt+Shift+M** 手动锁定，同样用 Ctrl+Alt+Shift+M 或长按 Esc 解除
 - 网络抖动导致的断开会自动重连；被控端的用户断开了你时，控制台会说明原因，不再重连
 - 对方电脑离线了（关机、睡眠、断网）：控制台显示“等待对方重新上线”，对方一上线（取回原来的控制码）就自动连上。等待期间不会反复尝试，也不会被服务器当成猜码而限速
 
@@ -183,10 +98,9 @@ Linux 上没有开机启动项和系统权限要清理。托盘图标、控制�
 - **对方是 Windows**：用的是 Steam 远程同乐的虚拟声卡 **Steam Streaming Microphone**（Valve 的、微软签过名的驱动）。对方电脑上装了 Steam、用过一次 Steam 远程同乐（Remote Play）就有；Nife Remote 不带、也不安装它。没有它时麦克风菜单里会说明
 - 在对方电脑的程序里把录音设备选成“麦克风 (Steam Streaming Microphone)”（英文系统是 “Microphone (Steam Streaming Microphone)”），或者在那台电脑的“声音设置 → 输入”里把它设为默认，Windows 的语音输入（Win+H）等用默认麦克风的程序就直接听得到
 - 同一时刻只给一个控制端；别的控制端打开时会显示“另一个控制端正在用”，那个关掉之后自动换过来
-- 对方是 macOS、Linux 时还不支持（不显示麦克风按钮）
 
 ## 界面语言
 
-控制台和托盘菜单支持**简体中文**和**英文**。默认跟随系统显示语言：系统是中文就用中文，否则用英文。可以在托盘菜单“语言 / Language”或控制台菜单（左上角的图标）里的“中文 / EN”随时切换。选择不保存，下次启动重新跟随系统语言。
+控制台和托盘菜单支持**简体中文**和**英文**。默认跟随系统显示语言：系统是中文就用中文，否则用英文。可以在托盘菜单“语言 / Language”或控制台设置（标签栏右侧的齿轮）里的“中文 / EN”随时切换。选择不保存，下次启动重新跟随系统语言。
 
 对方电脑和服务器发来的提示、错误都是消息类型而不是文字，所以总是按**你自己**的语言显示。日志（客户端和服务端）统一是英文。

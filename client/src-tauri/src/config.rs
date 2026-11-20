@@ -1,6 +1,8 @@
 //! 配置。
 //!
-//! * 中转服务器地址和证书指纹的**默认值编译进程序**：构建时用环境变量覆盖，或者修改下面的默认值：
+//! * 中转服务器地址和证书指纹：装好之后在控制台里填/改（服务器面板 → 修改 → 保存并重启，见 [`save_server`]），
+//!   也可以直接改 `config.toml`。下面是**编译进去的默认值**，只在 `config.toml` 里没有时用；
+//!   想让安装包装机即用时，构建时用环境变量覆盖，或者修改下面的默认值：
 //!
 //!   ```powershell
 //!   $env:NIFE_REMOTE_SERVER="relay.example.com:4433"
@@ -33,7 +35,7 @@ use nife_remote_link::net::{MemoryTrust, Trust, TrustStore, format_fingerprint, 
 use nife_remote_link::secure::{Access, Identity};
 use nife_remote_proto::signal::Reclaim;
 use anyhow::Result;
-use toml_edit::{DocumentMut, Item};
+use toml_edit::{DocumentMut, Item, value};
 use tracing::{error, info, warn};
 
 /// 编译进程序的中转服务器地址 `host:port`（UDP），`config.toml` 里没有设置时使用。
@@ -708,6 +710,43 @@ pub fn save_autostart(on: bool) -> Result<()> {
     })
 }
 
+/// 检查控制台里填的服务器设置（不改文件）：
+/// 地址必须是 `host:port`，指纹为空（首次连接时信任）或者 64 位十六进制。
+/// 服务端（Windows 安装版经命名管道）也是先过这一关再写。
+pub fn check_server(server: &str, fp: &str) -> Result<()> {
+    let server = server.trim();
+    anyhow::ensure!(!server.is_empty(), "the server address is empty");
+    anyhow::ensure!(
+        matches!(server.rsplit_once(':'), Some((host, port)) if !host.is_empty() && port.parse::<u16>().is_ok()),
+        "the server address must be host:port, e.g. relay.example.com:4433"
+    );
+    anyhow::ensure!(
+        fingerprint_is_valid(fp.trim()),
+        "the fingerprint must be 64 hex digits (or empty to trust on first use)"
+    );
+    Ok(())
+}
+
+/// 把服务器地址和证书指纹写进配置文档；顺手删掉 `[server_trust]`（换了地址或清空指纹就重新信任，见 [`saved_trust`]）
+fn put_server(doc: &mut DocumentMut, server: &str, fp: &str) {
+    doc["server"] = value(server);
+    doc["server_fp"] = value(fp);
+    doc.remove("server_trust");
+}
+
+/// 保存控制台里填的中转服务器地址和证书指纹（`fp` 为空表示首次连接时信任）。
+///
+/// 服务器地址在启动时读一次（见 [`settings`]），所以保存后要重启 Nife Remote 才生效。
+pub fn save_server(server: &str, fp: &str) -> Result<()> {
+    check_server(server, fp)?;
+    let server = server.trim().to_string();
+    let fp = fp.trim().to_string();
+    edit(move |doc| {
+        put_server(doc, &server, &fp);
+        Ok(())
+    })
+}
+
 /// macOS：还没有按默认打开过登录时自动启动（配置文件里还没有 `autostart`）。
 ///
 /// macOS 的模板里没有这一项：第一次从"应用程序"文件夹运行时，Nife Remote 和 Windows 一样默认打开登录时自动启动，
@@ -1223,6 +1262,39 @@ mod tests {
                 "{s:?}"
             );
         }
+    }
+
+    /// 控制台里填的服务器：校验地址/指纹，写进去能读回来，保存会忘掉记住的证书
+    #[test]
+    fn server_edit_validates_and_forgets_trust() {
+        assert!(check_server("relay.example.com:4433", "").is_ok());
+        assert!(check_server(" 1.2.3.4:4433 ", &"ab".repeat(32)).is_ok());
+        for (server, fp) in [
+            ("", ""),
+            ("relay.example.com", ""),
+            (":4433", ""),
+            ("host:notaport", ""),
+            ("host:4433", "abc"),
+        ] {
+            assert!(check_server(server, fp).is_err(), "{server:?} {fp:?}");
+        }
+
+        let mut doc: DocumentMut = template().parse().unwrap();
+        put_trust(&mut doc, "old.example.com:4433", &[0xab; 32]);
+        put_server(&mut doc, "relay.example.com:4433", "");
+        let text = doc.to_string();
+        // 换了地址：记住的证书不再适用
+        assert_eq!(saved_trust(&text, "old.example.com:4433"), None);
+        let s = parse(&text).unwrap();
+        assert_eq!(s.server, "relay.example.com:4433");
+        assert_eq!(s.server_fp, "");
+
+        // 固定指纹
+        let mut doc: DocumentMut = text.parse().unwrap();
+        put_server(&mut doc, "relay.example.com:4433", &"ab".repeat(32));
+        let s = parse(&doc.to_string()).unwrap();
+        assert_eq!(s.server, "relay.example.com:4433");
+        assert_eq!(s.server_fp, "ab".repeat(32));
     }
 
     /// 模板就是默认配置；保存控制码、开关自动启动之后能读回来，用户的修改和注释都还在

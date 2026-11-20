@@ -36,9 +36,15 @@ const en: Record<MsgKey, Msg> = {
   "server.retryLater": "Will retry automatically",
   "server.unpinned": "Trust on first use",
   "server.unpinnedHint": "No certificate fingerprint configured: the server's certificate was remembered on the first connection, and a different one is refused.",
+  "server.edit": "Change",
+  "server.addressHint": "host:port, e.g. relay.example.com:4433",
+  "server.fp": "Certificate fingerprint",
+  "server.fpHint": "Can be left empty: trust on first use, refuse if it changes later",
+  "server.saveAndRestart": "Save and restart",
+  "server.cancel": "Cancel",
 
   "menu.title": "Settings",
-  "menu.version": "v{version} · Controller mode",
+  "menu.version": "v{version}",
   "menu.versionWeb": "v{version} · Web console",
   "menu.name": "This computer",
   "menu.nameHintWeb": "The name remote computers see for this console (NIFE_REMOTE_NAME)",
@@ -47,8 +53,6 @@ const en: Record<MsgKey, Msg> = {
   "menu.configHint": "Settings and My devices are saved in this file",
   "menu.copy": "Copy",
   "menu.copied": "Copied",
-  "menu.toHost": "Switch to host",
-  "menu.toHostHint": "Close the console and let others control this computer",
   "menu.shortcuts": "Keyboard shortcuts",
   "menu.shortcutsHint": "Available when you're not controlling a remote computer",
   "shortcut.newTab": "New connection",
@@ -59,13 +63,19 @@ const en: Record<MsgKey, Msg> = {
 
   "confirm.close.title": "Close the console?",
   "confirm.close.body": (p) =>
-    `${p.n} remote ${plural(p.n, "connection", "connections")} will be disconnected, and this computer goes back to host mode.`,
+    `${p.n} remote ${plural(p.n, "connection", "connections")} will be disconnected. This computer stays reachable: others can still connect to it with its control code.`,
   "confirm.close.ok": "Disconnect and close",
-  "confirm.toHost.title": "Switch to host?",
-  "confirm.toHost.body": (p) =>
-    `${p.n} remote ${plural(p.n, "connection", "connections")} will be disconnected and the console will close.`,
-  "confirm.toHost.ok": "Disconnect and switch",
   "confirm.cancel": "Cancel",
+
+  // Home page: this computer's control code
+  "host.title": "This computer's code",
+  "host.hint": "Others enter this code in New connection to control this computer",
+  "host.copy": "Copy",
+  "host.copied": "Copied",
+  "host.connecting": "Connecting to the server…",
+  "host.controllers": "Being controlled by {n} controller(s)",
+  "host.pairing": "Pairing code {code} (needed the first time a controller connects)",
+  "host.pairingLocked": "Pairing paused (too many wrong pairing codes)",
 
   "connect.title": "Connect to a remote computer",
   "connect.hint": "Open the menu of the Nife Remote icon on the remote computer (right-click it in the Windows system tray, or click it in the macOS menu bar) to see its 6-digit control code",

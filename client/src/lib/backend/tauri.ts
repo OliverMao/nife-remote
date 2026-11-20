@@ -6,7 +6,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { Backend, SavedDevice, WindowFrame } from "../api";
+import type { Backend, HostStatus, SavedDevice, WindowFrame } from "../api";
 import { ConsoleLink } from "../console";
 import type { Lang } from "../i18n";
 
@@ -48,8 +48,12 @@ class DesktopConsole extends ConsoleLink implements Backend {
     return invoke<string>("clipboard_text");
   }
 
-  switchToHost() {
-    return invoke<void>("switch_to_host");
+  hostStatus() {
+    return invoke<HostStatus>("host_status");
+  }
+
+  onHostStatus(cb: (s: HostStatus) => void) {
+    return unlistenLater(listen<HostStatus>("host-status", (e) => cb(e.payload)));
   }
 
   loadDevices() {
@@ -58,6 +62,14 @@ class DesktopConsole extends ConsoleLink implements Backend {
 
   saveDevices(devices: SavedDevice[]) {
     return invoke<void>("devices_save", { devices });
+  }
+
+  saveServer(server: string, fp: string) {
+    return invoke<void>("server_save", { server, fp });
+  }
+
+  restartApp() {
+    return invoke<void>("restart_app");
   }
 
   setLanguage(lang: Lang) {

@@ -2,7 +2,7 @@
 
 <h1 align="center">Nife Remote</h1>
 
-<p align="center"><b>高性能、低延迟的远程桌面</b><br>QUIC 传输 · 硬件编解码 · 最高 120 fps<br>Windows · macOS · Linux · 浏览器</p>
+<p align="center"><b>高性能、低延迟的远程桌面</b><br>QUIC 传输 · 硬件编解码 · 最高 120 fps<br>Windows 客户端（被控 + 控制） · 浏览器控制台</p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
 
@@ -39,7 +39,7 @@ Nife Remote 是一个**高性能、低延迟**的远程桌面：画面用 GPU �
 - **声音**：被控端的系统声音同步到控制端（Opus + 自适应抖动缓冲），看视频时可以打开音画同步。反过来，控制端的麦克风可以放进 Windows 被控端的虚拟麦克风（Steam Streaming Microphone，用过一次 Steam 远程同乐就有），在那边开会、语音输入
 - **实用工具**：剪贴板双向同步、以键盘输入方式发送剪贴板、系统快捷键（Win、Alt+Tab、Ctrl+Shift+Esc……）、多显示器、全屏时锁定键盘、画质预设
 - **默认安全**：会话端到端加密，中转服务器看不到画面和键盘输入；第一次连接要输入对方托盘里的配对码（不经过服务器），之后认得出对方的身份；TLS 1.3 + 证书指纹固定，控制码防暴力猜测；被控端随时能看到谁连着，一键断开
-- **不留痕迹**：被控端只有一个托盘图标，不启动 WebView；要保存的东西都在一个 `config.toml` 里，其余运行时文件退出时删除；[卸载](docs/usage.zh-CN.md#卸载)后什么都不剩（Windows 用卸载程序，macOS 在菜单里选“卸载 Nife Remote…”，Linux 两条命令）
+- **不留痕迹**：要保存的东西都在一个 `config.toml` 里，其余运行时文件退出时删除；[卸载](docs/usage.zh-CN.md#卸载)后什么都不剩
 - **中英双语**：跟随系统语言；对方电脑和服务器发来的提示也按**你**的语言显示
 
 ## 支持的平台
@@ -47,17 +47,15 @@ Nife Remote 是一个**高性能、低延迟**的远程桌面：画面用 GPU �
 | 平台 | 被控端 | 控制端 | 说明 |
 |---|:-:|:-:|---|
 | Windows 10 / 11 | ✅ | ✅ | 需要安装，被控端作为系统服务运行 |
-| macOS 13+ | ✅ | ✅ | 被控端需要“屏幕与系统录音”和“辅助功能”权限 |
-| Linux | ✅ | ✅ | 被控端只支持 X11 桌面，目前只有软件编码 |
 | 浏览器（网页控制台） | — | ✅ | Chrome / Edge、Safari 16.4+、Firefox 130+ |
 
-各平台的已知问题见[已知限制](docs/limitations.zh-CN.md)。
+**客户端只支持 Windows。** 中转服务器（Docker）和网页控制台跑在 Linux 上。已知问题见[已知限制](docs/limitations.zh-CN.md)。
 
 ## 工作方式
 
 ```mermaid
 flowchart LR
-    host["被控端<br>Windows / macOS / Linux"]
+    host["被控端<br>Windows"]
     relay["中转服务器<br>nife-remote-server（Docker）"]
     ctrl["控制端<br>桌面控制台 / 网页控制台"]
     host <-->|"QUIC · UDP 4433"| relay
@@ -72,7 +70,7 @@ flowchart LR
 需要准备：
 
 - 一台两端都能访问到的机器，装好 Docker，开放 **UDP 4433**
-- 构建客户端用的 Rust、Node.js 20+ 和 CMake（各平台的依赖见[构建](docs/building.zh-CN.md#依赖)）
+- 构建客户端用的 Windows 机器，以及 Rust、Node.js 20+、CMake（见[构建](docs/building.zh-CN.md#依赖)）
 
 ### 1. 部署中转服务器
 
@@ -88,45 +86,21 @@ docker compose logs nife-remote | grep fingerprint   # 记下证书的 SHA-256 �
 
 证书和控制码数据库都在 `data/` 目录里，**请保留这个目录**：证书换了，已经构建好的客户端就连不上了。服务器的配置项在 `docker-compose.yml` 里。
 
-### 2. 构建客户端
-
-把服务器地址和第 1 步记下的指纹编译进程序。
-
-Windows（PowerShell）：
+### 2. 构建客户端（Windows）
 
 ```powershell
 cd client
 npm install
-$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
-$env:NIFE_REMOTE_SERVER_FP = "<第 1 步的指纹>"
-npm run tauri build
+npm run tauri build            # 出安装包：bundle/nsis/Nife Remote_<版本>_x64-setup.exe
 ```
 
-macOS / Linux：
-
-```bash
-cd client
-npm install
-export NIFE_REMOTE_SERVER=relay.example.com:4433
-export NIFE_REMOTE_SERVER_FP=<第 1 步的指纹>
-npm run tauri build
-```
-
-生成的文件在 `client/src-tauri/target/release/bundle/` 下：
-
-| 系统 | 安装包 |
-|---|---|
-| Windows | `nsis/Nife Remote_<版本>_x64-setup.exe` |
-| macOS | `macos/Nife Remote.app`、`dmg/Nife Remote_<版本>_<架构>.dmg` |
-| Linux | `deb/Nife Remote_<版本>_amd64.deb` |
-
-装好之后也可以在 [`config.toml`](docs/usage.zh-CN.md#配置文件) 里修改服务器地址和指纹。
+服务器地址不用编译进去：装好之后在控制台的服务器面板里填（也可以写进 [`config.toml`](docs/usage.zh-CN.md#配置文件)）。想做成装机即用，构建前设 `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` 当默认值。
 
 ### 3. 连接
 
-1. 两台电脑都装上 Nife Remote（Windows 运行安装程序，需要管理员权限；macOS 第一次打开时按提示授予权限）
-2. 在**被控**的电脑上右键托盘图标（macOS 是单击菜单栏图标），看到 6 位**控制码**
-3. 在**你自己**的电脑上，从托盘菜单选择**打开控制台**（macOS / Linux 是**切换为控制端**），输入控制码。第一次连接这台电脑时还要输入它托盘菜单里的 6 位**配对码**，之后就不用了
+1. 两台电脑都装上 Nife Remote（运行安装程序，需要管理员权限）
+2. 在**被控**的电脑上右键托盘图标，看到 6 位**控制码**（控制台首页上也有）
+3. 在**你自己**的电脑上打开 Nife Remote（控制台启动就会打开；关掉了就从托盘菜单选**打开控制台**），输入控制码。第一次连接这台电脑时还要输入它托盘菜单里的 6 位**配对码**，之后就不用了
 
 完整的使用说明见[使用指南](docs/usage.zh-CN.md)。
 
@@ -146,10 +120,10 @@ NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker 
 | 文档 | 内容 |
 |---|---|
 | [使用指南](docs/usage.zh-CN.md) | 被控端、Windows 安装版、配置文件、卸载、控制台、画质、界面语言 |
-| [构建](docs/building.zh-CN.md) | 各平台的依赖和安装包、签名、APK |
+| [构建](docs/building.zh-CN.md) | Windows 依赖和安装包、签名、APK |
 | [工作原理](docs/architecture.zh-CN.md) | 架构、代码目录、Windows 服务、画面和声音、音画同步、磁盘上的文件 |
 | [安全](docs/security.zh-CN.md) | 加密和证书固定、防暴力猜码、控制码和重连凭证 |
-| [已知限制](docs/limitations.zh-CN.md) | 按平台列出的已知问题 |
+| [已知限制](docs/limitations.zh-CN.md) | 已知问题 |
 | [开发](docs/development.zh-CN.md) | 测试、调试工具、项目约定 |
 
 ## 安全须知

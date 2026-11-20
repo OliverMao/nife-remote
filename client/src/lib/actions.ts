@@ -1,4 +1,4 @@
-// 跨组件的操作：连接、我的设备、重新打开关闭的会话、关闭控制台 / 切换为被控端（先确认）、全屏。
+// 跨组件的操作：连接、我的设备、重新打开关闭的会话、关闭控制台（先确认）、全屏。
 import { api, toProblem, type QualitySettings, type SavedDevice } from "./api";
 import * as devices from "./devices";
 import { OS } from "./platform";
@@ -163,14 +163,14 @@ export function resetDraft() {
   store.patchDraft(emptyDraft());
 }
 
-// ── 关闭控制台 / 切换为被控端 ──
+// ── 关闭控制台 ──
 
 /** 还连着（或者在等、在重连）的会话数：为 0 时关闭控制台不会丢掉什么，不用问 */
 const activeSessions = () => store.get().sessions.filter((s) => s.state !== "closed").length;
 
 /**
  * 窗口要关闭了（标题栏的关闭按钮、任务栏、Alt+F4、macOS 的红灯，见 App 里的 onCloseRequested）：
- * 关闭控制台 = 断开所有会话、回到被控端模式，有会话时先问一下。返回 true 表示直接关
+ * 关窗口 = 断开所有自己的会话，有会话时先问一下。返回 true 表示直接关
  */
 export function allowClose(): boolean {
   const n = activeSessions();
@@ -186,19 +186,11 @@ export function allowClose(): boolean {
   return true;
 }
 
-/** 切换为被控端（关闭控制台）。有会话时先问一下 */
-export function requestToHost() {
-  const n = activeSessions();
-  if (n === 0) return void quit("toHost");
-  store.setConfirm({ kind: "toHost", sessions: n });
-}
-
-/** 用户确认之后 */
-export async function quit(kind: "close" | "toHost") {
+/** 用户确认之后：断开自己的会话、关窗口。被控端照常跑，别人还是能连本机 */
+export async function quit() {
   store.setConfirm(null);
   await devicesSaved();
-  if (kind === "toHost" || !api.frame) await api.switchToHost();
-  else await api.frame.destroy();
+  await api.frame?.destroy();
 }
 
 // ── 全屏 ──

@@ -129,6 +129,28 @@ export interface AppInfo {
   configPath?: string | null;
 }
 
+/** 本机连接码等被控端状态（与 Rust 端 status::HostStatus 对应）：首页显示自己现在能不能被连 */
+export interface HostStatus {
+  /** 被控端与服务器的连接 */
+  server: ServerState;  /** 本机的控制码，连上服务器之后才有 */
+  code: number | null;
+  /** 正在控制本机的控制端 */
+  controllers: HostController[];
+  /** 配对码（第一次连接本机时要输入）；null = 不要配对码 */
+  pairing: string | null;
+  /** 有人多次输错配对码，配对暂停了 */
+  pairingLocked: boolean;
+  /** 配对过的控制端数 */
+  paired: number;
+}
+
+export interface HostController {
+  sessionId: number;
+  peer: { name: string; ip: string };
+  /** 端到端握手之后的安全码（两边显示的一样） */
+  safety?: string | null;
+}
+
 /** "我的设备"里的一台：连接过的电脑（与 Rust 端 devices::Device 对应，保存在 config.toml 的 [[device]] 里） */
 export interface SavedDevice {
   /** 6 位控制码 */
@@ -289,6 +311,10 @@ export interface Backend {
   serverStatus(): Promise<ServerState>;
   /** 返回取消订阅的函数 */
   onServerStatus(cb: (s: ServerState) => void): () => void;
+  /** 本机连接码等（只有桌面版；网页版没有被控端，返回 null） */
+  hostStatus(): Promise<HostStatus | null>;
+  /** 本机连接码变了（连上服务器、换了码、有人连上来）。返回取消订阅的函数 */
+  onHostStatus(cb: (s: HostStatus) => void): () => void;
   /** 会话的画面：canvas 交给 Worker 绘制（之后主线程不能再画它），`out` 收它的消息 */
   view(canvas: HTMLCanvasElement, out: ViewOutput): MediaView;
   /**
@@ -306,10 +332,13 @@ export interface Backend {
   onHostOnline(cb: (code: number) => void): () => void;
   /** 对会话的操作（画面的确认由 Worker 在收到画面时自己发） */
   command(c: Command): Promise<void>;
+  /** 保存中转服务器地址和证书指纹（只有桌面版；网页版由 `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` 决定）。
+   * `fp` 为空 = 首次连接时信任 */
+  saveServer(server: string, fp: string): Promise<void>;
+  /** 重启程序，让新的服务器设置生效（只有桌面版） */
+  restartApp(): Promise<void>;
   /** 读取本机剪贴板文本（用于"作为按键输入"） */
   localClipboardText(): Promise<string>;
-  /** 切换到被控端（只有桌面版） */
-  switchToHost(): Promise<void>;
   /** 切换界面语言（桌面版同时作用于托盘菜单） */
   setLanguage(lang: Lang): Promise<void>;
   /** 语言被切换（包括在托盘菜单里切换） */
@@ -335,7 +364,7 @@ export interface WindowFrame {
   onResized(cb: () => void): () => void;
   /** 请求关闭：和点系统的关闭按钮、Alt+F4 一样，先经过 onCloseRequested */
   close(): Promise<void>;
-  /** 直接关闭，不再询问（关闭控制台 = 回到被控端模式） */
+  /** 直接关闭，不再询问（关闭控制台 = 断开自己的会话，被控端照常跑） */
   destroy(): Promise<void>;
   /** 用户要关闭窗口：回调返回 false 时先不关（界面询问之后再调用 destroy）。返回取消订阅的函数 */
   onCloseRequested(cb: () => boolean): () => void;

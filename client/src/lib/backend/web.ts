@@ -194,8 +194,13 @@ class WebConsole extends ConsoleLink implements Backend {
     return text;
   }
 
-  // 网页版没有被控端模式、托盘和窗口
-  async switchToHost() {}
+  // 网页版没有被控端、托盘和窗口
+  async hostStatus() {
+    return null;
+  }
+  onHostStatus() {
+    return () => {};
+  }
   async setLanguage() {}
   onLangChanged() {
     return () => {};
@@ -209,6 +214,15 @@ class WebConsole extends ConsoleLink implements Backend {
     return null;
   }
   async saveDevices() {}
+  // 网页版的服务器地址和指纹是启动容器时的环境变量，界面里改不了（见 web/.env.example）
+  async saveServer(): Promise<void> {
+    throw new Error(
+      "the web console's server is set with NIFE_REMOTE_SERVER / NIFE_REMOTE_SERVER_FP when the container starts",
+    );
+  }
+  async restartApp(): Promise<void> {
+    throw new Error("the web console can't restart itself");
+  }
 }
 
 export function webBackend(): Backend {

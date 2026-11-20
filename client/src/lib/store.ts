@@ -2,7 +2,7 @@
 // "我的设备"保存在 config.toml 里（见 actions.ts 的 saveDevices）；画面增强、本地光标是这台电脑自己显示的偏好，
 // 和对方无关，存在 WebView / 浏览器的 localStorage 里；其余只在控制台打开期间有效。
 import { useCallback, useSyncExternalStore } from "react";
-import type { AppInfo, Codec, Problem, QualitySettings, SavedDevice, ServerState } from "./api";
+import type { AppInfo, Codec, HostStatus, Problem, QualitySettings, SavedDevice, ServerState } from "./api";
 import { fmtCode } from "./devices";
 import { ENHANCE_LEVELS, type EnhanceLevel } from "./enhance";
 import { DEFAULT_PRESET, type PresetId } from "./presets";
@@ -29,8 +29,8 @@ export interface Recent {
   settings: QualitySettings;
 }
 
-/** 等用户确认的操作：关闭控制台 / 切换为被控端都会断开所有会话 */
-export type Confirm = null | { kind: "close" | "toHost"; sessions: number };
+/** 等用户确认的操作：关闭控制台会断开所有会话 */
+export type Confirm = null | { kind: "close"; sessions: number };
 
 interface State {
   /** 顺序就是标签的顺序 */
@@ -51,6 +51,8 @@ interface State {
    */
   serverProblem: Problem | null;
   app: AppInfo | null;
+  /** 本机连接码等（桌面版；网页版没有被控端，一直为 null） */
+  host: HostStatus | null;
   decoders: Codec[];
   immersive: boolean;
   /** 画面增强（所有会话通用，见 enhance.ts） */
@@ -113,6 +115,7 @@ let state: State = {
   server: { state: "connecting" },
   serverProblem: null,
   app: null,
+  host: null,
   decoders: ["h264"],
   immersive: false,
   enhance: loadEnhance(),
@@ -169,6 +172,8 @@ export const store = {
     for (const s of state.sessions) s.hostOnline(code);
   },
   setApp: (app: AppInfo) => set({ app }),
+  /** 本机连接码变了（连上服务器、换了码、有人连上来、有人断开） */
+  setHost: (host: HostStatus) => set({ host }),
   setDecoders: (decoders: Codec[]) => set({ decoders }),
   setView: (view: View) => {
     if (view === "new" && !state.draft) return store.newTab();

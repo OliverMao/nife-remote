@@ -1,4 +1,4 @@
-// 关闭控制台 / 切换为被控端之前的确认：这两个操作会断开所有会话。
+// 关闭控制台之前的确认：会断开所有会话（被控端不受影响，别人还是能连本机）。
 import { useEffect } from "react";
 import { quit } from "../lib/actions";
 import { useT } from "../lib/i18n";
@@ -31,13 +31,12 @@ export function ConfirmDialog() {
           <IconPower size={20} />
         </div>
         <h3 id="confirm-title">{t(`confirm.${c.kind}.title`)}</h3>
-        <p>{t(`confirm.${c.kind}.body`, { n: c.sessions })}</p>
-        <div className="modal-actions">
+        <p>{t(`confirm.${c.kind}.body`, { n: c.sessions })}</p>        <div className="modal-actions">
           <button className="ghost-btn" onClick={cancel}>
             {t("confirm.cancel")}
           </button>
           {/* 默认焦点在这里：Enter 确认，Esc 取消 */}
-          <button className="danger-btn" autoFocus onClick={() => void quit(c.kind)}>
+          <button className="danger-btn" autoFocus onClick={() => void quit()}>
             {t(`confirm.${c.kind}.ok`)}
           </button>
         </div>

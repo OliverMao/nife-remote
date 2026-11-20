@@ -5,7 +5,8 @@
 //!
 //! * 只监听 127.0.0.1，控制台第一次要地址（`console_url` 命令）时才开始监听；
 //! * 地址里带着随机的令牌，只有控制台页面拿得到；还只接受控制台页面的 Origin：本机的其它程序、浏览器里的网页都连不上来；
-//! * 每条连接就是一个控制台，有自己的控制端服务和到中转服务器的连接（状态也报给托盘）；切回被控端时一起断开。
+//! * 每条连接就是一个控制台，有自己的控制端服务和到中转服务器的连接（状态也报给托盘）；
+//!   关掉控制台窗口时一起断开，被控端不受影响。
 
 use std::net::Ipv4Addr;
 use std::sync::Arc;
@@ -22,7 +23,7 @@ use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::{self, Message};
 use tracing::{info, warn};
 
-use crate::status::{self, Mode};
+use crate::status;
 use crate::{AppState, clipboard, config};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -110,11 +111,10 @@ async fn connection(tcp: TcpStream, gate: Arc<Gate>, app: AppHandle) {
     };
 
     let state = app.state::<AppState>();
-    // 控制端模式才有控制台的身份（见 switch_services）
+    // 控制台的身份（端到端加密，启动时由 start_services 生成）
     let Some(identity) = state.services.lock().unwrap().controller.clone() else {
         return;
     };
-    let mut mode = state.hub.subscribe();
     let setup = Setup {
         link: config::link(),
         identity,
@@ -126,13 +126,10 @@ async fn connection(tcp: TcpStream, gate: Arc<Gate>, app: AppHandle) {
         .with(|m| future::ready(Ok::<_, tungstenite::Error>(to_tungstenite(m))))
         .map(|m| m.map(from_tungstenite));
     info!("console connected");
-    tokio::select! {
-        r = console::serve(socket, setup) => match r {
-            Ok(()) => info!("console disconnected"),
-            Err(e) => info!("console disconnected: {e:#}"),
-        },
-        // 切回被控端：控制端服务和它的会话马上停下
-        _ = mode.wait_for(|s| s.mode != Mode::Controller) => {}
+    // 控制台窗口关掉（WebSocket 断开）就停下；被控端不受影响，别人照旧能连本机
+    match console::serve(socket, setup).await {
+        Ok(()) => info!("console disconnected"),
+        Err(e) => info!("console disconnected: {e:#}"),
     }
 }
 

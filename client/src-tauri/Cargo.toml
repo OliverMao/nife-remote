@@ -146,8 +146,13 @@ objc2-video-toolbox = { version = "0.3", default-features = false, features = [
 
 [profile.release]
 opt-level = 3
-lto = "fat"
-codegen-units = 1
+# 打包速度优先：不做跨 crate 的 LTO，并把函数切到很多代码生成单元，让 rustc 用满多核。
+# 原来 lto = "fat" + codegen-units = 1：最后那一步只能单核跑（卡在 "544/546: nife-remote"）。
+# 代价：体积大概 +2~5%，运行时性能差几个百分点（软件编码这种热循环仍在 opt-level 3）。
+lto = false
+codegen-units = 256
+# 改了代码之后只重编变的那几个 CGU，不用整个 crate 重来
+incremental = true
 panic = "abort"
 strip = true
 

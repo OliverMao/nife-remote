@@ -4,8 +4,9 @@
 use std::sync::LazyLock;
 use std::time::Instant;
 
-/// 进程里第一次调用以来过了多少微秒
+/// 进程里第一次调用以来过了多少微秒。从 1 开始：0 要留给“没有时间戳”（见 `controller::session::Arrivals`），
+/// 而第一次调用时 `Instant::elapsed` 正好是 0
 pub fn now_us() -> u64 {
     static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
-    EPOCH.elapsed().as_micros() as u64
+    (EPOCH.elapsed().as_micros() as u64).max(1)
 }

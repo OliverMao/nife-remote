@@ -28,8 +28,6 @@ cargo test --lib mic_reaches_steam_streaming_microphone -- --ignored --nocapture
 ```
 
 
-macOS 上，屏幕 / 声音采集（`sck_capture`、`loopback_captures_tone`、端到端测试里的画面和声音）和键鼠注入（`mac_move_to_center`）的测试需要先在“系统设置 → 隐私与安全性”里给运行测试的终端授予“屏幕与系统录音”和“辅助功能”权限。没有权限时 `sck_capture`、`loopback_captures_tone`、`mac_move_to_center` 会直接跳过；端到端测试会检查被控端发来的是“缺少权限”的提示而不是“采集失败”，然后跳过画面和声音的检查（剪贴板、Ping、断开等其余部分照常检查）。
-
 端到端测试（真实服务器、带屏幕采集和编码的真实被控端、协议级控制端）：
 
 ```bash
@@ -46,8 +44,8 @@ cargo test --lib e2e_mic -- --ignored --nocapture         # Windows：控制端�
 ## 调试工具
 
 ```bash
-# client/：直接进入控制端的调试构建；NIFE_REMOTE_LOG 控制日志级别
-NIFE_REMOTE_DEV_CONTROLLER=1 NIFE_REMOTE_LOG=debug npm run tauri dev
+# client/：调试构建（控制台启动就打开，被控端在同一个进程里）；NIFE_REMOTE_LOG 控制日志级别
+NIFE_REMOTE_LOG=debug npm run tauri dev
 # client/：音画同步实测（被控端播放闪白 + 短音，用法见脚本开头）
 node scripts/measure-avsync.mjs <控制码> [配对码]
 
@@ -83,22 +81,6 @@ cd web && cargo run
 ```
 
 `crates/nife-remote-link/src/console.rs` 开头写了控制台和控制端服务之间的 WebSocket 协议（桌面版和浏览器一样）。
-
-## Linux / WSL
-
-`bash client/scripts/linux-test.sh` 一次跑完上面所有测试（单元、X11 采集与输入注入、声音环回、端到端、前端）。X11 相关测试会开全屏窗口、注入键鼠，所以脚本自己开一个 Xvfb 虚拟屏幕，不影响当前桌面；没有 PulseAudio / PipeWire 时跳过声音测试。需要 `sudo apt install xvfb x11-apps`。
-
-在 Windows 上可以用 WSL2（Ubuntu 24.04 测过，WSLg 自带 PulseAudio）：
-
-```bash
-# 先把仓库复制到 WSL 自己的磁盘上（在 /mnt/c、/mnt/d 下编译慢很多）
-rsync -a --exclude target --exclude node_modules /mnt/<盘符>/<仓库路径>/nife-remote/ ~/nife-remote/
-cd ~/nife-remote && bash client/scripts/linux-test.sh
-```
-
-- 控制台可以在 WSLg 里运行：`NIFE_REMOTE_DEV_CONTROLLER=1 npm run tauri dev`，窗口出现在 Windows 桌面上
-- 运行被控端：`Xvfb :99 &`，然后 `DISPLAY=:99 cargo run --example headless_host`（WSLg 自己的桌面是 Wayland）
-- WSL2 默认是 NAT 网络：Windows 上的程序要通过 WSL 的 IP（`ip addr show eth0`）连 WSL 里的服务器，例如 `NIFE_REMOTE_SERVER=172.30.x.x:4433`
 
 ## 约定
 

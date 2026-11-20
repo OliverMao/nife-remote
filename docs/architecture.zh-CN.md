@@ -2,11 +2,13 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](architecture.md)
 
+> 客户端只构建、支持 **Windows**。下面按平台列出的 macOS / Linux 实现留在代码里，但不再构建、也不提供支持。
+
 ## 架构
 
 ```mermaid
 flowchart LR
-    host["<b>被控端</b><br>Windows / macOS / Linux<br><br>屏幕采集（Windows：DXGI 桌面复制）<br>GPU 缩放 + NV12 转换（零拷贝）<br>硬件编码 AV1 / HEVC / H.264<br>键鼠注入（Windows：SendInput）<br>系统声音（Windows：WASAPI 环回）+ Opus"]
+    host["<b>被控端</b><br>Windows<br><br>屏幕采集（Windows：DXGI 桌面复制）<br>GPU 缩放 + NV12 转换（零拷贝）<br>硬件编码 AV1 / HEVC / H.264<br>键鼠注入（Windows：SendInput）<br>系统声音（Windows：WASAPI 环回）+ Opus"]
     relay["<b>nife-remote-server</b>（Docker）<br><br>控制码注册 / 取回<br>会话配对<br>字节级零拷贝透传<br>防暴力猜码限速"]
     ctrl["<b>控制端</b><br>桌面控制台 / 网页控制台<br><br>硬件解码（WebCodecs）<br>低延迟渲染<br>输入采集 + 本地光标<br>多会话 / 多屏总览<br>声音抖动缓冲播放"]
     host <-->|"QUIC / TLS 1.3<br>UDP 4433"| relay
@@ -178,10 +180,8 @@ Windows 上这些都运行在系统服务里（见 [Windows 服务](#windows-服
 ## 磁盘上的文件
 
 - Nife Remote 要保存的东西（设置、本机的控制码、我的设备）都在一个 `config.toml` 里（见[配置文件](usage.zh-CN.md#配置文件)）。日志从不写文件：写到 stderr，Windows 服务写到 `OutputDebugString`
-- 被控端模式**不创建 WebView**，Nife Remote 自己不会产生任何文件（macOS 的系统框架以 Nife Remote 的名义建的目录见下）
-- 单实例锁用的是内核对象而不是锁文件：Windows 是命名互斥量，Linux 是抽象命名空间的 Unix 套接字，macOS 是登记在 bootstrap 服务里的 Mach 端口名
+- 被控端和控制台同时在跑：启动就打开控制台窗口，关掉窗口不会影响被控端。（macOS 的系统框架以 Nife Remote 的名义建的目录见下）
+- 单实例锁用的是内核对象而不是锁文件：Windows 命名互斥量
 - 控制台的 WebView 需要数据目录：放在临时目录下的随机子目录，开启隐私模式（不保存 Cookie 和缓存），关闭窗口或退出程序时删除；进程被强制结束时，下次启动会清理残留。macOS 的 WKWebView 不需要数据目录，隐私模式下不保存网页数据
-- macOS 上还有几样东西不在 Nife Remote 的目录里，是系统记着的、或者系统框架以 Nife Remote 的名义建的：登录时自动启动（系统的登录项）、“屏幕与系统录音”“辅助功能”等权限记录、WebKit 和 Metal 在系统临时 / 缓存目录里建的几个目录（大多是空的）、用户挪动或关掉菜单栏图标时系统记下的设置（`~/Library/Preferences/app.nife-remote.client.plist`，Nife Remote 自己不用）。完整的清单和卸载时怎么一起清掉见[卸载 → macOS](usage.zh-CN.md#macos)
-- Linux 上几样只能以文件形式交出去的东西（交给 AppIndicator 的托盘图标、WebKitGTK 的 GStreamer 插件缓存）放在 `XDG_RUNTIME_DIR`（内存盘）里本进程专用的随机目录，退出时删除（收到 SIGTERM / SIGINT 也一样）；Mesa / NVIDIA 的着色器磁盘缓存直接关闭
 - 控制台的其它设置（界面语言、关闭的标签……）只保存在内存里
 - 以上说的是桌面客户端。网页控制台是部署在服务器上的服务：它把自签名的 HTTPS 证书存在 `web/data/` 里，浏览器那边也只在内存里保存设置，我的设备不保存、刷新页面后清空（登录密码时会有一个会话 Cookie）

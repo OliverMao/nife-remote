@@ -2,32 +2,26 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](building.md)
 
-客户端会把**中转服务器的地址和证书指纹**编译进去作为默认值，所以请先[部署中转服务器](../README.md#快速开始)，记下证书指纹。
+客户端**只支持 Windows**（macOS / Linux 的实现不构建，也不提供支持）。客户端**不需要**编译时就知道中转服务器：装好之后在客户端里填就行，所以构建前不必先去部署服务器。想做成装机即用的安装包时，再把地址和指纹编译进去作为默认值（见[服务器地址和证书指纹](#服务器地址和证书指纹)）。
 
 ## 桌面客户端
 
 ### 依赖
 
-| 系统 | 需要 |
+| 需要 | 说明 |
 |---|---|
-| 所有系统 | 较新的 stable Rust（edition 2024）、Node.js 20+、CMake（编译 libopus） |
-| Windows | Windows 10/11。WebView2 一般是系统自带的，没有时安装程序会自动下载安装 |
-| macOS | macOS 13 及以上，Xcode 命令行工具（`xcode-select --install`）；CMake 可以用 `brew install cmake` 安装 |
-| Linux | Tauri 的依赖、PulseAudio 开发库，以及控制台解码视频用的 GStreamer 插件（见下） |
-
-Debian / Ubuntu：
-
-```bash
-sudo apt install build-essential cmake pkg-config libssl-dev libwebkit2gtk-4.1-dev \
-  libayatana-appindicator3-dev librsvg2-dev libxdo-dev libpulse-dev \
-  gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
-```
+| Windows 10 / 11 | WebView2 一般是系统自带的，没有时安装程序会自动下载安装 |
+| Rust | 较新的 stable（edition 2024） |
+| Node.js 20+ | 构建控制台界面 |
+| CMake | 编译 libopus |
 
 ### 服务器地址和证书指纹
 
-构建时用环境变量 `NIFE_REMOTE_SERVER` 和 `NIFE_REMOTE_SERVER_FP` 设置，也可以直接修改 `client/src-tauri/src/config.rs` 里的默认值：
+客户端**构建时不需要知道服务器**：这两项都不填直接构建，装好之后在客户端里填（右上角服务器状态 → **修改** → 地址 + 可选的指纹 → **保存并重启**）。
 
-- 不设置 `NIFE_REMOTE_SERVER` 时连接 `127.0.0.1:4433`
+想做成装机即用的安装包，就用环境变量 `NIFE_REMOTE_SERVER` 和 `NIFE_REMOTE_SERVER_FP` 把默认值编译进去，或者直接改 `client/src-tauri/src/config.rs` 里的默认值：
+
+- 不设置 `NIFE_REMOTE_SERVER` 时，在装好的客户端里设之前用 `127.0.0.1:4433`
 - 指纹的格式不对（不是 64 位十六进制，允许用 `:` 或空格分隔）时构建会直接报错
 - 它们只是默认值，装好之后 `config.toml` 里的 `server`、`server_fp` 优先（见[配置文件](usage.zh-CN.md#配置文件)）。那里的 `server_fp` 写错了会拒绝所有连接，而不是不校验
 
@@ -41,38 +35,30 @@ Windows（PowerShell）：
 ```powershell
 cd client
 npm install
-$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
-$env:NIFE_REMOTE_SERVER_FP = "<服务器证书指纹>"
-npm run tauri build
+npm run tauri build            # 只要 exe：npm run tauri build -- --no-bundle
 ```
 
-macOS / Linux：
-
-```bash
-cd client
-npm install
-export NIFE_REMOTE_SERVER=relay.example.com:4433
-export NIFE_REMOTE_SERVER_FP=<服务器证书指纹>
-npm run tauri build
-```
+服务器地址不用编译进去（装好后在客户端里填，见[服务器地址和证书指纹](#服务器地址和证书指纹)）。打包要几分钟的话，可以先把 `client/src-tauri/Cargo.toml` 里 `[profile.release]` 的 `incremental` 打开（现在已经打开），或者只在本地验证时用 `--debug`。
 
 生成的文件都在 `client/src-tauri/target/release/` 下：
 
-| 系统 | 文件 |
+| 文件 | 说明 |
 |---|---|
-| Windows | `bundle/nsis/Nife Remote_<版本>_x64-setup.exe`：安装程序 |
-| macOS | `bundle/macos/Nife Remote.app`（约 8 MB）、`bundle/dmg/Nife Remote_<版本>_<架构>.dmg` |
-| Linux | `nife-remote`（单个文件，约 10 MB）、`bundle/deb/Nife Remote_<版本>_amd64.deb`（会自动装上托盘、声音、GStreamer 依赖） |
+| `bundle/nsis/Nife Remote_<版本>_x64-setup.exe` | 安装程序 |
+| `nife-remote.exe` | `--no-bundle` 时只有这个（见下面的 Windows 说明） |
 
 ### Windows 说明
 
 - 安装程序为所有用户安装并注册系统服务（见 [Windows 安装版](usage.zh-CN.md#windows-安装版)），附加步骤在 `client/src-tauri/windows/hooks.nsh`
-- `npm run tauri build -- --no-bundle` 只生成 `nife-remote.exe`，但发布版没有安装时不能运行
+- `npm run tauri build -- --no-bundle` 只生成 `nife-remote.exe`（不打包 NSIS），但发布版没有安装时不能运行。手动代替安装包（管理员）：
+
+  ```powershell
+  mkdir "C:\Program Files\Nife Remote"
+  copy .\client\src-tauri\target\release\nife-remote.exe "C:\Program Files\Nife Remote\"
+  & "C:\Program Files\Nife Remote\nife-remote.exe" --install     # 注册并启动服务；卸载用 --uninstall
+  ```
+
+  装好之后 exe 不能再移动（服务里记的是这个路径）
+- 打包速度：`[profile.release]` 用 `lto = false` + `codegen-units = 256`（多核并行）。原来 `lto = "fat"` + `codegen-units = 1` 最后一步只能单核，在这台机器上要几分钟；现在改一行代码重新打包约 45 秒，代价是 exe 大 3 MB 左右
 - C 运行时是静态链接的，不需要装 VC++ 运行库
 - Media Foundation 是延迟加载的，Windows N 版（没装媒体功能包）也能运行，会改用软件编码
-
-### macOS 说明
-
-- 只要 .app 时用 `npm run tauri build -- --bundles app`；构建的是本机的架构（Apple 芯片是 arm64）
-- 程序只做了临时签名（ad-hoc），没有经过 Apple 公证：拷到别的 Mac 上第一次打开时，在访达里右键 → 打开（或者 `xattr -dr com.apple.quarantine Nife Remote.app`）
-- 系统按签名记住授予的权限，而临时签名每次构建都会变：重新构建后要在“系统设置 → 隐私与安全性”里把 Nife Remote 删掉再重新授权。长期使用的话，在 `client/src-tauri/tauri.macos.conf.json` 里把 `signingIdentity` 换成自己的开发者证书

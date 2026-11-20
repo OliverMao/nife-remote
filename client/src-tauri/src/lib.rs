@@ -35,7 +35,6 @@ mod winsvc;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use nife_remote_link::secure::Identity;
@@ -47,12 +46,9 @@ use tracing::{info, warn};
 
 use host::{HostCmd, HostService};
 use i18n::Lang;
-use status::{HostStatus, Mode, StatusHub};
+use status::{HostStatus, StatusHub};
 
 const CONSOLE: &str = "main";
-
-/// 正在退出（或卸载）：关掉控制台时不再切回被控端（见 [`on_console_destroyed`]）
-static EXITING: AtomicBool = AtomicBool::new(false);
 
 pub struct AppState {
     hub: StatusHub,
@@ -120,46 +116,44 @@ impl Hosting {
     }
 }
 
-// ───────────────────────────── 模式切换 ─────────────────────────────
+// ───────────────────────────── 后台服务 ─────────────────────────────
 
-/// 切换后台服务（不涉及窗口）。被控端在系统服务里运行时（Windows 安装版）只启停控制端。
-fn switch_services(app: &AppHandle, mode: Mode) {
+/// 启动被控端和控制端（不涉及窗口）。两者同时在跑：被控端让别人连本机，控制端让控制台去连别人。
+/// 被控端在系统服务里运行时（Windows 安装版）只准备控制台的身份。
+fn start_services(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let current = state.hub.borrow().mode;
-    if current != mode {
-        info!(?mode, "switching mode");
-        let in_process = !state.service_mode;
-        let mut sv = state.services.lock().unwrap();
-        // 先停止旧服务（Drop 即中止并断开连接），再启动新服务
-        sv.controller = None;
-        if in_process {
-            sv.host = None;
-        }
-        state.hub.send_modify(|s| {
-            s.mode = mode;
-            s.controller = ServerState::Connecting;
-            if in_process {
-                s.host = HostStatus::default();
-            }
+    let mut sv = state.services.lock().unwrap();
+    if sv.host.is_none() {
+        hub_reset_host(state.hub.clone(), state.service_mode);
+        sv.host = Some(if state.service_mode {
+            start_service_link(app, &state.hub)
+        } else {
+            // 被控端在本进程里：启动就开，关窗口不影响
+            Hosting::InProcess(HostService::start(state.hub.clone()))
         });
-        match mode {
-            Mode::Host if in_process => {
-                sv.host = Some(Hosting::InProcess(HostService::start(state.hub.clone())));
-                #[cfg(target_os = "macos")]
-                host::macos::request_permissions();
-            }
-            Mode::Host => {}
-            Mode::Controller => {
-                // 控制台的身份（端到端加密）：第一次用时生成，记进 config.toml。
-                // 控制端服务在控制台连上来时启动（见 console）
-                let (identity, new_key) = config::controller_identity();
-                if let Some(key) = new_key {
-                    save_controller_key(&sv, key);
-                }
-                sv.controller = Some(identity);
-            }
-        }
+        #[cfg(target_os = "macos")]
+        host::macos::request_permissions();
     }
+    // 控制台的身份（端到端加密）：第一次用时生成，记进 config.toml。
+    // 控制端服务在控制台连上来时启动（见 console）
+    if sv.controller.is_none() {
+        let (identity, new_key) = config::controller_identity();
+        if let Some(key) = new_key {
+            save_controller_key(&sv, key);
+        }
+        sv.controller = Some(identity);
+    }
+}
+
+/// 被控端另开头时（Windows 安装版：服务里的那个不归我们管）把它的状态清干净
+fn hub_reset_host(hub: StatusHub, service_mode: bool) {
+    hub.send_modify(|s| {
+        s.host = HostStatus::default();
+        s.controller = ServerState::Connecting;
+        if !service_mode {
+            s.service = None;
+        }
+    });
 }
 
 /// 记下控制台新生成的身份。Windows 安装版：配置文件由服务里的被控端维护，经命名管道交给它写
@@ -175,18 +169,6 @@ fn save_controller_key(sv: &Services, key: String) {
             warn!("can't save the console's identity: {e:#}");
         }
     });
-}
-
-fn set_mode(app: &AppHandle, mode: Mode) {
-    switch_services(app, mode);
-    match mode {
-        Mode::Controller => open_console(app),
-        Mode::Host => {
-            if let Some(w) = app.get_webview_window(CONSOLE) {
-                let _ = w.destroy();
-            }
-        }
-    }
 }
 
 /// macOS：是否在程序坞里显示图标（也决定能不能用 Command+Tab 切换到控制台）。
@@ -274,11 +256,7 @@ fn set_lang(app: &AppHandle, lang: Lang) {
 }
 
 fn on_console_destroyed(app: &AppHandle) {
-    // 关闭控制台 = 回到默认的被控端模式。退出、卸载时关掉的不算：不要再启动被控端
-    //（卸载时它连上服务器会把控制码写回配置文件）
-    if !EXITING.load(Ordering::Acquire) {
-        switch_services(app, Mode::Host);
-    }
+    // 关掉控制台只断开自己的会话（控制端），被控端照常跑，别人随时可以连本机
     #[cfg(target_os = "macos")]
     {
         // 全屏中被关掉时菜单栏和程序坞还藏着
@@ -294,9 +272,7 @@ fn on_console_destroyed(app: &AppHandle) {
 
 pub(crate) fn on_menu(app: &AppHandle, id: &str) {
     match id {
-        // Windows 安装版从被控端模式打开控制台时，也要启动控制端服务，不能只创建窗口。
-        "to_controller" | "console" => set_mode(app, Mode::Controller),
-        "to_host" => set_mode(app, Mode::Host),
+        "console" => open_console(app),
         "lang_zh" => set_lang(app, Lang::Zh),
         "lang_en" => set_lang(app, Lang::En),
         "kick_all" | "new_code" => {
@@ -408,9 +384,7 @@ pub(crate) fn on_menu(app: &AppHandle, id: &str) {
 }
 
 pub(crate) fn on_tray_left_click(app: &AppHandle) {
-    if app.state::<AppState>().hub.borrow().mode == Mode::Controller {
-        open_console(app);
-    }
+    open_console(app);
 }
 
 // ───────────────────────────── 前端命令 ─────────────────────────────
@@ -479,6 +453,51 @@ async fn devices_save(
         .map_err(|e| Problem::failed(format!("{e:#}")))
 }
 
+/// 保存控制台里填的中转服务器地址和证书指纹（`fp` 为空 = 首次连接时信任）。
+/// 改完要重启程序才生效（见 [`config::settings`]）。
+#[tauri::command]
+#[cfg_attr(not(windows), allow(unused_variables))]
+async fn server_save(
+    state: tauri::State<'_, AppState>,
+    server: String,
+    fp: String,
+) -> Result<(), Problem> {
+    // 先校验（服务在另一个进程里，错误拿不回来）
+    config::check_server(&server, &fp).map_err(|e| Problem::failed(format!("{e:#}")))?;
+    // Windows 安装版：配置文件在安装目录里，由服务里的被控端维护（托盘没有写权限），经命名管道交给它写
+    #[cfg(windows)]
+    if state.service_mode {
+        let connected = state.hub.borrow().service.is_some_and(|s| s.connected);
+        // 锁不能跨 await（future 要 Send），发完就撒手
+        {
+            let sv = state.services.lock().unwrap();
+            match &sv.host {
+                Some(Hosting::Service(link)) if connected => {
+                    link.send(winsvc::ipc::ToAgent::SetServer { server, fp });
+                }
+                _ => {
+                    return Err(Problem::failed(
+                        "the Nife Remote service isn't reachable from this session",
+                    ));
+                }
+            }
+        }
+        // 服务那边是异步写的（没有回执），马上重启会把还没写的丢掉：等它写进 config.toml 再返回
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        return Ok(());
+    }
+    tauri::async_runtime::spawn_blocking(move || config::save_server(&server, &fp))
+        .await
+        .map_err(Problem::failed)?
+        .map_err(|e| Problem::failed(format!("{e:#}")))
+}
+
+/// 重启程序：服务器地址和指纹在启动时读一次（见 [`config::settings`]），改完靠这个生效
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
 /// 控制台切换界面语言
 #[tauri::command]
 fn set_language(app: AppHandle, lang: Lang) {
@@ -514,11 +533,10 @@ fn window_fullscreen(window: tauri::WebviewWindow) -> Result<bool, Problem> {
     fullscreen::is_on(&window).map_err(Problem::failed)
 }
 
+/// 本机连接码等被控端状态（控制台首页显示自己的连接码，见 `host-status` 事件）
 #[tauri::command]
-async fn switch_to_host(app: AppHandle) -> Result<(), Problem> {
-    let a = app.clone();
-    app.run_on_main_thread(move || set_mode(&a, Mode::Host))
-        .map_err(Problem::failed)
+fn host_status(state: tauri::State<'_, AppState>) -> HostStatus {
+    state.hub.borrow().host.clone()
 }
 
 // ───────────────────────────── 入口 ─────────────────────────────
@@ -579,9 +597,11 @@ pub fn run() {
             clipboard_text,
             set_fullscreen,
             window_fullscreen,
-            switch_to_host,
+            host_status,
             devices_load,
             devices_save,
+            server_save,
+            restart_app,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -590,28 +610,15 @@ pub fn run() {
             }
             #[cfg(target_os = "linux")]
             exit_on_signals(handle.clone());
-            // 默认以被控端启动
-            let hosting = if service_mode {
-                start_service_link(&handle, &hub)
-            } else {
-                Hosting::InProcess(HostService::start(hub.clone()))
-            };
-            app.state::<AppState>().services.lock().unwrap().host = Some(hosting);
-            // 仅调试构建：方便开发时直接进入控制端
-            let dev_controller =
-                cfg!(debug_assertions) && std::env::var_os("NIFE_REMOTE_DEV_CONTROLLER").is_some();
-            if dev_controller {
-                set_mode(&handle, Mode::Controller);
-            }
+            // 两个角色同时开：被控端（本机可被连）+ 控制台的控制端身份（去连别人）
+            start_services(&handle);
             #[cfg(target_os = "macos")]
             {
-                // 直接进入控制端时用不到被控端的权限，切回被控端时再请求
-                if !dev_controller {
-                    host::macos::request_permissions();
-                }
                 watch_permissions(hub.clone());
                 login_item_startup(hub.clone());
             }
+            // 启动就打开控制台（首页显示本机连接码）；关掉后只剩托盘图标
+            open_console(&handle);
 
             // 状态（或界面语言）变化 → 刷新托盘 / 通知控制台
             let mut rx = hub.subscribe();
@@ -620,6 +627,8 @@ pub fn run() {
                 loop {
                     let st = rx.borrow_and_update().clone();
                     tray::refresh(&handle, &st);
+                    // 控制台首页的本机连接码、正在控制本机的控制端
+                    let _ = handle.emit_to(CONSOLE, "host-status", &st.host);
                     let cur = i18n::current();
                     if lang.replace(cur) != Some(cur) {
                         if let Some(w) = handle.get_webview_window(CONSOLE) {
@@ -641,14 +650,10 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("can't initialize Tauri");
-    // macOS：和其它平台一样启动后只有托盘（菜单栏）图标，程序坞里没有图标；打开控制台时才显示。
-    // 打包的 .app 在 Info.plist 里声明了 LSUIElement，这里是给直接运行的可执行文件用的
+    // macOS：启动就打开控制台，所以程序坞里要有图标（注册为普通程序）。关掉窗口后 [`on_console_destroyed`]
+    // 再改回“辅助程序”（只剩菜单栏图标）；打包的 .app 在 Info.plist 里声明了 LSUIElement
     #[cfg(target_os = "macos")]
-    let app = {
-        let mut app = app;
-        app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-        app
-    };
+    show_in_dock(&app.handle().clone(), true);
 
     app.run(|app, event| match event {
         // 托盘程序：关闭所有窗口时不退出
@@ -656,7 +661,6 @@ pub fn run() {
             code: None, api, ..
         } => api.prevent_exit(),
         RunEvent::Exit => {
-            EXITING.store(true, Ordering::Release);
             let state = app.state::<AppState>();
             {
                 let mut sv = state.services.lock().unwrap();
@@ -780,7 +784,6 @@ fn uninstall_app(app: &AppHandle) {
         return;
     }
     info!("uninstalling");
-    EXITING.store(true, Ordering::Release);
     let state = app.state::<AppState>();
     {
         // 正在控制本机的连接断开，控制台的会话也断开

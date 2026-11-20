@@ -2,7 +2,7 @@
 
 <h1 align="center">Nife Remote</h1>
 
-<p align="center"><b>High-performance, low-latency remote desktop</b><br>QUIC transport · hardware encoding and decoding · up to 120 fps<br>Windows · macOS · Linux · browser</p>
+<p align="center"><b>High-performance, low-latency remote desktop</b><br>QUIC transport · hardware encoding and decoding · up to 120 fps<br>Windows client (host and controller) · browser console</p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
 
@@ -39,7 +39,7 @@ See [How it works → Video](docs/architecture.md#video) for details.
 - **Audio**: the host's system audio plays on the controller (Opus + adaptive jitter buffer), with optional A/V sync for watching videos. The other way, the controller's microphone can go into a virtual microphone on Windows hosts (Steam Streaming Microphone, there once Steam Remote Play has been used) for meetings and voice typing over there
 - **Handy tools**: two-way clipboard sync, typing the clipboard as keystrokes, system shortcuts (Win, Alt+Tab, Ctrl+Shift+Esc…), multiple monitors, keyboard lock in fullscreen, quality presets
 - **Secure by default**: sessions are end-to-end encrypted, so the relay server can't see the screen or keystrokes; the first connection needs the pairing code from the other computer's tray (it never goes through the server), and its identity is recognized afterwards; TLS 1.3 with certificate pinning, brute-force protection for control codes; the host always sees who is connected and can disconnect them with one click
-- **Leaves nothing behind**: the host is just a tray icon and doesn't start a WebView; everything worth keeping is in one `config.toml`, other runtime files are deleted on exit, and nothing is left after [uninstalling](docs/usage.md#uninstalling) (Windows has an uninstaller, macOS has "Uninstall Nife Remote…" in the menu, Linux takes two commands)
+- **Leaves nothing behind**: everything worth keeping is in one `config.toml`, other runtime files are deleted on exit, and nothing is left after [uninstalling](docs/usage.md#uninstalling)
 - **English and Chinese**: follows the system language; notices from the other computer and the server also appear in **your** language
 
 ## Platforms
@@ -47,17 +47,15 @@ See [How it works → Video](docs/architecture.md#video) for details.
 | Platform | Host | Controller | Notes |
 |---|:-:|:-:|---|
 | Windows 10 / 11 | ✅ | ✅ | Installed; the host runs as a system service |
-| macOS 13+ | ✅ | ✅ | The host needs the Screen & System Audio Recording and Accessibility permissions |
-| Linux | ✅ | ✅ | The host supports X11 desktops only, with software encoding for now |
 | Browser (web console) | — | ✅ | Chrome / Edge, Safari 16.4+, Firefox 130+ |
 
-See [Known limitations](docs/limitations.md) for platform-specific caveats.
+**The client is Windows only.** The relay server (Docker) and the web console run on Linux. See [Known limitations](docs/limitations.md) for caveats.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    host["Host<br>Windows / macOS / Linux"]
+    host["Host<br>Windows"]
     relay["Relay server<br>nife-remote-server (Docker)"]
     ctrl["Controller<br>desktop console / web console"]
     host <-->|"QUIC · UDP 4433"| relay
@@ -72,7 +70,7 @@ The host connects to the relay server and gets a 6-digit control code; the contr
 You need:
 
 - A machine both sides can reach, with Docker and **UDP 4433** open
-- Rust, Node.js 20+ and CMake to build the client (per-platform requirements in [Building](docs/building.md#requirements))
+- A Windows build machine, plus Rust, Node.js 20+ and CMake (see [Building](docs/building.md#requirements))
 
 ### 1. Deploy the relay server
 
@@ -89,45 +87,21 @@ docker compose logs nife-remote | grep fingerprint   # note the certificate's SH
 
 The certificate and the control-code database live in `data/`. **Keep that directory**: with a new certificate, clients you've already built can no longer connect. Server settings are in `docker-compose.yml`.
 
-### 2. Build the client
-
-Compile in the server address and the fingerprint from step 1.
-
-Windows (PowerShell):
+### 2. Build the client (Windows)
 
 ```powershell
 cd client
 npm install
-$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
-$env:NIFE_REMOTE_SERVER_FP = "<fingerprint from step 1>"
-npm run tauri build
+npm run tauri build            # installer: bundle/nsis/Nife Remote_<version>_x64-setup.exe
 ```
 
-macOS / Linux:
-
-```bash
-cd client
-npm install
-export NIFE_REMOTE_SERVER=relay.example.com:4433
-export NIFE_REMOTE_SERVER_FP=<fingerprint from step 1>
-npm run tauri build
-```
-
-The packages are under `client/src-tauri/target/release/bundle/`:
-
-| System | Package |
-|---|---|
-| Windows | `nsis/Nife Remote_<version>_x64-setup.exe` |
-| macOS | `macos/Nife Remote.app`, `dmg/Nife Remote_<version>_<arch>.dmg` |
-| Linux | `deb/Nife Remote_<version>_amd64.deb` |
-
-The server address and fingerprint can also be changed later in [`config.toml`](docs/usage.md#configuration-file).
+The server address doesn't have to be compiled in: set it in the console's server panel after installing (or in [`config.toml`](docs/usage.md#configuration-file)). To ship it preconfigured, set `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` as defaults before building.
 
 ### 3. Connect
 
-1. Install Nife Remote on both computers (on Windows run the installer, which needs administrator rights; on macOS grant the permissions it asks for the first time)
-2. On the computer **to be controlled**, right-click the tray icon (on macOS, click the menu bar icon) to see its 6-digit **control code**
-3. On **your** computer, choose **Open console** from the tray menu (**Switch to controller** on macOS / Linux) and enter the code. The first time you connect to that computer, also enter the 6-digit **pairing code** from its tray menu; after that it isn't needed
+1. Install Nife Remote on both computers (run the installer, which needs administrator rights)
+2. On the computer **to be controlled**, right-click the tray icon to see its 6-digit **control code** (the console's home page shows it too)
+3. On **your** computer open Nife Remote (the console opens at startup; if you closed it, choose **Open console** in the tray menu) and enter the code. The first time you connect to that computer, also enter the 6-digit **pairing code** from its tray menu; after that it isn't needed
 
 The full guide is in [Usage](docs/usage.md).
 
@@ -147,10 +121,10 @@ Open `http://localhost:8080` on that machine, or `https://<its address>:8080` fr
 | Document | Contents |
 |---|---|
 | [Usage](docs/usage.md) | Host, Windows installation, configuration file, uninstalling, console, quality, language |
-| [Building](docs/building.md) | Per-platform requirements and packages, signing, APK |
+| [Building](docs/building.md) | Windows requirements and packages, signing, APK |
 | [How it works](docs/architecture.md) | Architecture, source layout, Windows service, video and audio pipelines, A/V sync, files on disk |
 | [Security](docs/security.md) | Encryption and pinning, brute-force protection, control codes and resume tokens |
-| [Known limitations](docs/limitations.md) | Known issues by platform |
+| [Known limitations](docs/limitations.md) | Known issues |
 | [Development](docs/development.md) | Tests, debugging tools, project conventions |
 
 ## Security notes

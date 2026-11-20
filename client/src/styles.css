@@ -730,6 +730,55 @@ kbd {
   overflow-wrap: anywhere;
   user-select: text;
 }
+/* 修改服务器地址 / 指纹（桌面版；网页版由容器环境变量决定，不显示） */
+.sp-edit {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  color: var(--text-3);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.sp-edit:hover {
+  color: var(--text);
+}
+.sp-input {
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+}
+.sp-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.sp-actions {
+  display: flex;
+  gap: 8px;
+}
+.sp-actions button {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--well);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sp-actions button.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+.sp-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .sp-hint {
   margin: 0;
   padding-top: 10px;
@@ -1215,6 +1264,62 @@ kbd {
 .nt-wrap > * {
   position: relative;
   z-index: 1;
+}
+/* 首页顶部：本机连接码（别人用这个连本机） */
+.my-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--glass-2);
+  border: 1px solid var(--edge-2);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+.mc-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.mc-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.mc-label .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.my-code.ready .mc-label .dot {
+  background: var(--good);
+}
+.mc-code {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+}
+.mc-state,
+.mc-others,
+.mc-pairing {
+  color: var(--text-2);
+}
+.mc-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  text-align: right;
+}
+.mc-hint {
+  max-width: 230px;
 }
 .nt-card {
   display: flex;

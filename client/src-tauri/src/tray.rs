@@ -1,5 +1,5 @@
-//! 系统托盘：图标 + 右键菜单（模式、服务器状态、控制码、切换模式、开机自动启动 / macOS 的登录时自动启动、
-//! 语言、退出）。
+//! 系统托盘：图标 + 右键菜单（本机连接码、服务器状态、正在控制本机的控制端、开机自动启动 /
+//! macOS 的登录时自动启动、语言、退出）。本机连接码在控制台首页也看得到。
 
 use std::sync::OnceLock;
 
@@ -9,7 +9,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, Tray
 use tauri::{AppHandle, Wry};
 
 use crate::i18n::{self, Lang};
-use crate::status::{AppStatus, Mode, ServiceStatus};
+use crate::status::{AppStatus, ServiceStatus};
 use nife_remote_link::{Problem, ServerState};
 
 const TRAY_ID: &str = "nife-remote";
@@ -132,34 +132,12 @@ fn build_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Menu<Wry>> {
     match st.service {
         Some(svc) => service_items(app, &menu, st, svc)?,
         None => {
-            let mode = match st.mode {
-                Mode::Host => tr!("当前模式：被控端", "Mode: Host"),
-                Mode::Controller => tr!("当前模式：控制端", "Mode: Controller"),
-            };
-            menu.append(&label(app, mode)?)?;
-            if st.mode == Mode::Host {
-                host_items(app, &menu, st)?;
-            } else {
-                menu.append(&label(app, server_line(&st.controller))?)?;
-            }
+            // 被控端一直都在（这台电脑随时能被别人连），下面是它的状态
+            host_items(app, &menu, st)?;
             menu.append(&PredefinedMenuItem::separator(app)?)?;
-            match st.mode {
-                Mode::Host => {
-                    menu.append(&item(
-                        app,
-                        "to_controller",
-                        tr!("切换为控制端", "Switch to controller"),
-                    )?)?;
-                }
-                Mode::Controller => {
-                    menu.append(&item(app, "console", tr!("打开控制台", "Open console"))?)?;
-                    menu.append(&item(
-                        app,
-                        "to_host",
-                        tr!("切换为被控端", "Switch to host"),
-                    )?)?;
-                }
-            }
+            menu.append(&item(app, "console", tr!("打开控制台", "Open console"))?)?;
+            // 控制台自己的服务器连接（去连别人的那一半）
+            menu.append(&label(app, server_line(&st.controller))?)?;
             #[cfg(target_os = "macos")]
             if let Some(s) = st.login_item {
                 menu.append(&login_item_entry(app, s)?)?;
@@ -460,11 +438,9 @@ pub fn refresh(app: &AppHandle, st: &AppStatus) {
     }
     // Windows 安装版：没连上服务里的被控端时，被控端的状态没有意义
     let host_known = st.service.is_none_or(|s| s.connected);
-    let online = if st.shows_host() {
-        host_known && st.host.server == ServerState::Connected
-    } else {
-        st.controller == ServerState::Connected
-    };
+    // 任意一半连上了服务器就亮：能被别人连，或者能去连别人
+    let online = (host_known && st.host.server == ServerState::Connected)
+        || st.controller == ServerState::Connected;
     let _ = tray.set_icon(Some(if online {
         icon_online()
     } else {
@@ -474,39 +450,40 @@ pub fn refresh(app: &AppHandle, st: &AppStatus) {
         let code = nife_remote_proto::format_code(code);
         tr!("控制码 {code}", "Control code {code}")
     };
-    let (shown, server, code) = if st.shows_host() {
-        (Mode::Host, &st.host.server, st.host.code)
+    let server = if host_known {
+        &st.host.server
     } else {
-        (Mode::Controller, &st.controller, None)
+        &st.controller
     };
+    let code = if host_known { st.host.code } else { None };
     let controllers = st.host.controllers.len();
-    let tip = match (shown, server, code) {
-        (Mode::Host, _, _) if !host_known => match st.service {
+    // 悬停提示先讲本机能不能被连（控制码），再说服务器的情况
+    let tip = match (host_known, server, code) {
+        (false, ..) => match st.service {
             Some(s) if s.running => tr!("Nife Remote · 被控端", "Nife Remote · Host"),
             _ => tr!(
                 "Nife Remote · 被控端服务未运行",
                 "Nife Remote · Host service not running"
             ),
         },
-        (Mode::Host, ServerState::Connected, Some(code)) if controllers > 0 => {
+        (true, ServerState::Connected, Some(code)) if controllers > 0 => {
             format!(
                 "Nife Remote · {}\n{}",
                 controlled_by(controllers),
                 code_line(code)
             )
         }
-        (Mode::Host, ServerState::Connected, Some(code)) => {
+        (true, ServerState::Connected, Some(code)) => {
             format!("Nife Remote · {}\n{}", tr!("被控端", "Host"), code_line(code))
         }
-        (Mode::Host, ServerState::Connected, None) => tr!("Nife Remote · 被控端", "Nife Remote · Host"),
-        (Mode::Controller, ServerState::Connected, _) => {
-            tr!("Nife Remote · 控制端", "Nife Remote · Controller")
+        (true, ServerState::Connected, None) => {
+            tr!("Nife Remote · 被控端", "Nife Remote · Host")
         }
-        (_, ServerState::Connecting, _) => tr!(
+        (true, ServerState::Connecting, _) => tr!(
             "Nife Remote · 正在连接服务器…",
             "Nife Remote · Connecting to server…"
         ),
-        (_, ServerState::Disconnected { .. }, _) => tr!(
+        (true, ServerState::Disconnected { .. }, _) => tr!(
             "Nife Remote · 未连接服务器",
             "Nife Remote · Not connected to server"
         ),

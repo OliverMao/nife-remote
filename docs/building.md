@@ -2,32 +2,26 @@
 
 [← Back to README](../README.md) · [简体中文](building.zh-CN.md)
 
-The clients have the **relay server's address and certificate fingerprint** compiled in as defaults, so [deploy the relay server](../README.md#quick-start) first and note its certificate fingerprint.
+**The client is Windows only** (the macOS / Linux implementations are not built or supported). The client does **not** need a relay server to build: the address is filled in the installed app, so there is no need to deploy the server first. To ship a preconfigured installer, compile the address and fingerprint in as defaults (see [Server address and certificate fingerprint](#server-address-and-certificate-fingerprint)).
 
 ## Desktop client
 
 ### Requirements
 
-| System | Needs |
+| Needs | Notes |
 |---|---|
-| All | A recent stable Rust (edition 2024), Node.js 20+, CMake (to build libopus) |
-| Windows | Windows 10/11. WebView2 usually ships with the OS; if it's missing the installer downloads and installs it |
-| macOS | macOS 13 or later and the Xcode Command Line Tools (`xcode-select --install`); CMake can come from `brew install cmake` |
-| Linux | Tauri's dependencies, the PulseAudio development files and the GStreamer plugins the console uses to decode video (see below) |
-
-Debian / Ubuntu:
-
-```bash
-sudo apt install build-essential cmake pkg-config libssl-dev libwebkit2gtk-4.1-dev \
-  libayatana-appindicator3-dev librsvg2-dev libxdo-dev libpulse-dev \
-  gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
-```
+| Windows 10 / 11 | WebView2 usually ships with the OS; if it's missing the installer downloads and installs it |
+| Rust | A recent stable (edition 2024) |
+| Node.js 20+ | Builds the console UI |
+| CMake | Builds libopus |
 
 ### Server address and certificate fingerprint
 
-Set them at build time with the `NIFE_REMOTE_SERVER` and `NIFE_REMOTE_SERVER_FP` environment variables, or change the defaults in `client/src-tauri/src/config.rs`:
+The client does **not** need the server at build time: leave both values out, build, and set them in the installed client (server indicator → **Change** → address + optional fingerprint → **Save and restart**).
 
-- Without `NIFE_REMOTE_SERVER` the client connects to `127.0.0.1:4433`
+To ship a preconfigured installer, bake the defaults in at build time with the `NIFE_REMOTE_SERVER` and `NIFE_REMOTE_SERVER_FP` environment variables, or change the defaults in `client/src-tauri/src/config.rs`:
+
+- Without `NIFE_REMOTE_SERVER` the client starts with `127.0.0.1:4433` until one is set in the app
 - A malformed fingerprint (it must be 64 hex digits; `:` and spaces are allowed) fails the build
 - These are only defaults: once installed, `server` and `server_fp` in `config.toml` override them (see [Configuration file](usage.md#configuration-file)). An invalid `server_fp` there refuses every connection rather than turning verification off
 
@@ -41,38 +35,30 @@ Windows (PowerShell):
 ```powershell
 cd client
 npm install
-$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
-$env:NIFE_REMOTE_SERVER_FP = "<server certificate fingerprint>"
-npm run tauri build
+npm run tauri build            # exe only: npm run tauri build -- --no-bundle
 ```
 
-macOS / Linux:
-
-```bash
-cd client
-npm install
-export NIFE_REMOTE_SERVER=relay.example.com:4433
-export NIFE_REMOTE_SERVER_FP=<server certificate fingerprint>
-npm run tauri build
-```
+The server address doesn't have to be compiled in (it is set in the installed client, see [Server address and certificate fingerprint](#server-address-and-certificate-fingerprint)).
 
 The output is under `client/src-tauri/target/release/`:
 
-| System | Files |
+| File | Notes |
 |---|---|
-| Windows | `bundle/nsis/Nife Remote_<version>_x64-setup.exe`: the installer |
-| macOS | `bundle/macos/Nife Remote.app` (~8 MB), `bundle/dmg/Nife Remote_<version>_<arch>.dmg` |
-| Linux | `nife-remote` (single file, ~10 MB), `bundle/deb/Nife Remote_<version>_amd64.deb` (pulls in the tray, audio and GStreamer dependencies) |
+| `bundle/nsis/Nife Remote_<version>_x64-setup.exe` | The installer |
+| `nife-remote.exe` | What `--no-bundle` produces (see the Windows notes) |
 
 ### Windows notes
 
 - The installer installs for all users and registers the system service (see [Windows installation](usage.md#windows-installation)); its extra steps are in `client/src-tauri/windows/hooks.nsh`
-- `npm run tauri build -- --no-bundle` only builds `nife-remote.exe`, but a release build refuses to run until installed
+- `npm run tauri build -- --no-bundle` only builds `nife-remote.exe` (no NSIS), but a release build refuses to run until installed. To install it without the installer (administrator):
+
+  ```powershell
+  mkdir "C:\Program Files\Nife Remote"
+  copy .\client\src-tauri\target\release\nife-remote.exe "C:\Program Files\Nife Remote\"
+  & "C:\Program Files\Nife Remote\nife-remote.exe" --install     # registers and starts the service; --uninstall removes it
+  ```
+
+  Once installed the exe can't be moved (the service records that path)
+- Build speed: `[profile.release]` uses `lto = false` + `codegen-units = 256` (parallel). The old `lto = "fat"` + `codegen-units = 1` left the last step single-threaded and took minutes; a rebuild after a one-line change is now about 45 s, at the cost of roughly 3 MB of binary size
 - The C runtime is statically linked, so the VC++ redistributable isn't needed
 - Media Foundation is delay-loaded, so Windows N editions (without the Media Feature Pack) still run and use software encoding
-
-### macOS notes
-
-- For just the .app use `npm run tauri build -- --bundles app`; it is built for the machine's own architecture (arm64 on Apple silicon)
-- The app is only ad-hoc signed, not notarized: the first time you open a copy on another Mac, right-click it in Finder → Open (or run `xattr -dr com.apple.quarantine Nife Remote.app`)
-- macOS remembers granted permissions by code signature, and an ad-hoc signature changes with every build: after rebuilding, remove Nife Remote in System Settings → Privacy & Security and grant the permissions again. For long-term use, put your own Developer ID in `signingIdentity` in `client/src-tauri/tauri.macos.conf.json`

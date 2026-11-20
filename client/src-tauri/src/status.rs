@@ -1,4 +1,6 @@
-//! 全局运行状态（模式 / 被控端 / 控制端与服务器的连接），托盘菜单据此刷新。
+//! 全局运行状态（被控端 / 控制端与服务器的连接），托盘菜单和控制台的首页据此刷新。
+//!
+//! 被控端和控制端同时存在：这台电脑既能被别人连，也能去连别人，两边各有自己的服务器连接。
 
 use std::sync::Arc;
 
@@ -8,21 +10,11 @@ use nife_remote_proto::signal::Peer;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Mode {
-    /// 被控端（默认）。Windows 安装版的被控端一直在系统服务里运行，这里只表示控制台没有打开
-    Host,
-    /// 控制端（控制台打开着）
-    Controller,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppStatus {
-    pub mode: Mode,
-    /// 被控端
+    /// 被控端（本机被别人连）
     pub host: HostStatus,
-    /// 控制端与服务器的连接（控制端模式）
+    /// 控制台自己的控制端与服务器的连接（本机去连别人）
     pub controller: ServerState,
     /// Windows 安装版：被控端运行在系统服务里（见 [`crate::winsvc`]）；被控端在本进程里运行时为 `None`
     pub service: Option<ServiceStatus>,
@@ -35,7 +27,6 @@ pub struct AppStatus {
 impl Default for AppStatus {
     fn default() -> Self {
         Self {
-            mode: Mode::Host,
             host: HostStatus::default(),
             controller: ServerState::Connecting,
             service: None,
@@ -45,15 +36,10 @@ impl Default for AppStatus {
     }
 }
 
-impl AppStatus {
-    /// 托盘要不要显示被控端的状态：被控端在服务里运行时一直显示，在本进程里运行时只在被控端模式显示
-    pub fn shows_host(&self) -> bool {
-        self.service.is_some() || self.mode == Mode::Host
-    }
-}
-
-/// 被控端的状态。Windows 安装版由系统服务里的被控端经命名管道发给托盘（见 `winsvc::ipc`）
+/// 被控端的状态。Windows 安装版由系统服务里的被控端经命名管道发给托盘（见 `winsvc::ipc`），
+/// 控制台首页直接使用（前端 `HostStatus`，JSON 全是 camelCase）
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HostStatus {
     pub server: ServerState,
     /// 控制码（已连接时有效）
@@ -98,6 +84,7 @@ pub struct ServiceStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Controller {
     pub session_id: u64,
     pub peer: Peer,
@@ -122,4 +109,49 @@ pub fn controller_reporter(hub: &StatusHub) -> Report {
             changed
         });
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 控制台首页直接读这个 JSON（`client/src/lib/api.ts` 的 `HostStatus`）：字段名必须是 camelCase
+    #[test]
+    fn host_status_is_camel_case_for_the_console() {
+        let st = HostStatus {
+            code: Some(123_456),
+            pairing: Some("654321".into()),
+            controllers: vec![Controller {
+                session_id: 7,
+                peer: Peer {
+                    name: "PC".into(),
+                    ip: "10.0.0.1".parse().unwrap(),
+                },
+                safety: None,
+            }],
+            ..HostStatus::default()
+        };
+        let json = serde_json::to_value(&st).unwrap();
+        let mut keys: Vec<&str> = json
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "code",
+                "controllers",
+                "paired",
+                "pairing",
+                "pairingLocked",
+                "server"
+            ]
+        );
+        assert_eq!(json["controllers"][0]["sessionId"], 7);
+        assert_eq!(json["controllers"][0]["peer"]["ip"], "10.0.0.1");
+        assert_eq!(json["code"], 123_456);
+    }
 }

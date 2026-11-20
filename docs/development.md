@@ -28,8 +28,6 @@ cargo test --lib mic_reaches_steam_streaming_microphone -- --ignored --nocapture
 ```
 
 
-On macOS the screen / audio capture tests (`sck_capture`, `loopback_captures_tone`, video and audio in the end-to-end test) and the input injection test (`mac_move_to_center`) need the Screen & System Audio Recording and Accessibility permissions for the terminal that runs them (System Settings → Privacy & Security). Without them `sck_capture`, `loopback_captures_tone` and `mac_move_to_center` skip themselves; the end-to-end test checks that the host reports the missing permission (rather than a capture failure) and then skips the video and audio checks (clipboard, ping, disconnect and the rest are still checked).
-
 End to end (a real server, a real host with screen capture and encoding, and a protocol-level controller):
 
 ```bash
@@ -46,8 +44,8 @@ cargo test --lib e2e_mic -- --ignored --nocapture         # Windows: the control
 ## Debugging tools
 
 ```bash
-# client/: debug build that starts straight in controller mode; NIFE_REMOTE_LOG sets the log level
-NIFE_REMOTE_DEV_CONTROLLER=1 NIFE_REMOTE_LOG=debug npm run tauri dev
+# client/: debug build (the console opens at startup; the host runs in the same process); NIFE_REMOTE_LOG sets the log level
+NIFE_REMOTE_LOG=debug npm run tauri dev
 # client/: A/V sync measurement (the host plays a white flash + short beep; usage at the top of the script)
 node scripts/measure-avsync.mjs <control-code> [pairing-code]
 
@@ -83,22 +81,6 @@ cd web && cargo run
 ```
 
 The WebSocket protocol between the console and the controller service (the same for the desktop console and the browser) is described at the top of `crates/nife-remote-link/src/console.rs`.
-
-## Linux / WSL
-
-`bash client/scripts/linux-test.sh` runs all of the tests above (unit, X11 capture and input injection, audio loopback, end to end, frontend). The X11 tests open fullscreen windows and inject input, so the script starts its own Xvfb screen and leaves your desktop alone; audio tests are skipped without PulseAudio / PipeWire. It needs `sudo apt install xvfb x11-apps`.
-
-On Windows you can use WSL2 (tested on Ubuntu 24.04; WSLg ships with PulseAudio):
-
-```bash
-# Copy the repository to WSL's own disk first (building under /mnt/c or /mnt/d is much slower)
-rsync -a --exclude target --exclude node_modules /mnt/<drive>/<path-to>/nife-remote/ ~/nife-remote/
-cd ~/nife-remote && bash client/scripts/linux-test.sh
-```
-
-- The console works in WSLg: `NIFE_REMOTE_DEV_CONTROLLER=1 npm run tauri dev` opens it on the Windows desktop
-- To run a host: `Xvfb :99 &`, then `DISPLAY=:99 cargo run --example headless_host` (WSLg's own desktop is Wayland)
-- WSL2 uses NAT networking by default: Windows programs reach a server inside WSL through WSL's IP (`ip addr show eth0`), e.g. `NIFE_REMOTE_SERVER=172.30.x.x:4433`
 
 ## Conventions
 

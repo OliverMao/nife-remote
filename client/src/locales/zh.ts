@@ -39,10 +39,16 @@ export default {
   "server.retryLater": "稍后会自动重试",
   "server.unpinned": "首次连接时信任",
   "server.unpinnedHint": "未配置证书指纹：第一次连接时记住了服务器的证书，之后证书变了就拒绝连接",
+  "server.edit": "修改",
+  "server.addressHint": "host:port，例如 relay.example.com:4433",
+  "server.fp": "证书指纹",
+  "server.fpHint": "可留空：首次连接时信任，之后变了拒绝",
+  "server.saveAndRestart": "保存并重启",
+  "server.cancel": "取消",
 
   // 设置（标签栏右侧的齿轮）
   "menu.title": "设置",
-  "menu.version": "v{version} · 控制端模式",
+  "menu.version": "v{version}",
   "menu.versionWeb": "v{version} · 网页控制台",
   "menu.name": "本机名称",
   "menu.nameHintWeb": "对方电脑上显示的控制端名称（NIFE_REMOTE_NAME）",
@@ -51,8 +57,6 @@ export default {
   "menu.configHint": "设置和我的设备都保存在这个文件里",
   "menu.copy": "复制",
   "menu.copied": "已复制",
-  "menu.toHost": "切换为被控端",
-  "menu.toHostHint": "关闭控制台，让这台电脑可以被别人控制",
   "menu.shortcuts": "键盘快捷键",
   "menu.shortcutsHint": "没有在操作远程电脑时可用",
   "shortcut.newTab": "新建连接",
@@ -61,14 +65,21 @@ export default {
   "shortcut.reopen": "重新打开刚关闭的连接",
   "shortcut.nthTab": "切换到第 1~9 个标签",
 
-  // 关闭控制台 / 切换为被控端之前确认
+  // 关闭控制台之前确认（被控端不受影响，别人还是能连本机）
   "confirm.close.title": "关闭控制台？",
-  "confirm.close.body": "将断开 {n} 个远程连接，本机回到被控端模式。",
+  "confirm.close.body": "将断开 {n} 个远程连接。本机不会被关掉：别人还能用连接码连上这台电脑。",
   "confirm.close.ok": "断开并关闭",
-  "confirm.toHost.title": "切换为被控端？",
-  "confirm.toHost.body": "将断开 {n} 个远程连接并关闭控制台。",
-  "confirm.toHost.ok": "断开并切换",
   "confirm.cancel": "取消",
+
+  // 首页：本机的连接码
+  "host.title": "本机连接码",
+  "host.hint": "别人在新建连接里输入这个码就能连上这台电脑",
+  "host.copy": "复制",
+  "host.copied": "已复制",
+  "host.connecting": "正在连接服务器…",
+  "host.controllers": "正在被 {n} 个控制端控制",
+  "host.pairing": "配对码 {code}（第一次连接本机时要输入）",
+  "host.pairingLocked": "配对已暂停（有人多次输错配对码）",
 
   // 新建连接
   "connect.title": "连接到远程电脑",

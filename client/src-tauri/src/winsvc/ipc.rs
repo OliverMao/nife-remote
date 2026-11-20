@@ -79,6 +79,11 @@ pub enum ToAgent {
     SaveDevices {
         devices: Vec<crate::devices::Device>,
     },
+    /// 控制台里填的中转服务器地址和证书指纹（空指纹 = 首次连接时信任）
+    SetServer {
+        server: String,
+        fp: String,
+    },
     /// 换一个配对码（暂停了的配对随之恢复）
     NewPairingCode,
     /// 忘掉所有配对过的控制端
@@ -266,6 +271,17 @@ async fn handle(msg: ToAgent, agent: &Agent) {
                 }
                 Ok(Err(e)) => warn!("can't change autostart: {e:#}"),
                 Err(e) => warn!("can't change autostart: {e}"),
+            }
+        }
+        ToAgent::SetServer { server, fp } => {
+            let r = tokio::task::spawn_blocking(move || {
+                crate::config::save_server(&server, &fp)
+            })
+            .await;
+            match r {
+                Ok(Ok(())) => info!("saved the server settings"),
+                Ok(Err(e)) => warn!("can't save the server settings: {e:#}"),
+                Err(e) => warn!("can't save the server settings: {e}"),
             }
         }
         ToAgent::SaveDevices { devices } => {

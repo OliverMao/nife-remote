@@ -1,15 +1,15 @@
 // 标签栏右侧的两个按钮：
 // * 服务器状态（ServerIndicator）：一直写着在线 / 连接中 / 离线，点开是服务器的详情，弹出层就在它下面；
-// * 设置（SettingsButton）：本机名称、语言、配置文件、切换为被控端、快捷键说明。
+// * 设置（SettingsButton）：本机名称与控制码、语言、配置文件、快捷键说明。
 //
 // 以前主菜单在最左边的 Logo 上：macOS 上和系统的红绿灯按钮挤在一起，点服务器状态也会在最左边弹出菜单。
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api } from "../lib/api";
-import { focusActive, requestToHost } from "../lib/actions";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { api, toProblem, type Problem } from "../lib/api";
+import { focusActive } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { serverStatus, useStore } from "../lib/store";
-import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconServer, IconSettings, IconSwap, IconWarn } from "./Icons";
+import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconServer, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { Popover } from "./Popover";
 
@@ -84,24 +84,9 @@ function AppMenu({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      {/* 网页版没有被控端模式，浏览器也会拦下这些快捷键 */}
+      {/* 网页版没有被控端，浏览器也会拦下这些快捷键 */}
       {!web && (
         <div className="am-actions">
-          <button
-            className="am-item"
-            onClick={() => {
-              onClose();
-              requestToHost();
-            }}
-          >
-            <span className="am-item-icon">
-              <IconSwap size={16} />
-            </span>
-            <span className="am-item-text">
-              {t("menu.toHost")}
-              <span className="muted small block">{t("menu.toHostHint")}</span>
-            </span>
-          </button>
           <button className={`am-item ${keys ? "open" : ""}`} aria-expanded={keys} onClick={() => setKeys((k) => !k)}>
             <span className="am-item-icon">
               <IconKeyboard size={16} />
@@ -231,6 +216,33 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
   const server = useStore((s) => s.server);
   const problem = useStore((s) => s.serverProblem);
   const app = useStore((s) => s.app);
+  // 服务器地址和指纹可以装机后再填（桌面版）；网页版是容器启动时的环境变量，改不了
+  const [editing, setEditing] = useState(false);
+  const [addr, setAddr] = useState("");
+  const [fp, setFp] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<Problem | null>(null);
+
+  const startEdit = () => {
+    setAddr(app?.server ?? "");
+    setFp("");
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  // 服务器地址在启动时读一次，所以保存完重启程序让它生效
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setSaveError(null);
+    try {
+      await api.saveServer(addr, fp);
+      await api.restartApp();
+    } catch (err) {
+      setSaveError(toProblem(err));
+      setBusy(false);
+    }
+  };
   return (
     <Popover className="server-panel" onClose={onClose}>
       <div className="sp-head">
@@ -256,7 +268,7 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {app && (
+      {app && !editing && (
         <div className="sp-field">
           <div className="am-row-line">
             <span className="am-label">{t("server.address")}</span>
@@ -265,9 +277,56 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
                 {t("server.unpinned")}
               </span>
             )}
+            {api.kind === "desktop" && (
+              <button className="sp-edit" onClick={startEdit}>
+                {t("server.edit")}
+              </button>
+            )}
           </div>
           <div className="sp-addr mono">{app.server}</div>
         </div>
+      )}
+
+      {app && editing && (
+        <form className="sp-field" onSubmit={save}>
+          <label className="am-label" htmlFor="sp-server">
+            {t("server.address")}
+          </label>
+          <input
+            id="sp-server"
+            className="sp-input mono"
+            value={addr}
+            onChange={(e) => setAddr(e.target.value)}
+            placeholder={t("server.addressHint")}
+            autoFocus
+            spellCheck={false}
+          />
+          <label className="am-label" htmlFor="sp-fp">
+            {t("server.fp")}
+          </label>
+          <input
+            id="sp-fp"
+            className="sp-input mono"
+            value={fp}
+            onChange={(e) => setFp(e.target.value)}
+            placeholder={t("server.fpHint")}
+            spellCheck={false}
+          />
+          {saveError && (
+            <div className="error-box left" role="alert">
+              <IconWarn size={15} />
+              <span>{problemText(saveError)}</span>
+            </div>
+          )}
+          <div className="sp-actions">
+            <button type="submit" className="primary" disabled={busy}>
+              {t("server.saveAndRestart")}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} disabled={busy}>
+              {t("server.cancel")}
+            </button>
+          </div>
+        </form>
       )}
 
       <p className="sp-hint">{t("server.hint")}</p>

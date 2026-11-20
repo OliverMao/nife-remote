@@ -58,6 +58,10 @@ function Console() {
       setLang(info.lang);
     });
     void api.serverStatus().then(store.setServer);
+    // 首页的本机连接码：先取一次，之后跟着变化（连上服务器、换码、有人连上）
+    void api.hostStatus().then((h) => h && store.setHost(h));
+    // 网页版没有被控端，这两个都是空的
+    const unHost = api.onHostStatus(store.setHost);
     void loadDevices();
     void supportedDecoders().then(store.setDecoders);
     const unStatus = api.onServerStatus(store.setServer);
@@ -93,6 +97,7 @@ function Console() {
     const unWinFs = api.onWindowFullscreenExit(exitImmersive);
     return () => {
       unStatus();
+      unHost();
       unOnline();
       unLang();
       unClose?.();

@@ -2,11 +2,13 @@
 
 [← Back to README](../README.md) · [简体中文](architecture.zh-CN.md)
 
+> The client is built and supported on **Windows** only. The macOS / Linux implementations mentioned below are still in the tree but are neither built nor supported.
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-    host["<b>Host</b><br>Windows / macOS / Linux<br><br>Screen capture (Windows: DXGI Desktop Duplication)<br>GPU scaling + NV12 conversion (zero-copy)<br>Hardware encoding AV1 / HEVC / H.264<br>Input injection (Windows: SendInput)<br>System audio (Windows: WASAPI loopback) + Opus"]
+    host["<b>Host</b><br>Windows<br><br>Screen capture (Windows: DXGI Desktop Duplication)<br>GPU scaling + NV12 conversion (zero-copy)<br>Hardware encoding AV1 / HEVC / H.264<br>Input injection (Windows: SendInput)<br>System audio (Windows: WASAPI loopback) + Opus"]
     relay["<b>nife-remote-server</b> (Docker)<br><br>Control-code registry / reclaim<br>Session pairing<br>Zero-copy byte relay<br>Brute-force rate limiting"]
     ctrl["<b>Controller</b><br>Desktop console / web console<br><br>Hardware decoding (WebCodecs)<br>Low-latency rendering<br>Input capture + local cursor<br>Multi-session / overview<br>Jitter-buffered audio"]
     host <-->|"QUIC / TLS 1.3<br>UDP 4433"| relay
@@ -178,10 +180,8 @@ The delay from painting to the Canvas to the pixels lighting up is estimated at 
 ## Files on disk
 
 - Everything Nife Remote saves (settings, this computer's control code, My devices) is in one `config.toml` (see [Configuration file](usage.md#configuration-file)). Logs never go to files: stderr, or `OutputDebugString` for the Windows service
-- Host mode **doesn't create a WebView**, so Nife Remote itself creates no files at all (for the directories macOS frameworks create under Nife Remote's name, see below)
-- The single-instance lock is a kernel object, not a lock file: a named mutex on Windows, an abstract-namespace Unix socket on Linux, a Mach port name registered with the bootstrap server on macOS
+- The host and the console run at the same time: the console window opens at startup, and closing it doesn't affect the host.
+- The single-instance lock is a kernel object, not a lock file: a named mutex on Windows
 - The console's WebView needs a data directory: it lives in a random subdirectory of the temp directory, runs in private mode (no cookies or cache saved), and is deleted when the window closes or the program exits. If the process is killed, leftovers are removed on the next start. On macOS WKWebView needs no data directory and keeps no website data in private mode
-- On macOS a few things live outside Nife Remote's directory, kept by the system or created by system frameworks in Nife Remote's name: Open at login (a system login item), the permission records (Screen & System Audio Recording, Accessibility…), a few directories WebKit and Metal create in the system's temporary and cache directories (mostly empty), and the settings macOS records when you move or turn off the menu bar icon (`~/Library/Preferences/app.nife-remote.client.plist`, not used by Nife Remote itself). See [Uninstalling → macOS](usage.md#macos) for the full list and how to remove all of them
-- On Linux, the few things that can only be handed over as files (the tray icon for AppIndicator, WebKitGTK's GStreamer plugin cache) live in a random per-process directory under `XDG_RUNTIME_DIR` (a RAM disk) that is removed on exit, including on SIGTERM / SIGINT. The Mesa / NVIDIA on-disk shader caches are turned off
 - Other console settings (the UI language, closed tabs…) live in memory only
 - All of the above is about the desktop client. The web console is a service you deploy: it keeps its self-signed HTTPS certificate in `web/data/`, and the browser also keeps settings in memory only; My devices isn't saved there and is cleared when the page reloads (plus a session cookie when a password is set)
