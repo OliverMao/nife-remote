@@ -143,7 +143,7 @@ Open `http://localhost:8080` on that machine, or `https://<its address>:8080` fr
 | Document | Contents |
 |---|---|
 | [Usage](docs/usage.md) | Host, Windows installation, configuration file, uninstalling, console, quality, language |
-| [Deployment](docs/deploy.md) | Relay server settings, web console, reverse proxies |
+| [Deployment](docs/deploy.md) | Each side in turn: relay server, host, desktop controller, web console, ports, upgrades, troubleshooting |
 | [Building](docs/building.md) | Per-platform requirements and packages, signing, APK |
 | [How it works](docs/architecture.md) | Architecture, source layout, Windows service, video and audio pipelines, A/V sync, files on disk |
 | [Security](docs/security.md) | Encryption and pinning, brute-force protection, control codes and resume tokens |

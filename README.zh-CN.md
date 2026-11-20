@@ -143,7 +143,7 @@ AIRHAND_SERVER=relay.example.com:4433 AIRHAND_SERVER_FP=<指纹> docker compose 
 | 文档 | 内容 |
 |---|---|
 | [使用指南](docs/usage.zh-CN.md) | 被控端、Windows 安装版、配置文件、卸载、控制台、画质、界面语言 |
-| [部署](docs/deploy.zh-CN.md) | 中转服务器的配置、网页控制台、反向代理 |
+| [部署](docs/deploy.zh-CN.md) | 按端拆开：中转服务器、被控端、桌面控制端、网页控制台、端口、升级、排错 |
 | [构建](docs/building.zh-CN.md) | 各平台的依赖和安装包、签名、APK |
 | [工作原理](docs/architecture.zh-CN.md) | 架构、代码目录、Windows 服务、画面和声音、音画同步、磁盘上的文件 |
 | [安全](docs/security.zh-CN.md) | 加密和证书固定、防暴力猜码、控制码和重连凭证 |
