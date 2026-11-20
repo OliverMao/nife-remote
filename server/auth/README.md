@@ -16,8 +16,7 @@ server/
     │   ├── security.py   # PBKDF2 密码摘要、登录凭证
     │   └── settings.py   # 环境变量
     ├── tests/
-    ├── Dockerfile
-    └── docker-compose.yml
+    └── Dockerfile
 ```
 
 ## 接口
@@ -72,15 +71,25 @@ curl -s localhost:8080/health
 
 ## 容器
 
-```bash
-# 构建机（仓库根目录）
-docker build -f server/auth/Dockerfile -t <registry>/nife-remote-auth:0.0.1 server/auth
-docker push <registry>/nife-remote-auth:0.0.1
+账号服务是**仓库根 `docker-compose.yml` 里的一个 service**，和中转服务器共用同一份 `.env`、同一个 `docker compose up -d`：
 
-# 部署机
-cd server/auth && cp .env.example .env   # 填 NIFE_REMOTE_AUTH_IMAGE
+```bash
+# 部署机（仓库根目录）
+cp .env.example .env      # NIFE_REMOTE_IMAGE 和 NIFE_REMOTE_AUTH_IMAGE 都在这里
 docker compose pull && docker compose up -d
+curl -s localhost:8080/health
+
+# 只跑账号服务
+docker compose up -d nife-remote-auth
+
+# 不想用账号服务：把 compose 里的 nife-remote-auth 整段注释掉（或只 up 中转服务器）即可
+
+# 构建镜像（构建机，仓库根目录）
+docker build --network=host -f server/auth/Dockerfile -t <registry>/nife-remote-auth:0.0.1 server/auth
+docker push <registry>/nife-remote-auth:0.0.1
 ```
+
+数据在仓库根目录的 `data/auth/accounts.json`（挂到容器的 `/data`）。
 
 对外建议放在 HTTPS 反向代理后面（Caddy：`handle /auth/* { reverse_proxy 127.0.0.1:8080 }`、`handle /health { reverse_proxy 127.0.0.1:8080 }`）。
 

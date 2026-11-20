@@ -9,6 +9,7 @@
 #     sudo sysctl -w net.core.rmem_max=8388608 net.core.wmem_max=8388608
 # 要在这台机器上临时构建（开发 / 测试用，不推荐在部署机上做）：
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml build
+# 账号服务（server/auth）在同一个文件里：和中转服务器共用仓库根目录的 .env，一起 docker compose up -d。
 # 网页控制台（在浏览器里使用的控制端）见 web/docker-compose.yml
 services:
   nife-remote:
@@ -38,6 +39,32 @@ services:
       NIFE_REMOTE_KEY: ${NIFE_REMOTE_KEY:-/data/key.pem}
       # SQLite 数据库：固定控制码的绑定表（别删），默认在证书旁边
       NIFE_REMOTE_DB: ${NIFE_REMOTE_DB:-/data/nife-remote.db}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  # ── 账号服务（server/auth，FastAPI）：注册 / 登录 / 本账号设备 ──
+  # 和中转服务器互不影响：没配镜像就注释掉这一段，远程控制照样能用，只是登录用不了。
+  nife-remote-auth:
+    image: ${NIFE_REMOTE_AUTH_IMAGE:?set NIFE_REMOTE_AUTH_IMAGE in .env, e.g. registry.example.com/nife-remote-auth:0.0.1}
+    container_name: nife-remote-auth
+    restart: unless-stopped
+    ports:
+      - "${NIFE_REMOTE_AUTH_PORT:-8080}:8080" # HTTP，建议后面挂 Caddy 反代 /auth/* 和 /health
+    volumes:
+      - ./data/auth:/data # accounts.json（账号 + 登录凭证 + 每个账号的设备列表），权限 600，记得备份
+    environment:
+      NIFE_REMOTE_AUTH_DATA: /data
+      NIFE_REMOTE_AUTH_DB: /data/accounts.json
+      NIFE_REMOTE_AUTH_TOKEN_TTL: ${NIFE_REMOTE_AUTH_TOKEN_TTL:-2592000}
+      NIFE_REMOTE_AUTH_REGISTRATION: ${NIFE_REMOTE_AUTH_REGISTRATION:-open}
+      NIFE_REMOTE_AUTH_MAX_USERS: ${NIFE_REMOTE_AUTH_MAX_USERS:-1000}
+      NIFE_REMOTE_AUTH_ROUNDS: ${NIFE_REMOTE_AUTH_ROUNDS:-200000}
+      # 一个账号都没有时自动建的账号（登录后请改密码）
+      NIFE_REMOTE_AUTH_DEFAULT_USER: ${NIFE_REMOTE_AUTH_DEFAULT_USER:-niferemote}
+      NIFE_REMOTE_AUTH_DEFAULT_PASSWORD: ${NIFE_REMOTE_AUTH_DEFAULT_PASSWORD:-niferemote}
     logging:
       driver: json-file
       options:

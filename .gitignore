@@ -6,6 +6,7 @@ client/src-tauri/gen/
 # docker compose 的 .env（镜像名等本机配置，不提交）
 /.env
 web/.env
+server/auth/.env
 # 部署文档（含内网镜像仓库地址等内部信息）：只在本机保留，不提交
 /deploy/
 
@@ -13,3 +14,9 @@ web/.env
 # （写成 /data/ 只匹配根目录这一个；不能用不带斜杠开头的 data/，否则会匹配任何同名目录）
 /data/
 /web/data/
+
+# Python（server/auth）
+__pycache__/
+*.pyc
+.pytest_cache/
+server/auth/data/

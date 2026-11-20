@@ -13,3 +13,8 @@ services:
     build:
       context: .
       dockerfile: server/core/Dockerfile
+  # 账号服务（Python）：上下文就是 server/auth 目录
+  nife-remote-auth:
+    build:
+      context: ./server/auth
+      dockerfile: Dockerfile
