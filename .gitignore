@@ -1,0 +1,11 @@
+target/
+node_modules/
+client/dist/
+client/src-tauri/gen/
+*.log
+web/.env
+
+# docker compose 挂载的 data 目录：运行时自动生成的证书、私钥、SQLite 数据库等，不要提交
+# （写成 /data/ 只匹配根目录这一个；不能用不带斜杠开头的 data/，否则会匹配任何同名目录）
+/data/
+/web/data/

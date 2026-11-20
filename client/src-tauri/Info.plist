@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS：与 Tauri 生成的 Info.plist 合并 -->
+<plist version="1.0">
+<dict>
+	<!-- 启动时只有菜单栏图标、程序坞里没有图标（打开控制台时程序自己切换成普通程序） -->
+	<key>LSUIElement</key>
+	<true/>
+	<!-- 控制台里打开麦克风（把本机的麦克风发给对方）时系统询问用的说明；没有它的话 macOS 不让用麦克风 -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Airhand sends your voice to the remote computer when you turn on the microphone in a connection. 在连接里打开麦克风时，Airhand 把你的声音发给对方电脑。</string>
+</dict>
+</plist>

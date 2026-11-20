@@ -1,0 +1,40 @@
+# Airhand 中转服务器
+#   启动：docker compose up -d
+#   查看证书指纹：docker compose logs airhand | grep fingerprint
+#   Linux 宿主机上先调大 UDP 缓冲区的上限（容器里改不了，见 docs/deploy.zh-CN.md）：
+#     sudo sysctl -w net.core.rmem_max=8388608 net.core.wmem_max=8388608
+# 网页控制台（在浏览器里使用的控制端）见 web/docker-compose.yml
+services:
+  airhand:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: airhand-server:latest
+    container_name: airhand-server
+    restart: unless-stopped
+    ports:
+      - "4433:4433/udp" # QUIC 只需要 UDP
+    volumes:
+      - ./data:/data # 自动生成的 TLS 证书（保持不变，客户端靠指纹校验）和 SQLite 数据库 airhand.db（固定的控制码、给控制码密钥签名的服务器密钥）
+    environment:
+      RUST_LOG: info
+      # 自动生成证书时写入的域名/IP（逗号分隔）
+      AIRHAND_CERT_NAMES: airhand,localhost
+      # 每台被控端最多允许几个控制端同时连接
+      AIRHAND_MAX_SESSIONS: "4"
+      # 同一个来源（IPv4 地址 / IPv6 的 /64）最多同时几条连接；很多被控端共用一个出口 IP 时调大
+      # AIRHAND_MAX_CONNS_PER_IP: "128"
+      # 同一个来源（IPv4 地址 / IPv6 的 /48）10 分钟内最多分配几个新控制码（取回原来的不算）
+      # AIRHAND_NEW_CODES_PER_IP: "30"
+      # 同一个来源（IPv4 地址 / IPv6 的 /64）一分钟内最多向同一台被控端发起几次连接（不低于 AIRHAND_MAX_SESSIONS）
+      # AIRHAND_CONNECTS_PER_MINUTE: "6"
+      # 如需使用自己的证书，挂载到 /data 并修改以下路径
+      # AIRHAND_CERT: /data/cert.pem
+      # AIRHAND_KEY: /data/key.pem
+      # SQLite 数据库：固定控制码的绑定表（保存了控制码的被控端离线多久都能取回原来的控制码），默认在证书旁边
+      # AIRHAND_DB: /data/airhand.db
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

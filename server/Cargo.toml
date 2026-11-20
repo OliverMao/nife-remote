@@ -1,0 +1,28 @@
+[package]
+name = "airhand-server"
+description = "Airhand signaling and relay server (QUIC)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+airhand-proto = { path = "../crates/airhand-proto" }
+# 只用它的 wire 模块（从流里读写长度前缀帧：协议库只做编解码，不碰 IO）。关掉默认的 client：
+# 服务器不用把 Noise、SPAKE2 这些客户端才用的库编译进去（Docker 构建的 `cargo build -p airhand-server` 也是）
+airhand-link = { path = "../crates/airhand-link", default-features = false }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging"] }
+rcgen = "0.14"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+rand = "0.9"
+sha2 = "0.10"
+# 固定控制码的绑定表（见 src/codes.rs）。bundled：静态编译 SQLite，不依赖系统库（镜像是 distroless）
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+[dev-dependencies]
+# 测试用真实的客户端链路（QUIC + 握手）连进程内的服务器。只在编译测试时打开 client（和模拟直连断掉的 test-hooks），
+# 不影响服务器本身的构建（resolver 2 起 dev-dependencies 的 feature 不带进正常构建）
+airhand-link = { path = "../crates/airhand-link", features = ["test-hooks"] }

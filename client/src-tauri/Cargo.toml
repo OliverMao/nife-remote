@@ -1,0 +1,156 @@
+[package]
+name = "airhand"
+description = "Airhand remote desktop client (controller and host in one program)"
+version = "0.2.3"
+edition = "2024"
+license = "MIT"
+default-run = "airhand"
+
+# 客户端是独立工作区，与服务端工作区互不影响
+[workspace]
+
+[lib]
+name = "airhand_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+airhand-proto = { path = "../../crates/airhand-proto" }
+# 与中转服务器的连接、控制端会话，控制台的 WebSocket 协议（与网页控制台共用）
+airhand-link = { path = "../../crates/airhand-link", features = ["console"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+# 控制台窗口连本机的 WebSocket（只监听 127.0.0.1，见 src/console.rs）
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+# config.toml：修改时保留用户的注释和格式
+toml_edit = "0.25"
+base64 = "0.23"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rand = "0.9"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+arboard = { version = "3", default-features = false }
+# 编码：OpenH264（屏幕内容模式），YUV 转换与缩放均使用 SIMD
+bytes = "1"
+openh264 = "0.9"
+openh264-sys2 = "0.9"
+yuvutils-rs = "0.8"
+fast_image_resize = "6"
+# 声音：libopus（随包源码静态编译）
+opus = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Direct3D",
+  "Win32_Graphics_Direct3D11",
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_Graphics_Gdi",
+  "Win32_Globalization",
+  "Win32_System_Threading",
+  "Win32_System_Services",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_Pipes",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Diagnostics_Debug",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_Security_Authorization",
+  "Win32_Security_Cryptography",
+  "Win32_System_Performance",
+  "Win32_System_Registry",
+  "Win32_System_DataExchange",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Ole",
+  "Win32_System_Variant",
+  "Win32_Media_MediaFoundation",
+  "Win32_Media_Audio",
+  "Win32_System_StationsAndDesktops",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_HiDpi",
+  # 声音设备的属性（控制端的麦克风：按接口名找 Steam Streaming Microphone、读它的设备格式）
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_Security",
+] }
+
+# macOS / Linux：config.toml 放在系统建议的用户配置目录（~/Library/Application Support、~/.config）
+[target.'cfg(not(windows))'.dependencies]
+dirs = "7"
+
+# Linux 被控端：X11（MIT-SHM 采集 + DAMAGE 变化检测 + XFIXES 光标/剪贴板 + XTEST 注入），
+# 声音用 PulseAudio（PipeWire 的 pipewire-pulse 同样适用）监听默认输出设备。
+# x11rb 是纯 Rust 实现的 X11 协议，不依赖 libX11/libxcb；arboard 已经在用同一版本。
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+# 和 Tauri（gtk 0.18）用同一个版本：全屏时暂停 webview 上的信号处理函数（见 fullscreen.rs）
+glib = "0.18"
+x11rb = { version = "0.13", features = ["shm", "damage", "xfixes", "randr", "xtest", "xkb"] }
+libpulse-binding = "2"
+
+# macOS 被控端：ScreenCaptureKit 采集画面和系统声音，VideoToolbox 硬件编码，CGEvent 注入键鼠，
+# NSPasteboard 检测剪贴板变化。与 Tauri 用同一套 objc2 绑定（版本一致，不会重复编译两份）；
+# 这些框架绑定的默认 feature 会把整个 AppKit / AVFoundation 都编译进来，所以只打开用到的部分。
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+objc2 = "0.6"
+block2 = "0.6"
+dispatch2 = "0.3"
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std", "NSArray", "NSDictionary", "NSError", "NSFileManager", "NSGeometry", "NSLocale", "NSObject",
+  "NSProcessInfo", "NSString", "NSURL", "NSValue",
+] }
+# NSAlert 等：卸载时的确认对话框（src/uninstall.rs），NSApplication、NSButton 这些 Tauri 本来就打开了
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std", "NSAlert", "NSApplication", "NSButton", "NSColor", "NSControl", "NSCursor", "NSGraphics", "NSGraphicsContext",
+  "NSImage", "NSImageRep", "NSPasteboard", "NSResponder", "NSScreen", "NSView", "NSWindow", "objc2-core-foundation",
+  "objc2-core-graphics",
+] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = [
+  "std", "CFArray", "CFBase", "CFCGTypes", "CFData", "CFDictionary", "CFMessagePort", "CFNumber",
+  "CFString",
+] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = [
+  "std", "CGBitmapContext", "CGColorSpace", "CGContext", "CGDirectDisplay", "CGDisplayConfiguration",
+  "CGDisplayStream", "CGError", "CGEvent", "CGEventSource", "CGEventTypes", "CGGeometry", "CGImage", "CGRemoteOperation",
+  "libc",
+] }
+objc2-core-media = { version = "0.3", default-features = false, features = [
+  "std", "CMBase", "CMBlockBuffer", "CMFormatDescription", "CMSampleBuffer", "CMSync", "CMTime",
+  "objc2-core-audio-types", "objc2-core-video",
+] }
+objc2-core-audio-types = { version = "0.3", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
+objc2-core-video = { version = "0.3", default-features = false, features = [
+  "std", "CVBase", "CVBuffer", "CVImageBuffer", "CVPixelBuffer", "CVPixelBufferPool", "CVReturn",
+] }
+objc2-screen-capture-kit = { version = "0.3", default-features = false, features = [
+  "std", "SCShareableContent", "SCStream", "block2", "dispatch2", "objc2-core-foundation",
+  "objc2-core-graphics", "objc2-core-media",
+] }
+# 登录时自动启动（SMAppService，见 src/login_item.rs）
+objc2-service-management = { version = "0.3", default-features = false, features = [
+  "std", "SMAppService", "objc2", "objc2-foundation",
+] }
+objc2-video-toolbox = { version = "0.3", default-features = false, features = [
+  "std", "VTBase", "VTCompressionProperties", "VTCompressionSession", "VTErrors", "VTSession",
+  "VTVideoEncoderList", "objc2-core-media", "objc2-core-video",
+] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# 开发模式下也优化编解码相关依赖，否则软件编码会很慢
+[profile.dev.package."*"]
+opt-level = 3
