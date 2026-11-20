@@ -33,7 +33,7 @@ The server listens on **UDP 4433**. On first start it generates a self-signed ce
 ### Start it
 
 ```bash
-git clone <repository URL> airhand
+git clone https://github.com/OliverMao/nife-remote airhand
 cd airhand
 docker compose up -d --build
 docker compose logs airhand | grep fingerprint

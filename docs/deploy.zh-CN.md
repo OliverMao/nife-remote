@@ -33,7 +33,7 @@
 ### 启动
 
 ```bash
-git clone <仓库地址> airhand
+git clone https://github.com/OliverMao/nife-remote airhand
 cd airhand
 docker compose up -d --build
 docker compose logs airhand | grep fingerprint
