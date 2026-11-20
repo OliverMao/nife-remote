@@ -22,22 +22,22 @@ services:
     volumes:
       - ./data:/data # 自动生成的 TLS 证书（保持不变，客户端靠指纹校验）和 SQLite 数据库 nife-remote.db（固定的控制码、给控制码密钥签名的服务器密钥）
     environment:
-      RUST_LOG: info
-      # 自动生成证书时写入的域名/IP（逗号分隔）
-      NIFE_REMOTE_CERT_NAMES: nife-remote,localhost
+      RUST_LOG: ${RUST_LOG:-info}
+      # 证书 SAN：可不填（只按指纹校验，不看域名）；仅首次生成证书时生效
+      NIFE_REMOTE_CERT_NAMES: ${NIFE_REMOTE_CERT_NAMES:-nife-remote,localhost}
       # 每台被控端最多允许几个控制端同时连接
-      NIFE_REMOTE_MAX_SESSIONS: "4"
+      NIFE_REMOTE_MAX_SESSIONS: ${NIFE_REMOTE_MAX_SESSIONS:-4}
       # 同一个来源（IPv4 地址 / IPv6 的 /64）最多同时几条连接；很多被控端共用一个出口 IP 时调大
-      # NIFE_REMOTE_MAX_CONNS_PER_IP: "128"
+      NIFE_REMOTE_MAX_CONNS_PER_IP: ${NIFE_REMOTE_MAX_CONNS_PER_IP:-128}
       # 同一个来源（IPv4 地址 / IPv6 的 /48）10 分钟内最多分配几个新控制码（取回原来的不算）
-      # NIFE_REMOTE_NEW_CODES_PER_IP: "30"
+      NIFE_REMOTE_NEW_CODES_PER_IP: ${NIFE_REMOTE_NEW_CODES_PER_IP:-30}
       # 同一个来源（IPv4 地址 / IPv6 的 /64）一分钟内最多向同一台被控端发起几次连接（不低于 NIFE_REMOTE_MAX_SESSIONS）
-      # NIFE_REMOTE_CONNECTS_PER_MINUTE: "6"
-      # 如需使用自己的证书，挂载到 /data 并修改以下路径
-      # NIFE_REMOTE_CERT: /data/cert.pem
-      # NIFE_REMOTE_KEY: /data/key.pem
-      # SQLite 数据库：固定控制码的绑定表（保存了控制码的被控端离线多久都能取回原来的控制码），默认在证书旁边
-      # NIFE_REMOTE_DB: /data/nife-remote.db
+      NIFE_REMOTE_CONNECTS_PER_MINUTE: ${NIFE_REMOTE_CONNECTS_PER_MINUTE:-6}
+      # 自己的证书：挂载到 /data 后改这两项
+      NIFE_REMOTE_CERT: ${NIFE_REMOTE_CERT:-/data/cert.pem}
+      NIFE_REMOTE_KEY: ${NIFE_REMOTE_KEY:-/data/key.pem}
+      # SQLite 数据库：固定控制码的绑定表（别删），默认在证书旁边
+      NIFE_REMOTE_DB: ${NIFE_REMOTE_DB:-/data/nife-remote.db}
     logging:
       driver: json-file
       options:
