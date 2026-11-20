@@ -1,11 +1,11 @@
-//! 控制端的输入晚到了多久（见 `airhand_proto::session` 的"过时的输入"）。
+//! 控制端的输入晚到了多久（见 `nife_remote_proto::session` 的"过时的输入"）。
 
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::INPUT_MAX_AGE;
+use nife_remote_proto::session::INPUT_MAX_AGE;
 use tracing::warn;
 
-/// 判断控制端的输入晚到了多久（见 `airhand_proto::session` 的"过时的输入"）。
+/// 判断控制端的输入晚到了多久（见 `nife_remote_proto::session` 的"过时的输入"）。
 ///
 /// 两边的时钟不同步，只能比"比平时晚了多少"：`收到的时刻 − t` 是两边时钟之差加上这一路的耽搁，
 /// 记下它的最小值当作基准（时钟之差 + 最快的那一次），超出基准的部分就是这条消息额外耽搁了多久——

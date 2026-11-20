@@ -4,7 +4,7 @@
 //! * 永远只编码**最新**的一帧，旧帧直接丢弃，不排队；
 //! * 帧率按画面的时间戳节流（见 [`super::pace`]），处理花的时间不会累积成延迟；
 //! * 在途（已发送未确认）字节受限，网络变慢时编码器等待而不是把数据堆进缓冲区；
-//! * 码率按网络上的排队和带宽估计每帧调整（见 [`airhand_link::flow`]）。
+//! * 码率按网络上的排队和带宽估计每帧调整（见 [`nife_remote_link::flow`]）。
 //!
 //! 画面停下来之后补画质：画面大面积变化（切换窗口、滚动）时，码率控制只能给这一帧分到大约一帧的码率，
 //! 文字是糊的；采集只在画面变化时才有新帧，不补的话控制端就一直停在这一帧上。把最后一帧再编几次，
@@ -15,10 +15,10 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use airhand_link::flow::Flow;
-use airhand_link::host::{CursorCache, Outbox, SendError};
-use airhand_proto::media::{self, VideoHeader};
-use airhand_proto::session::{HostMsg, Notice, QualitySettings};
+use nife_remote_link::flow::Flow;
+use nife_remote_link::host::{CursorCache, Outbox, SendError};
+use nife_remote_proto::media::{self, VideoHeader};
+use nife_remote_proto::session::{HostMsg, Notice, QualitySettings};
 use bytes::Bytes;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -73,7 +73,7 @@ impl Pipeline {
         });
         let c = ctrl.clone();
         let thread = std::thread::Builder::new()
-            .name("airhand-encoder".into())
+            .name("nife-remote-encoder".into())
             .spawn(move || run(c, display, video, out))
             .expect("spawn encoder");
         Self {
@@ -427,8 +427,8 @@ mod tests {
     /// 控制通道排满了：编码线程等着，直到有空位或者管线被停下；写任务不在了就不等了
     #[test]
     fn control_messages_wait_for_room_or_stop() {
-        use airhand_link::host::queue;
-        use airhand_proto::session::Notice;
+        use nife_remote_link::host::queue;
+        use nife_remote_proto::session::Notice;
         let (out, mut control, _bulk) = queue::channel();
         let n = HostMsg::Notice(Some(Notice::NoDisplays));
         while out.send(&n).is_ok() {}

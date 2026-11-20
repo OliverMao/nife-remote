@@ -3,7 +3,7 @@
 //
 // 需要：被控端与控制端在同一台机器（ffplay 窗口出现在被控端屏幕左上角）、ffplay 在 PATH 里。
 //   1. 启动服务器和被控端（被控端请用 release 构建，见 README"开发"一节）
-//   2. AIRHAND_DEV_CONTROLLER=1 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333" npm run tauri dev
+//   2. NIFE_REMOTE_DEV_CONTROLLER=1 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333" npm run tauri dev
 //   3. node scripts/measure-avsync.mjs <控制码> [配对码]（对方要配对码、这个控制台还没和它配对过时给）
 //
 // 会以约 -30 dBFS 播放 30 秒的 4 kHz 短音（每秒 50 ms）。
@@ -13,7 +13,7 @@
 // * 页面：控制端的声音输出被改接到静音的 AnalyserNode（同机测试时不会形成回声环路），
 //   声音的播放时刻 = 分析器看到短音的音频时间，经 getOutputTimestamp 换算为本地时间；
 // * Worker：每次画完一帧读一个像素（看闪白）、解码后的声音（核对出声时刻）、音画同步收到的声音时钟、
-//   每帧送去解码时比计划晚了多少（开发构建里 Worker 的 self.__airhand.views 就是各会话的画面）。
+//   每帧送去解码时比计划晚了多少（开发构建里 Worker 的 self.__nife_remote.views 就是各会话的画面）。
 //   Worker 的 performance.now() 从它自己创建时算起：都记成绝对时间（performance.timeOrigin + now），最后换到页面的时基。
 import { spawn } from "node:child_process";
 
@@ -147,7 +147,7 @@ const workerPatch = `(() => {
 const viewPatch = `new Promise((resolve) => {
   const P = self.__probe, origin = performance.timeOrigin;
   const t = setInterval(() => {
-    const v = [...self.__airhand.views.values()][0];
+    const v = [...self.__nife_remote.views.values()][0];
     if (!v) return;
     clearInterval(t);
     const sync = Object.getPrototypeOf(v.sync), on = sync.onAudioClock;
@@ -228,7 +228,7 @@ ff.kill();
 
 const pp = await page.evaluate(`(() => { const P = window.__probe; return { origin: performance.timeOrigin, amp: P.amp, clock: P.clock, outputLatency: P.ctx && P.ctx.outputLatency, baseLatency: P.ctx && P.ctx.baseLatency, rate: P.ctx && P.ctx.sampleRate }; })()`);
 const wp = await worker.evaluate(`(() => { const P = self.__probe; return { draws: P.draws, dec: P.dec, decFrames: P.decFrames, aoff: P.aoff, late: P.late }; })()`);
-const s = await page.evaluate(`(() => { const s = window.__airhand.store.get().sessions[0]; return { sync: s.syncStats, jitter: s.audio.stats }; })()`);
+const s = await page.evaluate(`(() => { const s = window.__nife_remote.store.get().sessions[0]; return { sync: s.syncStats, jitter: s.audio.stats }; })()`);
 page.close();
 worker.close();
 // Worker 记的绝对时间 → 页面的时基

@@ -1,12 +1,12 @@
 [package]
-name = "airhand-link"
-description = "Airhand client side of the relay link: QUIC with certificate pinning and reconnects, session streams, UI-independent controller sessions and the host's server connection"
-version = "0.2.3"
+name = "nife-remote-link"
+description = "Nife Remote client side of the relay link: QUIC with certificate pinning and reconnects, session streams, UI-independent controller sessions and the host's server connection"
+version = "0.0.1"
 edition = "2024"
 license = "MIT"
 
 # 桌面客户端（client/src-tauri）、网页控制台（web/）共用，不依赖任何 GUI 库。
-# 两者都是独立的 Cargo 工作区；这个库和 airhand-proto 一样属于根目录的工作区（在仓库根目录 cargo test）
+# 两者都是独立的 Cargo 工作区；这个库和 nife-remote-proto 一样属于根目录的工作区（在仓库根目录 cargo test）
 
 [features]
 default = ["client"]
@@ -39,7 +39,7 @@ test-hooks = ["client"]
 
 [dependencies]
 # wire、udp 用的（总是有）
-airhand-proto = { path = "../airhand-proto" }
+nife-remote-proto = { path = "../nife-remote-proto" }
 # 调大 UDP socket 的收发缓冲区；客户端连中转的 socket 开成双栈的（绑定之前关掉 IPV6_V6ONLY，见 src/udp.rs）
 socket2 = "0.6"
 thiserror = "2"

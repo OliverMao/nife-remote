@@ -1,8 +1,8 @@
-//! 控制端的麦克风（协议见 `airhand_proto::session` 的"麦克风"）：把控制端发来的声音放进本机的虚拟麦克风，
+//! 控制端的麦克风（协议见 `nife_remote_proto::session` 的"麦克风"）：把控制端发来的声音放进本机的虚拟麦克风，
 //! 本机的程序（会议、语音输入）选它做录音设备，就像用着一个本地麦克风。
 //!
 //! Windows 用 Steam 的虚拟声卡 Steam Streaming Microphone（装了 Steam、用过一次远程同乐就有，见 [`wasapi`]）。
-//! Airhand 不带、也不安装这个驱动，只用已经装好的设备：没有它时控制端看到的是 `MicState::NoDevice`。
+//! Nife Remote 不带、也不安装这个驱动，只用已经装好的设备：没有它时控制端看到的是 `MicState::NoDevice`。
 //! 其它平台还不支持（`MicState::Unsupported`）。
 //!
 //! * 同一时刻只给一个会话（[`open`]）：别的会话这时看到的是 `Busy`，空出来之后告诉它们（[`owner_changed`]）；
@@ -23,9 +23,9 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use airhand_link::host::MicSink;
-use airhand_proto::media::{self, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader};
-use airhand_proto::session::MicState;
+use nife_remote_link::host::MicSink;
+use nife_remote_proto::media::{self, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader};
+use nife_remote_proto::session::MicState;
 use anyhow::{Result, bail};
 use tokio::sync::watch;
 use tracing::{debug, info, warn};
@@ -124,7 +124,7 @@ pub fn open(session_id: u64, input: &Arc<MicInput>) -> Result<MicLease, MicState
     let previous = last.take();
     let thread_stop = stop.clone();
     let spawned = std::thread::Builder::new()
-        .name("airhand-mic".into())
+        .name("nife-remote-mic".into())
         .spawn(move || {
             if let Some(p) = previous {
                 let _ = p.join();

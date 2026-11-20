@@ -1,18 +1,18 @@
-//! Airhand 中转服务器。
+//! Nife Remote 中转服务器。
 //!
 //! 环境变量：
-//! * `AIRHAND_LISTEN`        监听地址，默认 `0.0.0.0:4433`（UDP）
-//! * `AIRHAND_CERT`          证书路径，默认 `data/cert.pem`，`data` 是服务端程序旁边的文件夹（不存在则自动创建，证书不存在则自动生成）
-//! * `AIRHAND_KEY`           私钥路径，默认 `data/key.pem`（同上）
-//! * `AIRHAND_DB`            SQLite 数据库（固定控制码的绑定表，见 [`codes`]），默认和证书放在同一个目录（默认 `data/airhand.db`）
-//! * `AIRHAND_CERT_NAMES`    自动生成证书时的 SAN，逗号分隔，默认 `airhand,localhost`
-//! * `AIRHAND_MAX_SESSIONS`  每台被控端最多同时被几个控制端连接，默认 4
-//! * `AIRHAND_MAX_CONNS_PER_IP` 同一个来源（IPv4 地址 / IPv6 的 /64）最多同时有几条连接，默认 128
+//! * `NIFE_REMOTE_LISTEN`        监听地址，默认 `0.0.0.0:4433`（UDP）
+//! * `NIFE_REMOTE_CERT`          证书路径，默认 `data/cert.pem`，`data` 是服务端程序旁边的文件夹（不存在则自动创建，证书不存在则自动生成）
+//! * `NIFE_REMOTE_KEY`           私钥路径，默认 `data/key.pem`（同上）
+//! * `NIFE_REMOTE_DB`            SQLite 数据库（固定控制码的绑定表，见 [`codes`]），默认和证书放在同一个目录（默认 `data/nife-remote.db`）
+//! * `NIFE_REMOTE_CERT_NAMES`    自动生成证书时的 SAN，逗号分隔，默认 `nife-remote,localhost`
+//! * `NIFE_REMOTE_MAX_SESSIONS`  每台被控端最多同时被几个控制端连接，默认 4
+//! * `NIFE_REMOTE_MAX_CONNS_PER_IP` 同一个来源（IPv4 地址 / IPv6 的 /64）最多同时有几条连接，默认 128
 //!   （网页控制台每个标签页一条；公司出口 IP 后面可能有很多台被控端）
-//! * `AIRHAND_NEW_CODES_PER_IP` 同一个来源（IPv4 地址 / IPv6 的 /48）10 分钟内最多分配几个新控制码，默认 30
+//! * `NIFE_REMOTE_NEW_CODES_PER_IP` 同一个来源（IPv4 地址 / IPv6 的 /48）10 分钟内最多分配几个新控制码，默认 30
 //!   （取回原来的控制码不算）
-//! * `AIRHAND_CONNECTS_PER_MINUTE` 同一个来源（IPv4 地址 / IPv6 的 /64）一分钟内最多向同一台被控端发起几个会话，默认 6
-//!   （不低于 `AIRHAND_MAX_SESSIONS`；带重连凭证的也算）
+//! * `NIFE_REMOTE_CONNECTS_PER_MINUTE` 同一个来源（IPv4 地址 / IPv6 的 /64）一分钟内最多向同一台被控端发起几个会话，默认 6
+//!   （不低于 `NIFE_REMOTE_MAX_SESSIONS`；带重连凭证的也算）
 //! * `RUST_LOG`              日志级别，默认 `info`
 
 mod broker;
@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use airhand_proto::ALPN;
+use nife_remote_proto::ALPN;
 use anyhow::{Context, Result};
 use quinn::crypto::rustls::QuicServerConfig;
 use quinn::{Endpoint, EndpointConfig, ServerConfig, TransportConfig, VarInt};
@@ -58,7 +58,7 @@ fn env_path(key: &str, default: PathBuf) -> PathBuf {
         .unwrap_or(default)
 }
 
-/// 针对实时画面优化的传输参数（客户端见 `crates/airhand-link/src/net.rs`）。
+/// 针对实时画面优化的传输参数（客户端见 `crates/nife-remote-link/src/net.rs`）。
 ///
 /// QUIC 的空闲超时取两端中较短的一个：客户端设置的更短（10 秒，2 秒保活），掉线检测以客户端为准；
 /// 这里的值兜底那些不发保活的连接。
@@ -72,7 +72,7 @@ pub fn transport_config() -> TransportConfig {
     // 服务器只转发：收到就转出去，窗口只要盖住一段链路的带宽时延积（100 Mbps × 300 ms ≈ 3.75 MB）。
     // 窗口就是服务器肯替一条连接缓存多少：不读数据的一方（或者故意这样做的攻击者）最多让服务器缓存
     // 接收 16 MiB + 发送 16 MiB，而不是几百 MiB。在途的画面由应用层 ACK 控制，不靠这里的窗口：
-    // 每个会话最多 码率 × (RTT + 50 ms)、不超过 4 MiB（airhand_link::flow），画面占不满发送窗口，
+    // 每个会话最多 码率 × (RTT + 50 ms)、不超过 4 MiB（nife_remote_link::flow），画面占不满发送窗口，
     // 同一连接上的 Bye 还写得进去
     t.stream_receive_window(VarInt::from_u32(4 * 1024 * 1024));
     t.receive_window(VarInt::from_u32(16 * 1024 * 1024));
@@ -112,25 +112,25 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let listen: SocketAddr = env_or("AIRHAND_LISTEN", "0.0.0.0:4433")
+    let listen: SocketAddr = env_or("NIFE_REMOTE_LISTEN", "0.0.0.0:4433")
         .parse()
-        .context("invalid AIRHAND_LISTEN")?;
+        .context("invalid NIFE_REMOTE_LISTEN")?;
     let data_dir = default_data_dir();
-    let cert_path = env_path("AIRHAND_CERT", data_dir.join("cert.pem"));
-    let key_path = env_path("AIRHAND_KEY", data_dir.join("key.pem"));
-    let db_path = match std::env::var("AIRHAND_DB") {
+    let cert_path = env_path("NIFE_REMOTE_CERT", data_dir.join("cert.pem"));
+    let key_path = env_path("NIFE_REMOTE_KEY", data_dir.join("key.pem"));
+    let db_path = match std::env::var("NIFE_REMOTE_DB") {
         Ok(v) if !v.trim().is_empty() => PathBuf::from(v),
         _ => cert_path
             .parent()
-            .map(|d| d.join("airhand.db"))
-            .unwrap_or_else(|| PathBuf::from("airhand.db")),
+            .map(|d| d.join("nife-remote.db"))
+            .unwrap_or_else(|| PathBuf::from("nife-remote.db")),
     };
-    let names: Vec<String> = env_or("AIRHAND_CERT_NAMES", "airhand,localhost")
+    let names: Vec<String> = env_or("NIFE_REMOTE_CERT_NAMES", "nife-remote,localhost")
         .split(',')
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    let max_sessions: usize = env_or("AIRHAND_MAX_SESSIONS", "4")
+    let max_sessions: usize = env_or("NIFE_REMOTE_MAX_SESSIONS", "4")
         .parse()
         .unwrap_or(4)
         .max(1);
@@ -141,16 +141,16 @@ async fn main() -> Result<()> {
             .max(1)
     };
     let max_conns_per_ip = number(
-        "AIRHAND_MAX_CONNS_PER_IP",
+        "NIFE_REMOTE_MAX_CONNS_PER_IP",
         broker::Config::DEFAULT_MAX_CONNS_PER_IP,
     );
     let new_codes_per_ip = number(
-        "AIRHAND_NEW_CODES_PER_IP",
+        "NIFE_REMOTE_NEW_CODES_PER_IP",
         broker::Config::DEFAULT_NEW_CODES_PER_IP,
     );
     // 不低于每台被控端的会话数：不然同一个出口 IP 后面的人坐不满一台被控端
     let connects_per_minute = number(
-        "AIRHAND_CONNECTS_PER_MINUTE",
+        "NIFE_REMOTE_CONNECTS_PER_MINUTE",
         broker::Config::DEFAULT_CONNECTS_PER_MINUTE,
     )
     .max(max_sessions);
@@ -158,11 +158,11 @@ async fn main() -> Result<()> {
     let cert = tls::load_or_generate(&cert_path, &key_path, &names)?;
     info!("Certificate SHA-256 fingerprint: {}", cert.fingerprint);
     info!(
-        "(to enable certificate pinning, set AIRHAND_SERVER_FP to this fingerprint when building the clients and when starting the web console; installed clients can also set it as server_fp in config.toml, or in Settings on Android)"
+        "(to enable certificate pinning, set NIFE_REMOTE_SERVER_FP to this fingerprint when building the clients and when starting the web console; installed clients can also set it as server_fp in config.toml, or in Settings on Android)"
     );
 
-    // 收发缓冲区调大了的 socket（见 airhand_link::udp；Linux 上还要在宿主机上调大 net.core.rmem_max / wmem_max）
-    let socket = airhand_link::udp::bind(listen, false)
+    // 收发缓冲区调大了的 socket（见 nife_remote_link::udp；Linux 上还要在宿主机上调大 net.core.rmem_max / wmem_max）
+    let socket = nife_remote_link::udp::bind(listen, false)
         .with_context(|| format!("can't listen on {listen}"))?;
     let runtime = quinn::default_runtime().context("no async runtime")?;
     let endpoint = Endpoint::new(
@@ -172,7 +172,7 @@ async fn main() -> Result<()> {
         runtime,
     )
     .with_context(|| format!("can't listen on {listen}"))?;
-    info!("Airhand server started on udp://{listen}, up to {max_sessions} sessions per host");
+    info!("Nife Remote server started on udp://{listen}, up to {max_sessions} sessions per host");
 
     let broker = broker::Broker::new(broker::Config {
         max_sessions_per_host: max_sessions,

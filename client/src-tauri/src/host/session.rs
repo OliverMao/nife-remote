@@ -1,16 +1,16 @@
 //! 被控端的单个远控会话：桌面版的 [`Platform`]。协议层的事（同意流程、Pong、失联检测、踢人时发 Bye、
-//! 画质设置的校验）在 [`airhand_link::host::serve`]，这里只管采集、编码、注入输入、剪贴板、声音、
+//! 画质设置的校验）在 [`nife_remote_link::host::serve`]，这里只管采集、编码、注入输入、剪贴板、声音、
 //! 控制端的麦克风（见 [`super::mic`]），以及定时检查权限和显示器有没有变化。
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use airhand_link::flow::Flow;
-use airhand_link::host::{
+use nife_remote_link::flow::Flow;
+use nife_remote_link::host::{
     Acks, Admission, CursorCache, Incoming, MicSink, Outbox, Platform, Request, Senders, Start,
     serve,
 };
-use airhand_proto::session::{DisplayInfo, HostHello, HostMsg, MicState, Notice, QualitySettings};
+use nife_remote_proto::session::{DisplayInfo, HostHello, HostMsg, MicState, Notice, QualitySettings};
 use anyhow::Result;
 use bytes::Bytes;
 use tokio::sync::{mpsc, watch};
@@ -31,11 +31,11 @@ const VIDEO_QUEUE: usize = 2;
 
 /// 告诉控制端的平台（控制端据此选快捷键、提示的说法）
 #[cfg(windows)]
-const PLATFORM: airhand_proto::session::Platform = airhand_proto::session::Platform::Windows;
+const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Windows;
 #[cfg(target_os = "macos")]
-const PLATFORM: airhand_proto::session::Platform = airhand_proto::session::Platform::Mac;
+const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Mac;
 #[cfg(not(any(windows, target_os = "macos")))]
-const PLATFORM: airhand_proto::session::Platform = airhand_proto::session::Platform::Linux;
+const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Linux;
 /// 检查系统权限是否有变化的间隔
 const PERMISSION_CHECK: Duration = Duration::from_secs(2);
 /// 检查显示器有没有变化（插拔、旋转、改分辨率 / 缩放 / 排列）的间隔
@@ -113,7 +113,7 @@ pub async fn run(inc: Incoming, gate: Arc<DesktopGate>) -> Result<()> {
             desktop.identity = Some((gate.clone(), ip, admitted.clone()));
             desktop.mic.negotiated = admitted
                 .negotiated
-                .has(airhand_proto::features::session::MIC);
+                .has(nife_remote_proto::features::session::MIC);
             desktop
         },
     )
@@ -127,7 +127,7 @@ struct Desktop {
     identity: Option<(
         Arc<DesktopGate>,
         std::net::IpAddr,
-        airhand_link::host::Admitted,
+        nife_remote_link::host::Admitted,
     )>,
     out: Outbox,
     video: mpsc::Sender<Bytes>,
@@ -477,7 +477,7 @@ impl Platform for Desktop {
                         self.current = next;
                         self.restart_pipeline().await;
                     }
-                    // 只留最新的一个（见 airhand_link::host::queue）
+                    // 只留最新的一个（见 nife_remote_link::host::queue）
                     self.out.send(&HostMsg::Displays {
                         displays: self.displays.clone(),
                         current: self.current,

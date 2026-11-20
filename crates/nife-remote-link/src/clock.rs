@@ -1,5 +1,5 @@
 //! 控制端的时钟（微秒）：Ping 和输入里的 `t`、确认里画面的到达时刻都是它。被控端只拿它和自己的时钟相减，
-//! 两边的时钟不需要同步（见 `airhand_proto::session` 的"过时的输入"、`crate::flow`）。
+//! 两边的时钟不需要同步（见 `nife_remote_proto::session` 的"过时的输入"、`crate::flow`）。
 
 use std::sync::LazyLock;
 use std::time::Instant;

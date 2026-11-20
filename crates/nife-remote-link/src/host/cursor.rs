@@ -1,10 +1,10 @@
-//! 控制端缓存了哪些光标形状（见 [`airhand_proto::session::CURSOR_SLOTS`]）。
+//! 控制端缓存了哪些光标形状（见 [`nife_remote_proto::session::CURSOR_SLOTS`]）。
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use super::{Outbox, SendError};
-use airhand_proto::session::{CURSOR_SLOTS, CursorRef, CursorShape, CursorVisibility, HostMsg};
+use nife_remote_proto::session::{CURSOR_SLOTS, CursorRef, CursorShape, CursorVisibility, HostMsg};
 
 /// 槽位里是哪个形状
 #[derive(Clone, Copy)]
@@ -112,7 +112,7 @@ impl CursorCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use airhand_proto::framing;
+    use nife_remote_proto::framing;
 
     fn shape(n: u8) -> CursorShape {
         CursorShape {

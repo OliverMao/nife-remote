@@ -2,9 +2,9 @@
 //!
 //! 首次启动时如果证书不存在，会生成一张自签名证书写到证书路径（默认是服务端程序旁边的 `data/` 文件夹，
 //! 不存在就创建；Docker 镜像里设成了 `/data`，即 `docker-compose.yml` 旁边的 `data/` 目录），并在日志中打印其 SHA-256 指纹。
-//! 把指纹填入客户端 `client/src-tauri/src/config.rs`（或构建时的 `AIRHAND_SERVER_FP` 环境变量，
+//! 把指纹填入客户端 `client/src-tauri/src/config.rs`（或构建时的 `NIFE_REMOTE_SERVER_FP` 环境变量，
 //! 桌面版和 Android 都是；已经装好的客户端是 `config.toml` 里的 `server_fp`，Android 在应用的设置里改），
-//! 以及网页控制台的 `AIRHAND_SERVER_FP` 环境变量，即可启用证书固定，防止中间人攻击。
+//! 以及网页控制台的 `NIFE_REMOTE_SERVER_FP` 环境变量，即可启用证书固定，防止中间人攻击。
 
 use std::path::Path;
 

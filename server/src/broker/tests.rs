@@ -1,21 +1,21 @@
-//! broker 的测试：大多是真正的 QUIC 连接（进程内的服务器 + airhand-link 的客户端链路）。
+//! broker 的测试：大多是真正的 QUIC 连接（进程内的服务器 + nife-remote-link 的客户端链路）。
 //! 调试构建里每次加锁都检查先后（见 [`super::lock`]），所以这些测试也守着锁的顺序。
 
-use airhand_link::Problem;
-use airhand_link::controller::{
+use nife_remote_link::Problem;
+use nife_remote_link::controller::{
     ConnectOptions, ControllerService, Frontend, SessionEvent, SessionUi, UiClosed, establish,
 };
-use airhand_link::host::{Access, Gate, HostStreams, Incoming, Request, Router};
-use airhand_link::lanes::open_lane;
-use airhand_link::net::{LinkConfig, Signal, connect_signal};
-use airhand_link::secure::{self, Identity, Initiator, InitiatorParams};
-use airhand_link::wire::{read_msg, write_msg};
-use airhand_proto::handshake::PublicKey;
-use airhand_proto::session::{ByeReason, QualitySettings};
-use airhand_proto::signal::{
+use nife_remote_link::host::{Access, Gate, HostStreams, Incoming, Request, Router};
+use nife_remote_link::lanes::open_lane;
+use nife_remote_link::net::{LinkConfig, Signal, connect_signal};
+use nife_remote_link::secure::{self, Identity, Initiator, InitiatorParams};
+use nife_remote_link::wire::{read_msg, write_msg};
+use nife_remote_proto::handshake::PublicKey;
+use nife_remote_proto::session::{ByeReason, QualitySettings};
+use nife_remote_proto::signal::{
     ClientMsg, ConnectError, Reclaim, ResumeToken, SessionGrant, connect_outcome,
 };
-use airhand_proto::{CODE_MAX, CODE_MIN, SessionLane, datagram};
+use nife_remote_proto::{CODE_MAX, CODE_MIN, SessionLane, datagram};
 use quinn::VarInt;
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use std::time::Instant;
@@ -189,7 +189,7 @@ async fn start_with(db: Option<std::path::PathBuf>) -> (Arc<Broker>, LinkConfig)
 }
 
 async fn start_cfg(cfg: Config) -> (Arc<Broker>, LinkConfig) {
-    let ck = rcgen::generate_simple_self_signed(vec!["airhand".into()]).unwrap();
+    let ck = rcgen::generate_simple_self_signed(vec!["nife-remote".into()]).unwrap();
     let chain = vec![CertificateDer::from(ck.cert.der().to_vec())];
     let key = PrivatePkcs8KeyDer::from(ck.signing_key.serialize_der()).into();
     let endpoint = quinn::Endpoint::server(
@@ -309,9 +309,9 @@ fn waiter_count(broker: &Broker) -> usize {
 /// 画面通道正常结束也盖不住被控端有意发的最后一条控制消息
 #[tokio::test]
 async fn blocked_video_lane_does_not_block_control_or_audio() {
-    use airhand_link::controller::FromHost;
-    use airhand_link::lanes::first_stream;
-    use airhand_proto::session::{HostMsg, Notice};
+    use nife_remote_link::controller::FromHost;
+    use nife_remote_link::lanes::first_stream;
+    use nife_remote_proto::session::{HostMsg, Notice};
     let (_broker, cfg) = start().await;
     let (mut host, id) = register(&cfg, None).await;
     let mut ctrl = connect_signal(&cfg, Role::Controller, None).await.unwrap();
@@ -349,7 +349,7 @@ async fn blocked_video_lane_does_not_block_control_or_audio() {
     let mut buf = Vec::new();
     let msg: HostMsg = timeout(
         Duration::from_secs(2),
-        read_msg(&mut ctrl_control, airhand_proto::MAX_CONTROL_MSG, &mut buf),
+        read_msg(&mut ctrl_control, nife_remote_proto::MAX_CONTROL_MSG, &mut buf),
     )
     .await
     .unwrap()
@@ -465,7 +465,7 @@ async fn resume_and_wait_for_the_host() {
     wait_until("the waiters are forgotten", || waiter_count(&broker) == 0).await;
 }
 
-/// 控制端服务（airhand-link）：重连时自动带上凭证；被控端不在线时回答 HostOffline，
+/// 控制端服务（nife-remote-link）：重连时自动带上凭证；被控端不在线时回答 HostOffline，
 /// 被控端回来时调用 host_online
 #[tokio::test]
 async fn controller_service_waits_for_the_host() {
@@ -538,9 +538,9 @@ async fn controller_service_waits_for_the_host() {
 /// 未知视频编码仍经过真实控制端会话转发给界面并确认；后面的已知帧继续接收。
 #[tokio::test]
 async fn unknown_video_codec_does_not_end_the_controller_session() {
-    use airhand_link::host::Acks;
-    use airhand_proto::media::{self, VideoHeader};
-    use airhand_proto::session::Codec;
+    use nife_remote_link::host::Acks;
+    use nife_remote_proto::media::{self, VideoHeader};
+    use nife_remote_proto::session::Codec;
     struct Ui(mpsc::UnboundedSender<Vec<u8>>);
     /// 确认在读任务里就交给平台（Ping 也在那里回了）
     struct AckTx(mpsc::UnboundedSender<(u32, u64)>);
@@ -651,7 +651,7 @@ fn temp_db() -> (std::path::PathBuf, std::path::PathBuf) {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../target/test-tmp")
         .join(format!("broker-{:016x}", rand::random::<u64>()));
-    let file = dir.join("airhand.db");
+    let file = dir.join("nife-remote.db");
     (dir, file)
 }
 
@@ -717,8 +717,8 @@ async fn registration_does_not_reveal_whether_a_code_is_taken() {
 /// 用真实 QUIC 和端到端握手检查通道预算：大剪贴板在大块通道上可以，控制通道上的大消息、发错通道的消息都结束会话
 #[tokio::test]
 async fn session_lane_limits_reject_oversized_control_and_wrong_lanes() {
-    use airhand_proto::framing;
-    use airhand_proto::session::{ControllerMsg, InputEvent};
+    use nife_remote_proto::framing;
+    use nife_remote_proto::session::{ControllerMsg, InputEvent};
     for wrong_lane in [false, true] {
         let (_broker, cfg) = start().await;
         let (mut host, id) = register(&cfg, None).await;
@@ -880,13 +880,13 @@ async fn repeated_rekey_preserves_the_last_confirmed_secret() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// 被控端服务（airhand-link）：本机用户断开所有控制端时请服务器换密钥，并保存新密钥；被断开的控制端拿着旧凭证连不回来
+/// 被控端服务（nife-remote-link）：本机用户断开所有控制端时请服务器换密钥，并保存新密钥；被断开的控制端拿着旧凭证连不回来
 #[tokio::test]
 async fn host_service_rekeys_on_kick_all() {
-    use airhand_link::host::{HostCmd, HostEvents};
+    use nife_remote_link::host::{HostCmd, HostEvents};
     struct Events(mpsc::UnboundedSender<(Reclaim, bool)>);
     impl HostEvents for Events {
-        fn server(&self, _: airhand_link::ServerState) {}
+        fn server(&self, _: nife_remote_link::ServerState) {}
         async fn registered(&self, code: Reclaim, changed: bool) {
             let _ = self.0.send((code, changed));
         }
@@ -897,7 +897,7 @@ async fn host_service_rekeys_on_kick_all() {
     let (_broker, cfg) = start().await;
     let (tx, mut saved) = mpsc::unbounded_channel();
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-    let task = tokio::spawn(airhand_link::host::run(
+    let task = tokio::spawn(nife_remote_link::host::run(
         Arc::new(cfg.clone()),
         true,
         None,
@@ -931,20 +931,20 @@ async fn host_service_rekeys_on_kick_all() {
 }
 
 /// 被控端发了 Rekey 却没等到回答就断线了（服务器可能没收到、或者收到了还没记下就重启了）：
-/// 重新注册时带上 rekey，直到换成了为止（airhand-link 的被控端服务）
+/// 重新注册时带上 rekey，直到换成了为止（nife-remote-link 的被控端服务）
 #[tokio::test]
 async fn host_service_retries_an_unanswered_rekey() {
-    use airhand_link::host::{HostCmd, HostEvents};
+    use nife_remote_link::host::{HostCmd, HostEvents};
     struct Events;
     impl HostEvents for Events {
-        fn server(&self, _: airhand_link::ServerState) {}
+        fn server(&self, _: nife_remote_link::ServerState) {}
         async fn registered(&self, _: Reclaim, _: bool) {}
         async fn released(&self) {}
         fn ended(&self, _: u64) {}
         fn offline(&self) {}
     }
     // 只会说信令的假服务器
-    let ck = rcgen::generate_simple_self_signed(vec!["airhand".into()]).unwrap();
+    let ck = rcgen::generate_simple_self_signed(vec!["nife-remote".into()]).unwrap();
     let chain = vec![CertificateDer::from(ck.cert.der().to_vec())];
     let key = PrivatePkcs8KeyDer::from(ck.signing_key.serialize_der()).into();
     let endpoint = quinn::Endpoint::server(
@@ -955,7 +955,7 @@ async fn host_service_retries_an_unanswered_rekey() {
     let cfg = LinkConfig::new(endpoint.local_addr().unwrap().to_string(), "", "t", "t").unwrap();
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
     // 不保存控制码的被控端
-    let task = tokio::spawn(airhand_link::host::run(
+    let task = tokio::spawn(nife_remote_link::host::run(
         Arc::new(cfg),
         false,
         None,
@@ -977,11 +977,11 @@ async fn host_service_retries_an_unanswered_rekey() {
                 .await
                 .unwrap()
         );
-        let hello: ClientHello = airhand_proto::framing::decode_known(&buf).unwrap();
+        let hello: ClientHello = nife_remote_proto::framing::decode_known(&buf).unwrap();
         assert_eq!(hello.role, Role::Host);
-        let answer = ServerHello::answer(hello.versions(), airhand_proto::Features::NONE);
+        let answer = ServerHello::answer(hello.versions(), nife_remote_proto::Features::NONE);
         assert!(answer.version.is_some());
-        write_frame(&mut send, &airhand_proto::framing::to_vec(&answer))
+        write_frame(&mut send, &nife_remote_proto::framing::to_vec(&answer))
             .await
             .unwrap();
         let reg: ClientMsg = read_msg(&mut recv, MAX_SIGNAL_MSG, &mut buf)
@@ -1161,7 +1161,7 @@ async fn a_host_that_isnt_ready_is_answered_like_an_unknown_code() {
 /// 同一端把同一条通道开两次的拒绝；任何一端的控制通道结束，整个会话结束，其它通道随之断开
 #[tokio::test]
 async fn lanes_the_server_has_never_heard_of_are_relayed() {
-    use airhand_proto::SessionHeader;
+    use nife_remote_proto::SessionHeader;
     let (broker, cfg) = start().await;
     let (mut host, id) = register(&cfg, None).await;
     let mut ctrl = connect_signal(&cfg, Role::Controller, None).await.unwrap();
@@ -1287,10 +1287,10 @@ async fn datagrams_are_relayed_between_the_two_ends_of_a_session() {
     }
 }
 
-/// 被控端（airhand-link 的 HostStreams）的声音包走数据报，经服务器转发，控制端服务交给界面
+/// 被控端（nife-remote-link 的 HostStreams）的声音包走数据报，经服务器转发，控制端服务交给界面
 #[tokio::test]
 async fn controller_service_gets_audio_over_datagrams() {
-    use airhand_proto::media::{self, AudioHeader, Kind};
+    use nife_remote_proto::media::{self, AudioHeader, Kind};
     struct Ui(mpsc::UnboundedSender<Vec<u8>>);
     impl SessionUi for Ui {
         fn packet(&self, p: Vec<u8>) -> Result<(), UiClosed> {
@@ -1351,7 +1351,7 @@ async fn controller_service_gets_audio_over_datagrams() {
     // 两端的安全码一样；控制端记下的是被控端真正的公钥；开始时的画质和声音在握手里就到了
     assert_eq!(info.safety, admitted.safety);
     assert_eq!((admitted.settings.fps, admitted.audio), (50, true));
-    assert_eq!(info.host_key, airhand_link::secure::hex(gate.0.public()));
+    assert_eq!(info.host_key, nife_remote_link::secure::hex(gate.0.public()));
     assert!(broker.sessions.lock().contains_key(&sid));
     for seq in 1..=5u32 {
         let h = AudioHeader {
@@ -1534,9 +1534,9 @@ async fn fixed_codes_are_never_handed_out() {
 /// 画面接着来；直连恢复之后再换回去。整个过程中画面的序号只增不减，跳过了帧的地方界面拿到的是关键帧
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn video_takes_the_direct_path_and_falls_back_to_the_relay() {
-    use airhand_link::host::{Acks, DirectHub, HostLink};
-    use airhand_proto::media::{self, VideoHeader};
-    use airhand_proto::session::{Codec, HostMsg, Notice};
+    use nife_remote_link::host::{Acks, DirectHub, HostLink};
+    use nife_remote_proto::media::{self, VideoHeader};
+    use nife_remote_proto::session::{Codec, HostMsg, Notice};
     use std::sync::atomic::{AtomicBool, AtomicU32};
 
     struct Ui {

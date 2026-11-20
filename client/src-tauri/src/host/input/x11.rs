@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::{DisplayInfo, InputEvent, MouseButton};
+use nife_remote_proto::session::{DisplayInfo, InputEvent, MouseButton};
 use anyhow::{Context, Result, bail};
 use tracing::warn;
 use x11rb::connection::Connection;

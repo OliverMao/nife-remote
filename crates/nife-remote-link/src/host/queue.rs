@@ -12,10 +12,10 @@
 
 use std::sync::Arc;
 
-use airhand_proto::SessionLane;
-use airhand_proto::framing;
-use airhand_proto::handshake::SEAL_OVERHEAD;
-use airhand_proto::session::HostMsg;
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::framing;
+use nife_remote_proto::handshake::SEAL_OVERHEAD;
+use nife_remote_proto::session::HostMsg;
 use bytes::Bytes;
 
 use crate::queue::{Item, Limit, Mailbox};
@@ -241,7 +241,7 @@ impl Drop for LaneReceiver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use airhand_proto::session::{
+    use nife_remote_proto::session::{
         ByeReason, CursorRef, CursorShape, CursorVisibility, DisplayInfo, HostHello, Notice,
         Platform,
     };
@@ -351,7 +351,7 @@ mod tests {
             (HostMsg::Bye(ByeReason::Kicked), SessionLane::Control),
             (
                 HostMsg::Mic {
-                    state: airhand_proto::session::MicState::Ready,
+                    state: nife_remote_proto::session::MicState::Ready,
                     detail: None,
                 },
                 SessionLane::Control,
@@ -481,7 +481,7 @@ mod tests {
         assert!(bulk.try_recv().is_none());
         let mut h = hello("large");
         if let HostMsg::Hello(ref mut h) = h {
-            h.hostname = "x".repeat(airhand_proto::MAX_CONTROL_MSG);
+            h.hostname = "x".repeat(nife_remote_proto::MAX_CONTROL_MSG);
         }
         assert_eq!(tx.send(&h), Err(SendError::TooLarge));
     }

@@ -1,4 +1,4 @@
-// 和 Rust、Android 共用的协议样例（crates/airhand-link/tests/protocol.json，由 Rust 的测试生成）：
+// 和 Rust、Android 共用的协议样例（crates/nife-remote-link/tests/protocol.json，由 Rust 的测试生成）：
 // 媒体包按 media.ts 解析出来要和 Rust 打包时一样；输入事件、命令、连接选项的 JSON 形状要和 api.ts 的类型对得上。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -7,7 +7,7 @@ import * as media from "../src/lib/media.ts";
 import { contract } from "./protocol-contract.ts";
 
 const fixture = JSON.parse(
-  fs.readFileSync(new URL("../../crates/airhand-link/tests/protocol.json", import.meta.url), "utf8"),
+  fs.readFileSync(new URL("../../crates/nife-remote-link/tests/protocol.json", import.meta.url), "utf8"),
 );
 
 const bytes = (hex: string) => Uint8Array.from(hex.match(/../g) ?? [], (b) => parseInt(b, 16));

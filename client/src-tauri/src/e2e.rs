@@ -2,28 +2,28 @@
 //!
 //! 先在另一个终端启动服务器（不固定证书）：
 //! ```text
-//! AIRHAND_CERT=target/e2e/cert.pem AIRHAND_KEY=target/e2e/key.pem cargo run -p airhand-server
+//! NIFE_REMOTE_CERT=target/e2e/cert.pem NIFE_REMOTE_KEY=target/e2e/key.pem cargo run -p nife-remote-server
 //! ```
 //! 然后运行：`cargo test --lib e2e -- --ignored --nocapture`
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use airhand_link::controller::{Established, FromHost, establish};
-use airhand_link::host::Router;
-use airhand_link::net::Signal;
-use airhand_link::secure::{self, Identity, InitiatorParams, Sealer};
-use airhand_link::wire::{read_msg, write_msg};
-use airhand_proto::handshake::SEAL_OVERHEAD;
-use airhand_proto::media::{self, AudioHeader, VideoHeader};
-use airhand_proto::session::{
+use nife_remote_link::controller::{Established, FromHost, establish};
+use nife_remote_link::host::Router;
+use nife_remote_link::net::Signal;
+use nife_remote_link::secure::{self, Identity, InitiatorParams, Sealer};
+use nife_remote_link::wire::{read_msg, write_msg};
+use nife_remote_proto::handshake::SEAL_OVERHEAD;
+use nife_remote_proto::media::{self, AudioHeader, VideoHeader};
+use nife_remote_proto::session::{
     ByeReason, Codec, ControllerDatagram, ControllerMsg, HostMsg, InputEvent, MicState, Notice,
     QualitySettings, VideoPriority,
 };
-use airhand_proto::signal::{ClientMsg, ConnectError, ServerMsg, connect_outcome};
-use airhand_proto::{MAX_SIGNAL_MSG, Role};
+use nife_remote_proto::signal::{ClientMsg, ConnectError, ServerMsg, connect_outcome};
+use nife_remote_proto::{MAX_SIGNAL_MSG, Role};
 
-use airhand_link::ServerState;
+use nife_remote_link::ServerState;
 
 use crate::host::HostService;
 use crate::status;
@@ -36,7 +36,7 @@ struct Ctl {
 
 impl Ctl {
     async fn send(&mut self, msg: &ControllerMsg) {
-        let mut f = airhand_proto::framing::encode_with_spare(msg, SEAL_OVERHEAD);
+        let mut f = nife_remote_proto::framing::encode_with_spare(msg, SEAL_OVERHEAD);
         self.sealer.seal_frame(&mut f).unwrap();
         self.send.write_all(&f).await.unwrap();
     }
@@ -159,7 +159,7 @@ async fn e2e_roundtrip() {
     println!("被控端控制码: {code}，配对码: {pairing:?}");
 
     // 控制端：连接服务器
-    let mut sig = airhand_link::net::connect_signal(&crate::config::link(), Role::Controller, None)
+    let mut sig = nife_remote_link::net::connect_signal(&crate::config::link(), Role::Controller, None)
         .await
         .expect("控制端连接服务器");
     // 被控端开过来的通道、发来的数据报按会话交给会话
@@ -272,8 +272,8 @@ async fn e2e_roundtrip() {
     let mut switched = false;
     // 剪贴板：控制端 → 被控端（写入本机剪贴板），然后本机修改 → 被控端应回传
     let original_clip = crate::clipboard::get_text().ok();
-    let to_host = format!("airhand-e2e-to-host-{}", rand::random::<u32>());
-    let from_host = format!("airhand-e2e-from-host-{}", rand::random::<u32>());
+    let to_host = format!("nife-remote-e2e-to-host-{}", rand::random::<u32>());
+    let from_host = format!("nife-remote-e2e-from-host-{}", rand::random::<u32>());
     bulk.send(&ControllerMsg::Clipboard {
         text: to_host.clone(),
     })
@@ -375,7 +375,7 @@ async fn e2e_roundtrip() {
                 rep.hello = true;
                 // 桌面被控端：报告自己的平台，不接收触摸、没有手机那样的系统操作
                 assert!(!h.touch && h.actions.is_empty(), "{h:?}");
-                assert_ne!(h.platform, airhand_proto::session::Platform::Android);
+                assert_ne!(h.platform, nife_remote_proto::session::Platform::Android);
                 println!(
                     "Hello: {} / {} / 显示器 {} / 编码 {:?}",
                     h.hostname,
@@ -537,15 +537,15 @@ async fn e2e_roundtrip() {
 async fn e2e_mic() {
     use crate::host::mic::tests::goertzel;
     use crate::host::mic::wasapi::tests::Recorder;
-    use airhand_proto::datagram;
+    use nife_remote_proto::datagram;
 
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("info,quinn=warn,airhand_lib::host::mic=debug")
+        .with_env_filter("info,quinn=warn,nife_remote_lib::host::mic=debug")
         .try_init();
     let hub = status::new_hub();
     let _host = HostService::start(hub.clone());
     let (code, pairing) = wait_host(&hub).await;
-    let mut sig = airhand_link::net::connect_signal(&crate::config::link(), Role::Controller, None)
+    let mut sig = nife_remote_link::net::connect_signal(&crate::config::link(), Role::Controller, None)
         .await
         .expect("控制端连接服务器");
     let (router, _router) = Router::start(&sig.conn);
@@ -697,17 +697,17 @@ async fn e2e_reconnect_keeps_code() {
         .try_init();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let exe = root.join(format!(
-        "target/debug/airhand-server{}",
+        "target/debug/nife-remote-server{}",
         std::env::consts::EXE_SUFFIX
     ));
     let spawn = || {
         std::process::Command::new(&exe)
-            .env("AIRHAND_LISTEN", "127.0.0.1:4433")
-            .env("AIRHAND_CERT", root.join("target/e2e/cert.pem"))
-            .env("AIRHAND_KEY", root.join("target/e2e/key.pem"))
+            .env("NIFE_REMOTE_LISTEN", "127.0.0.1:4433")
+            .env("NIFE_REMOTE_CERT", root.join("target/e2e/cert.pem"))
+            .env("NIFE_REMOTE_KEY", root.join("target/e2e/key.pem"))
             .env("RUST_LOG", "warn")
             .spawn()
-            .expect("启动服务器（先 cargo build -p airhand-server）")
+            .expect("启动服务器（先 cargo build -p nife-remote-server）")
     };
     let mut server = spawn();
     let hub = status::new_hub();

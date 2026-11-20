@@ -1,8 +1,8 @@
-//! Airhand 协议定义。
+//! Nife Remote 协议定义。
 //!
 //! ```text
 //!  被控端(Host) ──QUIC──┐                 ┌──QUIC── 控制端(Controller)
-//!                      │  airhand-server │
+//!                      │  nife-remote-server │
 //!   信令流(bi #0) ──────┤   信令 + 中转   ├────── 信令流(bi #0)
 //!   通道(uni) ═════════╪═════ 字节透传 ══╪══════ 通道(uni)
 //!                      │   （只看会话头）  │
@@ -87,10 +87,10 @@ pub const SESSION_VERSION: u16 = 1;
 pub const SESSION_MIN: u16 = 1;
 
 /// QUIC ALPN 标识。和版本握手（见 [`signal`]）一样永远不变，否则不同版本连 TLS 握手都过不了，无法得知版本不一致
-pub const ALPN: &[u8] = b"airhand/1";
+pub const ALPN: &[u8] = b"nife-remote/1";
 
 /// 两端之间直连的 QUIC ALPN。直连只在会话里协商好之后才建，不用像 [`ALPN`] 那样永远不变
-pub const DIRECT_ALPN: &[u8] = b"airhand-direct/1";
+pub const DIRECT_ALPN: &[u8] = b"nife-remote-direct/1";
 
 /// 控制码范围：6 位数字，首位不为 0，避免口头报码时产生歧义。
 pub const CODE_MIN: u32 = 100_000;

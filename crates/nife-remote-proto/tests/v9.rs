@@ -1,5 +1,5 @@
 //! v9 的固定线上字节。发布之后不要随协议实现重新生成：兼容改动必须继续读写这些消息，新增消息另加样例。
-use airhand_proto::{
+use nife_remote_proto::{
     Features, Role, framing,
     handshake::*,
     minicbor::{Decode, Encode},
@@ -157,7 +157,7 @@ fn session_messages_keep_their_wire_encoding() {
 /// 会话能力位 MIC（0 号位）加的消息：发布之后一样固定。没有说明时 detail 不写（数组短一项）
 #[test]
 fn mic_messages_keep_their_wire_encoding() {
-    assert_eq!(airhand_proto::features::session::MIC.bits(), 1);
+    assert_eq!(nife_remote_proto::features::session::MIC.bits(), 1);
     golden(
         HostMsg::Mic {
             state: MicState::Ready,

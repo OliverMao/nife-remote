@@ -2,7 +2,7 @@
 // 直接交给音频线程（AudioWorklet，见 audio.ts、audio-worklet.ts），不经过主线程。
 import type { PlayerMessage } from "./audio-worklet";
 
-/** 与 airhand_proto::session::AUDIO_* 一致 */
+/** 与 nife_remote_proto::session::AUDIO_* 一致 */
 export const SAMPLE_RATE = 48000;
 export const CHANNELS = 2;
 const FRAME_SAMPLES = 960;

@@ -12,7 +12,7 @@ Double-click to run (on Windows install it first, see [Windows installation](#wi
 - Who is controlling this computer right now (with the **safety code** after each connection), and **Disconnect all controllers**
 - **Change control code**: the old code stops working immediately and connected controllers are disconnected; the pairing code changes too and all paired controllers are forgotten
 - **Forget paired controllers**: they'll need the pairing code again
-- Open console and **Start with Windows** (Windows) / Switch to controller (macOS, Linux) and **Open at login** (macOS) / Language / **Uninstall Airhand…** (macOS, see [Uninstalling](#uninstalling)) / Quit
+- Open console and **Start with Windows** (Windows) / Switch to controller (macOS, Linux) and **Open at login** (macOS) / Language / **Uninstall Nife Remote…** (macOS, see [Uninstalling](#uninstalling)) / Quit
 
 After a network drop the host reconnects automatically with exponential backoff and **gets its old control code back**, even after a server restart. The code is **fixed**: it's saved in `config.toml`, and the server keeps it for this computer however long it stays offline (codes unused for 180 days are released), so it stays the same across restarts and upgrades until you change it.
 
@@ -20,109 +20,109 @@ After a network drop the host reconnects automatically with exponential backoff 
 
 > On Linux the tray icon uses AppIndicator. It works out of the box on Ubuntu, KDE, Xfce and similar; stock GNOME needs the "AppIndicator and KStatusNotifierItem Support" extension. Without an AppIndicator library the program still runs as a host and prints the control code to the log (stderr).
 
-> On macOS the host needs two system permissions: **Screen & System Audio Recording** (to capture the screen and sound) and **Accessibility** (to control the keyboard and mouse). macOS asks on the first start; while one is missing, the menu says so, and clicking that item opens the matching page in System Settings → Privacy & Security. A connected controller is told which permission is missing too (in the controller's own language), and the message goes away once it is granted. After granting Screen & System Audio Recording, reopen Airhand. Airhand normally lives in the menu bar only and shows up in the Dock while the console is open.
+> On macOS the host needs two system permissions: **Screen & System Audio Recording** (to capture the screen and sound) and **Accessibility** (to control the keyboard and mouse). macOS asks on the first start; while one is missing, the menu says so, and clicking that item opens the matching page in System Settings → Privacy & Security. A connected controller is told which permission is missing too (in the controller's own language), and the message goes away once it is granted. After granting Screen & System Audio Recording, reopen Nife Remote. Nife Remote normally lives in the menu bar only and shows up in the Dock while the console is open.
 
-> **Open at login** on macOS (switched in the menu bar icon's menu): after you log in, Airhand starts in the menu bar by itself, so the Mac can still be controlled after a restart (on macOS programs can only run after login, and the login window can't be captured anyway; with automatic login it amounts to starting at boot). It is the same entry as "Open at Login" in System Settings → General → Login Items ("Login Items & Extensions" on some versions of macOS), so turning it off there works too and the menu follows. **It's turned on the first time Airhand runs from the Applications folder** (macOS shows a "Login Item Added" notification), and only that once: if you turn it off, it stays off and Airhand never turns it back on by itself. Only an Airhand in the Applications folder (`/Applications` or `~/Applications`) can turn it on: when it's opened straight from Downloads or a disk image, macOS runs it from a temporary location that won't be there next time, so the menu asks you to move it to the Applications folder first.
+> **Open at login** on macOS (switched in the menu bar icon's menu): after you log in, Nife Remote starts in the menu bar by itself, so the Mac can still be controlled after a restart (on macOS programs can only run after login, and the login window can't be captured anyway; with automatic login it amounts to starting at boot). It is the same entry as "Open at Login" in System Settings → General → Login Items ("Login Items & Extensions" on some versions of macOS), so turning it off there works too and the menu follows. **It's turned on the first time Nife Remote runs from the Applications folder** (macOS shows a "Login Item Added" notification), and only that once: if you turn it off, it stays off and Nife Remote never turns it back on by itself. Only an Nife Remote in the Applications folder (`/Applications` or `~/Applications`) can turn it on: when it's opened straight from Downloads or a disk image, macOS runs it from a temporary location that won't be there next time, so the menu asks you to move it to the Applications folder first.
 
 ## Windows installation
 
-On Windows Airhand is installed with its installer (into `C:\Program Files\Airhand` for all users; needs administrator rights). The host runs as the system service **Airhand**, as SYSTEM in the session of whoever is at the screen, so it keeps working on the lock screen, the sign-in screen and UAC prompts, and follows when users are switched. The tray icon is an ordinary program that shows the service's status and controls it:
+On Windows Nife Remote is installed with its installer (into `C:\Program Files\Nife Remote` for all users; needs administrator rights). The host runs as the system service **Nife Remote**, as SYSTEM in the session of whoever is at the screen, so it keeps working on the lock screen, the sign-in screen and UAC prompts, and follows when users are switched. The tray icon is an ordinary program that shows the service's status and controls it:
 
-- Opening Airhand starts the service; **Quit** in the tray stops it (as before, the computer can't be controlled after quitting); when the service stops (or is uninstalled) the tray icons close too
+- Opening Nife Remote starts the service; **Quit** in the tray stops it (as before, the computer can't be controlled after quitting); when the service stops (or is uninstalled) the tray icons close too
 - **Start with Windows** (tray menu, on by default): the service starts at boot, so the computer can be controlled before anyone signs in, and the tray icon appears after signing in
 - The configuration file `config.toml` is in the install directory (created on installation, see [Configuration file](#configuration-file)) and maintained by the service; edit it as administrator
 - **Uninstalling** (Settings → Apps) stops and removes the service, the startup entry, `config.toml` and the program; nothing is left behind (see [Uninstalling](#uninstalling)). Installing a new version over an old one keeps `config.toml`, and with it the control code and My devices, even if you choose to uninstall the old version first
-- A bare `airhand.exe` doesn't run without being installed: release builds ask you to run the installer. Debug builds (`npm run tauri dev`) run the host inside the tray process, like on macOS and Linux, with `config.toml` next to the program (`client/src-tauri/target/debug/`)
+- A bare `nife-remote.exe` doesn't run without being installed: release builds ask you to run the installer. Debug builds (`npm run tauri dev`) run the host inside the tray process, like on macOS and Linux, with `config.toml` next to the program (`client/src-tauri/target/debug/`)
 
 ## Configuration file
 
-Everything Airhand saves is in one `config.toml` (with comments). The menu in the console's top-left corner also shows where it is:
+Everything Nife Remote saves is in one `config.toml` (with comments). The menu in the console's top-left corner also shows where it is:
 
 | System | Location |
 |---|---|
-| Windows | The install directory: `C:\Program Files\Airhand\config.toml` (next to the program for debug builds that aren't installed) |
-| macOS | `~/Library/Application Support/app.airhand.client/config.toml` |
-| Linux | `$XDG_CONFIG_HOME/airhand/config.toml`, by default `~/.config/airhand/config.toml` |
+| Windows | The install directory: `C:\Program Files\Nife Remote\config.toml` (next to the program for debug builds that aren't installed) |
+| macOS | `~/Library/Application Support/app.nife-remote.client/config.toml` |
+| Linux | `$XDG_CONFIG_HOME/nife-remote/config.toml`, by default `~/.config/nife-remote/config.toml` |
 
 | Key | Description |
 |---|---|
 | `server` | Relay server `host:port`; without it, the address built into the program |
 | `server_fp` | Relay certificate fingerprint; `""` means no fixed fingerprint: the server's certificate is remembered on the first connection (`[server_trust]`) and a different one is refused later; without it, the built-in fingerprint |
-| `[server_trust]` | Written by Airhand: the relay's certificate fingerprint remembered on the first connection (when no fingerprint is set). Delete it if the relay really gets a new certificate |
+| `[server_trust]` | Written by Nife Remote: the relay's certificate fingerprint remembered on the first connection (when no fingerprint is set). Delete it if the relay really gets a new certificate |
 | `access` | Whether controllers that haven't paired may connect: `"pairing"` (default) needs the pairing code from the tray; `"open"` lets anyone with the control code in (which means trusting the relay server) |
 | `autostart` | Windows: start with Windows (also in the tray menu). macOS: a record of Open at login; System Settings is what counts, so editing only this line has no effect. Without it, Open at login hasn't been turned on by default yet (see above) |
 | `[code]` | This computer's control code, and the secret that gets it back. Delete `code` and `secret` to get a new code |
-| `[host]` | Maintained by Airhand: this computer's end-to-end identity as a host (`key`), the pairing code and whether pairing is paused, all stored encrypted. Deleting `key` creates a new identity: controllers that connected before will warn that this computer's identity changed |
-| `[[paired]]` | Maintained by Airhand: paired controllers (public key, name, when they paired); they connect without the pairing code. Delete an entry to forget that controller |
-| `[controller]` | Maintained by Airhand: the console's end-to-end identity (stored encrypted, one per account on Windows). Paired computers recognize the console by it; delete it and you'll have to pair again |
+| `[host]` | Maintained by Nife Remote: this computer's end-to-end identity as a host (`key`), the pairing code and whether pairing is paused, all stored encrypted. Deleting `key` creates a new identity: controllers that connected before will warn that this computer's identity changed |
+| `[[paired]]` | Maintained by Nife Remote: paired controllers (public key, name, when they paired); they connect without the pairing code. Delete an entry to forget that controller |
+| `[controller]` | Maintained by Nife Remote: the console's end-to-end identity (stored encrypted, one per account on Windows). Paired computers recognize the console by it; delete it and you'll have to pair again |
 | `[[device]]` | The console's **My devices**: computers you've connected to (control code, their name, the name you gave them, last quality settings, last connected, their public key `host_key`). Saved automatically on connect, up to 50. To add one by hand, write the 6 digits as `code` |
 
-- Restart Airhand after changing settings (Quit, then open it again). Airhand keeps your edits and comments when it saves the code or devices
+- Restart Nife Remote after changing settings (Quit, then open it again). Nife Remote keeps your edits and comments when it saves the code or devices
 - **Deleted by accident** (the file or the whole directory): it's recreated with the default settings at startup, and within a few seconds while running. This computer's control code, the autostart setting (on macOS, the record of Open at login), the end-to-end identities, the paired controllers and My devices carry over from before the deletion, so nothing is lost; other settings go back to their defaults
 - A control code is enough to control its computer, so treat it like a key. On macOS / Linux only your account can read and write the file (mode 600, directory 700). On Windows the file is in the install directory, readable by every account on the computer: this computer's secret is encrypted with DPAPI for the SYSTEM account, and the codes in My devices with the Windows account that saved them, so other accounts and other computers can't read them (each account on the same computer only sees its own devices)
 - Windows removes it when uninstalling; on macOS / Linux it stays after the program is removed (as is customary there), so remove it too, see [Uninstalling](#uninstalling)
 
 ## Uninstalling
 
-After these steps nothing of Airhand is left on the computer (except two things on macOS that the system protects and Airhand can't remove, see the end of [macOS](#macos)). The configuration file holds this computer's control code and the codes of the computers in My devices (they work like keys), so do delete it if you stop using Airhand.
+After these steps nothing of Nife Remote is left on the computer (except two things on macOS that the system protects and Nife Remote can't remove, see the end of [macOS](#macos)). The configuration file holds this computer's control code and the codes of the computers in My devices (they work like keys), so do delete it if you stop using Nife Remote.
 
 ### Windows
 
-Settings → Apps → Airhand → Uninstall. The uninstaller stops and removes the Airhand service and the startup entry, and deletes the install directory (including `config.toml`), the registry keys the installer wrote, the Windows Firewall rules added for `airhand.exe`, and the console's temporary directories. Nothing else to do by hand.
+Settings → Apps → Nife Remote → Uninstall. The uninstaller stops and removes the Nife Remote service and the startup entry, and deletes the install directory (including `config.toml`), the registry keys the installer wrote, the Windows Firewall rules added for `nife-remote.exe`, and the console's temporary directories. Nothing else to do by hand.
 
 (Choosing "uninstall the old version first" during an upgrade isn't an uninstall: `config.toml` is kept, see [Windows installation](#windows-installation).)
 
 ### macOS
 
-macOS apps have no uninstaller, and moving the app to the Trash only removes the program itself. Besides the program, Airhand leaves these behind on macOS (in the order they're removed):
+macOS apps have no uninstaller, and moving the app to the Trash only removes the program itself. Besides the program, Nife Remote leaves these behind on macOS (in the order they're removed):
 
 | Item | Where | Notes |
 |---|---|---|
-| Open at login | System Settings → General → Login Items ("Login Items & Extensions" on some versions of macOS), under both "Open at Login" and "App Background Activity" | Has to be unregistered by Airhand itself: if you delete the app first, a dead Airhand entry stays in both places |
+| Open at login | System Settings → General → Login Items ("Login Items & Extensions" on some versions of macOS), under both "Open at Login" and "App Background Activity" | Has to be unregistered by Nife Remote itself: if you delete the app first, a dead Nife Remote entry stays in both places |
 | Permissions | System Settings → Privacy & Security: Screen & System Audio Recording, Accessibility and so on | Can only be cleared while the app is still there; once it's deleted macOS can't find it any more |
-| Configuration | `~/Library/Application Support/app.airhand.client/` | Holds the control codes, so be sure to delete it |
-| Caches macOS created for it | `*app.airhand.client` in the system's cache and temporary directories (`getconf DARWIN_USER_CACHE_DIR`, `DARWIN_USER_TEMP_DIR`) | Created by Metal and WebKit under Airhand's name; mostly empty, at most a small GPU shader cache. WebKit's ones in the temporary directory can't be removed, see the end |
-| Crash reports | `~/Library/Logs/DiagnosticReports/airhand-*.ips`, `~/Library/Application Support/CrashReporter/airhand_*.plist` | Only there if Airhand has crashed |
-| Menu bar icon settings | `~/Library/Preferences/app.airhand.client.plist` | Airhand doesn't use this file and it normally doesn't exist: macOS writes it when you ⌘-drag the menu bar icon (its position) or turn it off in System Settings → Menu Bar (hidden). If it stays, the icon is still hidden after installing Airhand again |
+| Configuration | `~/Library/Application Support/app.nife-remote.client/` | Holds the control codes, so be sure to delete it |
+| Caches macOS created for it | `*app.nife-remote.client` in the system's cache and temporary directories (`getconf DARWIN_USER_CACHE_DIR`, `DARWIN_USER_TEMP_DIR`) | Created by Metal and WebKit under Nife Remote's name; mostly empty, at most a small GPU shader cache. WebKit's ones in the temporary directory can't be removed, see the end |
+| Crash reports | `~/Library/Logs/DiagnosticReports/nife-remote-*.ips`, `~/Library/Application Support/CrashReporter/nife_remote_*.plist` | Only there if Nife Remote has crashed |
+| Menu bar icon settings | `~/Library/Preferences/app.nife-remote.client.plist` | Nife Remote doesn't use this file and it normally doesn't exist: macOS writes it when you ⌘-drag the menu bar icon (its position) or turn it off in System Settings → Menu Bar (hidden). If it stays, the icon is still hidden after installing Nife Remote again |
 
-**Uninstalling from the menu**: click the Airhand icon in the menu bar and choose **Uninstall Airhand…**. After you confirm, it removes everything in the table in that order (skipping what the system protects, see the end), moves Airhand to the Trash and quits; empty the Trash to delete it for good. If an item didn't work out, the final message lists it; finish it with the matching command under "Uninstalling by hand" below.
+**Uninstalling from the menu**: click the Nife Remote icon in the menu bar and choose **Uninstall Nife Remote…**. After you confirm, it removes everything in the table in that order (skipping what the system protects, see the end), moves Nife Remote to the Trash and quits; empty the Trash to delete it for good. If an item didn't work out, the final message lists it; finish it with the matching command under "Uninstalling by hand" below.
 
-**Uninstalling by hand**: if Airhand won't open, or you'd rather do it yourself. The first two steps have to come before the app is deleted, **in this order**.
+**Uninstalling by hand**: if Nife Remote won't open, or you'd rather do it yourself. The first two steps have to come before the app is deleted, **in this order**.
 
-1. Click the Airhand icon in the menu bar, **turn off "Open at login"**, then choose **Quit** (older versions don't have this item and never registered a login item, so just quit).
-2. Open Terminal and clear the permissions (only Airhand's):
+1. Click the Nife Remote icon in the menu bar, **turn off "Open at login"**, then choose **Quit** (older versions don't have this item and never registered a login item, so just quit).
+2. Open Terminal and clear the permissions (only Nife Remote's):
 
    ```bash
-   tccutil reset All app.airhand.client
+   tccutil reset All app.nife-remote.client
    ```
 
-   It should say `Successfully reset All approval status for app.airhand.client`. If it says `No such bundle identifier`, the app is already gone, see "Already deleted the app" below.
+   It should say `Successfully reset All approval status for app.nife-remote.client`. If it says `No such bundle identifier`, the app is already gone, see "Already deleted the app" below.
 3. Delete the rest and the program:
 
    ```bash
-   rm -rf ~/Library/Application\ Support/app.airhand.client
-   find "$(getconf DARWIN_USER_CACHE_DIR)" "$(getconf DARWIN_USER_TEMP_DIR)" -maxdepth 1 -name '*app.airhand.client' -exec rm -rf {} + 2>/dev/null
-   find ~/Library/Logs/DiagnosticReports ~/Library/Application\ Support/CrashReporter -maxdepth 1 -name 'airhand[-_]*' -delete 2>/dev/null
-   defaults delete app.airhand.client 2>/dev/null; rm -f ~/Library/Preferences/app.airhand.client.plist
-   rm -rf /Applications/Airhand.app ~/Applications/Airhand.app
+   rm -rf ~/Library/Application\ Support/app.nife-remote.client
+   find "$(getconf DARWIN_USER_CACHE_DIR)" "$(getconf DARWIN_USER_TEMP_DIR)" -maxdepth 1 -name '*app.nife-remote.client' -exec rm -rf {} + 2>/dev/null
+   find ~/Library/Logs/DiagnosticReports ~/Library/Application\ Support/CrashReporter -maxdepth 1 -name 'nife-remote[-_]*' -delete 2>/dev/null
+   defaults delete app.nife-remote.client 2>/dev/null; rm -f ~/Library/Preferences/app.nife-remote.client.plist
+   rm -rf /Applications/Nife Remote.app ~/Applications/Nife Remote.app
    ```
 
-   One line per item: the configuration, the caches macOS created for it, the crash reports, the menu bar icon settings and the program. Instead of the last line you can also drag Airhand from the Applications folder to the Trash (and empty it). `find` runs into other apps' protected directories; those errors are silenced and don't affect the result. The menu bar icon settings are first deleted through the system's preferences service (`defaults delete`), which leaves an empty file behind for `rm` to delete.
+   One line per item: the configuration, the caches macOS created for it, the crash reports, the menu bar icon settings and the program. Instead of the last line you can also drag Nife Remote from the Applications folder to the Trash (and empty it). `find` runs into other apps' protected directories; those errors are silenced and don't affect the result. The menu bar icon settings are first deleted through the system's preferences service (`defaults delete`), which leaves an empty file behind for `rm` to delete.
 
-**Check**: if these commands print nothing except WebKit's empty directories in the temporary directory (they can't be removed, see the end), and neither System Settings → General → Login Items nor Privacy & Security → Screen & System Audio Recording / Accessibility lists Airhand, it's all gone.
+**Check**: if these commands print nothing except WebKit's empty directories in the temporary directory (they can't be removed, see the end), and neither System Settings → General → Login Items nor Privacy & Security → Screen & System Audio Recording / Accessibility lists Nife Remote, it's all gone.
 
 ```bash
-ls -d ~/Library/Application\ Support/app.airhand.client ~/Library/Preferences/app.airhand.client.plist /Applications/Airhand.app ~/Applications/Airhand.app 2>/dev/null
-find "$(getconf DARWIN_USER_CACHE_DIR)" "$(getconf DARWIN_USER_TEMP_DIR)" -maxdepth 1 -name '*app.airhand.client' 2>/dev/null
-find ~/Library/Logs/DiagnosticReports ~/Library/Application\ Support/CrashReporter -maxdepth 1 -name 'airhand[-_]*' 2>/dev/null
+ls -d ~/Library/Application\ Support/app.nife-remote.client ~/Library/Preferences/app.nife-remote.client.plist /Applications/Nife Remote.app ~/Applications/Nife Remote.app 2>/dev/null
+find "$(getconf DARWIN_USER_CACHE_DIR)" "$(getconf DARWIN_USER_TEMP_DIR)" -maxdepth 1 -name '*app.nife-remote.client' 2>/dev/null
+find ~/Library/Logs/DiagnosticReports ~/Library/Application\ Support/CrashReporter -maxdepth 1 -name 'nife-remote[-_]*' 2>/dev/null
 ```
 
-**Already deleted the app** (without steps 1 and 2 first): put Airhand.app back where it was (for example drag it from the downloaded `.dmg` into the Applications folder again), open it, and start again from step 1. macOS still remembers the login item, and turning it off in the menu removes both entries, under "Open at Login" and "App Background Activity". If you'd rather not install it again, remove them by hand: select Airhand under "Open at Login" in Login Items and click "−", do the same in Privacy & Security → Screen & System Audio Recording / Accessibility, then do step 3.
+**Already deleted the app** (without steps 1 and 2 first): put Nife Remote.app back where it was (for example drag it from the downloaded `.dmg` into the Applications folder again), open it, and start again from step 1. macOS still remembers the login item, and turning it off in the menu removes both entries, under "Open at Login" and "App Background Activity". If you'd rather not install it again, remove them by hand: select Nife Remote under "Open at Login" in Login Items and click "−", do the same in Privacy & Security → Screen & System Audio Recording / Accessibility, then do step 3.
 
-**What Airhand can't remove**: the system protects these two.
+**What Nife Remote can't remove**: the system protects these two.
 
-- WebKit's directories `com.apple.WebKit.*+app.airhand.client` in the system's temporary directory (only there if you've opened the console): they're under System Integrity Protection (SIP), so nobody can remove them; deleting them says `Operation not permitted`, and uninstalling from the menu skips them. They're empty; every app that uses WebKit (Safari included) has directories like these there.
-- On macOS 26 and later, the list of apps allowed in the menu bar (System Settings → Menu Bar → Allow in the Menu Bar) may still show Airhand. The system keeps that list in a protected file and offers no way to remove a single app from it; you can only reset the whole list as described below. It's only a record and does nothing if you leave it; if you install Airhand again and had turned it off there before, its icon won't appear in the menu bar until you turn it back on there.
+- WebKit's directories `com.apple.WebKit.*+app.nife-remote.client` in the system's temporary directory (only there if you've opened the console): they're under System Integrity Protection (SIP), so nobody can remove them; deleting them says `Operation not permitted`, and uninstalling from the menu skips them. They're empty; every app that uses WebKit (Safari included) has directories like these there.
+- On macOS 26 and later, the list of apps allowed in the menu bar (System Settings → Menu Bar → Allow in the Menu Bar) may still show Nife Remote. The system keeps that list in a protected file and offers no way to remove a single app from it; you can only reset the whole list as described below. It's only a record and does nothing if you leave it; if you install Nife Remote again and had turned it off there before, its icon won't appear in the menu bar until you turn it back on there.
 
 **Resetting the menu bar app list** (optional, macOS 26 and later): the list is the `trackedApplications` entry in `~/Library/Group Containers/group.com.apple.controlcenter/Library/Preferences/group.com.apple.controlcenter.plist`. Once that entry is deleted and you've logged out and back in, the list is empty; apps with a menu bar icon are added again as they run, and deleted apps don't come back. This isn't something Apple provides, it edits the system's own file, and **it clears the choices for every app in the list**: menu bar icons you turned off will show up again, and you'll have to turn them off again in System Settings → Menu Bar.
 
@@ -144,11 +144,11 @@ To get the old list back: in a Terminal with Full Disk Access, run `defaults imp
 ### Linux
 
 ```bash
-sudo apt remove airhand     # the program (installed from the .deb)
-rm -rf ~/.config/airhand    # the configuration file: apt (even purge) never touches files in your home directory
+sudo apt remove nife-remote     # the program (installed from the .deb)
+rm -rf ~/.config/nife-remote    # the configuration file: apt (even purge) never touches files in your home directory
 ```
 
-There's no startup entry and no system permission to clean up on Linux. The tray icon's and the console's temporary directories (`$XDG_RUNTIME_DIR/airhand-run-*`, `/tmp/airhand-webview-*`) are deleted when Airhand quits; they're only left behind if the process was killed (they're cleaned up at the next start), and the system usually clears them when you log out or reboot. To remove them by hand: `rm -rf "$XDG_RUNTIME_DIR"/airhand-run-* /tmp/airhand-webview-*`.
+There's no startup entry and no system permission to clean up on Linux. The tray icon's and the console's temporary directories (`$XDG_RUNTIME_DIR/nife-remote-run-*`, `/tmp/nife-remote-webview-*`) are deleted when Nife Remote quits; they're only left behind if the process was killed (they're cleaned up at the next start), and the system usually clears them when you log out or reboot. To remove them by hand: `rm -rf "$XDG_RUNTIME_DIR"/nife-remote-run-* /tmp/nife-remote-webview-*`.
 
 ## Controller
 
@@ -180,7 +180,7 @@ Besides the resolution cap, the picture is never larger than what the window act
 
 Send this computer's microphone to the remote computer: programs there (meetings, voice typing, voice messages) hear you when they record from its virtual microphone. Off by default and turned on per connection (the microphone button in the toolbar → **Send this computer's microphone**); it's only sent while you're viewing that connection. The browser asks for microphone access the first time (the desktop console doesn't).
 
-- **Windows hosts** use Steam Remote Play's virtual sound card, **Steam Streaming Microphone** (Valve's driver, signed by Microsoft). It's there once Steam is installed on the remote computer and Steam Remote Play has been used once; Airhand neither ships nor installs it. Without it, the microphone menu says so
+- **Windows hosts** use Steam Remote Play's virtual sound card, **Steam Streaming Microphone** (Valve's driver, signed by Microsoft). It's there once Steam is installed on the remote computer and Steam Remote Play has been used once; Nife Remote neither ships nor installs it. Without it, the microphone menu says so
 - In programs on the remote computer, choose "Microphone (Steam Streaming Microphone)" as the recording device, or make it the default under Sound settings → Input there, so programs that use the default microphone (such as Windows voice typing, Win+H) hear you directly
 - Only one controller at a time: another controller sees "Another controller is using the remote microphone" and takes over when that one stops
 - Not supported yet when the remote computer runs macOS or Linux (no microphone button)

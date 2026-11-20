@@ -52,7 +52,7 @@
 //! 网络恢复后把它们补发出去，就是在对方电脑上重放一串几秒、几分钟之前的操作。所以每批输入都带着控制端
 //! 收到它的时刻（[`ControllerMsg::Input::t`]，和 [`ControllerDatagram::Ping`] 是同一个时钟），比平时晚到超过
 //! [`INPUT_MAX_AGE`] 的输入被控端不执行，改成释放所有按键（丢掉的里面可能有松开按键）。
-//! 两边的时钟不需要同步，见 `airhand_link::host` 的 `InputClock`。
+//! 两边的时钟不需要同步，见 `nife_remote_link::host` 的 `InputClock`。
 //!
 //! # 直连
 //!
@@ -240,7 +240,7 @@ pub enum Notice {
     #[n(5)]
     AudioRecovered,
     /// 被控端缺少只能由那台设备的用户授予的权限：`screen` 缺了就没有画面和声音，`input` 缺了就不能操作。
-    /// macOS 是"系统设置 → 隐私与安全性"里的"屏幕与系统录音"和"辅助功能"；Android 是 Airhand 的
+    /// macOS 是"系统设置 → 隐私与安全性"里的"屏幕与系统录音"和"辅助功能"；Android 是 Nife Remote 的
     /// "远程操作"（无障碍服务），屏幕录制在开始共享时已经同意过，不会缺。
     ///
     /// 会话开始时缺少权限就发一次，之后权限有变化再发；两项都为 false 表示已经全部授予，
@@ -934,7 +934,7 @@ mod tests {
         assert!(InputEvent::ReleaseAll.understood());
     }
 
-    /// 界面的 JSON 都是 camelCase（和 `airhand_link::controller` 的命令、事件一样）
+    /// 界面的 JSON 都是 camelCase（和 `nife_remote_link::controller` 的命令、事件一样）
     #[test]
     fn json_is_camel_case() {
         use serde_json::json;

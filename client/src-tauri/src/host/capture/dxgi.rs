@@ -13,7 +13,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use airhand_proto::session::{CursorShape, DisplayInfo};
+use nife_remote_proto::session::{CursorShape, DisplayInfo};
 use anyhow::{Context, Result, anyhow, bail};
 use windows::Win32::Foundation::{HMODULE, RECT};
 use windows::Win32::Graphics::Direct3D::{

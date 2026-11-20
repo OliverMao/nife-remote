@@ -1,6 +1,6 @@
 //! 运行时产生的文件：用完就删，不留在系统里。
 //!
-//! Airhand 要保存的东西（设置、控制码、我的设备）都只在 config.toml 一个文件里（见 [`crate::config`]）；
+//! Nife Remote 要保存的东西（设置、控制码、我的设备）都只在 config.toml 一个文件里（见 [`crate::config`]）；
 //! 除此之外不在磁盘上留下任何东西。被控端模式完全不创建 WebView，因此不会产生其它文件。
 //! 控制端界面需要 WebView（Windows：WebView2；Linux：WebKitGTK），WebView 需要一个用户数据目录；
 //! 这里把它放到临时目录中的随机子目录，并开启隐私模式（不持久化 Cookie/缓存），在窗口关闭和程序退出时彻底删除。
@@ -17,9 +17,9 @@ use std::time::{Duration, Instant};
 
 use tracing::{debug, warn};
 
-const PREFIX: &str = "airhand-webview-";
+const PREFIX: &str = "nife-remote-webview-";
 #[cfg(target_os = "linux")]
-const PROCESS_PREFIX: &str = "airhand-run-";
+const PROCESS_PREFIX: &str = "nife-remote-run-";
 
 /// 控制台 WebView 的数据目录（Windows / Linux；macOS 的 WKWebView 不需要）。
 #[cfg_attr(target_os = "macos", allow(dead_code))]

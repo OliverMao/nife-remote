@@ -63,8 +63,8 @@ interface State {
 }
 
 const MAX_RECENT = 8;
-const ENHANCE_KEY = "airhand.enhance";
-const LOCAL_CURSOR_KEY = "airhand.localCursor";
+const ENHANCE_KEY = "nife-remote.enhance";
+const LOCAL_CURSOR_KEY = "nife-remote.localCursor";
 
 /** 上次选的画面增强（读不到就是关） */
 export function loadEnhance(): EnhanceLevel {

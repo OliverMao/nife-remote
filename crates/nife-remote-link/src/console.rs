@@ -1,7 +1,7 @@
 //! 控制台（界面）和控制端服务之间的 WebSocket，桌面版和网页版共用：
 //!
 //! * 桌面版：控制台窗口（WebView）连本程序里只监听 127.0.0.1 的服务（客户端的 `console.rs`）；
-//! * 网页版：浏览器连 airhand-web（`web/src/console.rs`）。
+//! * 网页版：浏览器连 nife-remote-web（`web/src/console.rs`）。
 //!
 //! 两边只是接受连接的方式不同（检查 Origin、令牌……），连上之后都交给 [`serve`]。每条连接就是一个控制台，
 //! 有自己的控制端服务（[`ControllerService`]）和到中转服务器的连接，连接断了它的会话全部断开。
@@ -17,7 +17,7 @@
 //! * 二进制，不走 JSON、不回复：
 //!   * 画面确认（每帧都有）：`1u8 | sid u32 LE | seq u32 LE`（[`parse_ack`]）；
 //!   * 麦克风的声音包（每 20 ms 一个，见 [`crate::controller`] 的"麦克风"）：`2u8 | sid u32 LE | 声音包`（[`parse_mic`]，
-//!     声音包是 `airhand_proto::media` 的格式：头 + Opus 包）。
+//!     声音包是 `nife_remote_proto::media` 的格式：头 + Opus 包）。
 //!
 //! 服务 → 控制台：
 //! * 文本（JSON），见 [`Out`]：
@@ -25,7 +25,7 @@
 //!   * `{"type": "server", "state": ServerState}`：与中转服务器的连接状态，连上时和有变化时发
 //!   * `{"type": "event", "ch": 3, "event": SessionEvent}`：会话事件
 //!   * `{"type": "hostOnline", "code": 123456}`：在等的被控端上线了（见 [`HostOnline`]）
-//! * 二进制：`ch u32 LE | 媒体包`（`airhand_proto::media`）
+//! * 二进制：`ch u32 LE | 媒体包`（`nife_remote_proto::media`）
 //!
 //! `ch` 是控制台在 `connect` 时自己选的编号：会话的第一批数据可能比 `connect` 的回复先到，控制台靠它认出是哪个会话的。
 //!
@@ -423,7 +423,7 @@ impl Console {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use airhand_proto::session::{Codec, InputEvent, QualitySettings};
+    use nife_remote_proto::session::{Codec, InputEvent, QualitySettings};
     use serde_json::json;
     use std::convert::Infallible;
     use std::pin::Pin;
@@ -471,7 +471,7 @@ mod tests {
     async fn media_envelope_reuses_the_decrypted_buffer() {
         let (out, mut rx) = outbox(1, 1024);
         let ui = ConsoleUi { ch: 7, out };
-        let mut packet = Vec::with_capacity(3 + airhand_proto::handshake::SEAL_OVERHEAD);
+        let mut packet = Vec::with_capacity(3 + nife_remote_proto::handshake::SEAL_OVERHEAD);
         packet.extend_from_slice(&[1, 2, 3]);
         let ptr = packet.as_ptr();
         ui.packet(packet).unwrap();

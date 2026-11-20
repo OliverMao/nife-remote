@@ -3,24 +3,24 @@
 //! * 中转服务器地址和证书指纹的**默认值编译进程序**：构建时用环境变量覆盖，或者修改下面的默认值：
 //!
 //!   ```powershell
-//!   $env:AIRHAND_SERVER="relay.example.com:4433"
-//!   $env:AIRHAND_SERVER_FP="<服务器日志中打印的证书 SHA-256 指纹>"
+//!   $env:NIFE_REMOTE_SERVER="relay.example.com:4433"
+//!   $env:NIFE_REMOTE_SERVER_FP="<服务器日志中打印的证书 SHA-256 指纹>"
 //!   npm run tauri build
 //!   ```
 //!
 //! * **配置文件 `config.toml`**（见 [`Settings`]）：可以手动改服务器地址和指纹；还保存着服务器分配的控制码
-//!   （固定不变，见 `airhand_proto::signal` 的"固定控制码"）、控制台的"我的设备"（见 [`crate::devices`]），
+//!   （固定不变，见 `nife_remote_proto::signal` 的"固定控制码"）、控制台的"我的设备"（见 [`crate::devices`]），
 //!   Windows 上还有开机自动启动（macOS 上是登录时自动启动的记录，见 [`autostart_default_pending`]）。
 //!   所有数据都只在这一个文件里。位置（见 [`path`]）：
 //!   * Windows：程序所在目录（安装目录）。文件由系统服务里的被控端维护（见 [`crate::winsvc`]），
 //!     托盘进程没有写权限，控制台保存设备时经命名管道交给它写；
-//!   * macOS：`~/Library/Application Support/app.airhand.client/`；Linux：`~/.config/airhand/`。只有本账户能读写（600）。
-//! * 文件由 Airhand 维护，手动修改的内容和注释都会保留；改了设置要重新启动 Airhand 才生效。
+//!   * macOS：`~/Library/Application Support/app.nife-remote.client/`；Linux：`~/.config/nife-remote/`。只有本账户能读写（600）。
+//! * 文件由 Nife Remote 维护，手动修改的内容和注释都会保留；改了设置要重新启动 Nife Remote 才生效。
 //! * 文件不存在时（第一次运行、被删掉了）按默认配置重新生成：启动时检查一次，运行中每隔几秒检查一次（[`keep_file`]），
 //!   控制码、开机自动启动、我的设备、记下的服务器指纹从删掉之前的内容接着用，不会丢。
 //! * 没有设置服务器证书指纹时，第一次连上服务器时记下它的指纹（`[server_trust]`，见 [`FileTrust`]），
 //!   之后证书变了就拒绝连接。
-//! * 端到端加密（见 `airhand_proto::handshake`）：本机作为被控端的身份密钥和配对码（`[host]`）、配对过的控制端
+//! * 端到端加密（见 `nife_remote_proto::handshake`）：本机作为被控端的身份密钥和配对码（`[host]`）、配对过的控制端
 //!   （`[[paired]]`）、控制台的身份密钥（`[controller]`，Windows 上每个账户一把），也都在这个文件里，
 //!   密钥和配对码加密保存（见 [`secret`]）。
 
@@ -28,16 +28,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 
-use airhand_link::LinkConfig;
-use airhand_link::net::{MemoryTrust, Trust, TrustStore, format_fingerprint, parse_fingerprint};
-use airhand_link::secure::{Access, Identity};
-use airhand_proto::signal::Reclaim;
+use nife_remote_link::LinkConfig;
+use nife_remote_link::net::{MemoryTrust, Trust, TrustStore, format_fingerprint, parse_fingerprint};
+use nife_remote_link::secure::{Access, Identity};
+use nife_remote_proto::signal::Reclaim;
 use anyhow::Result;
 use toml_edit::{DocumentMut, Item};
 use tracing::{error, info, warn};
 
 /// 编译进程序的中转服务器地址 `host:port`（UDP），`config.toml` 里没有设置时使用。
-pub const DEFAULT_SERVER: &str = match option_env!("AIRHAND_SERVER") {
+pub const DEFAULT_SERVER: &str = match option_env!("NIFE_REMOTE_SERVER") {
     Some(v) => v,
     None => "127.0.0.1:4433",
 };
@@ -46,15 +46,15 @@ pub const DEFAULT_SERVER: &str = match option_env!("AIRHAND_SERVER") {
 ///
 /// * 非空：严格校验，指纹不符直接拒绝连接（防中间人）。
 /// * 为空：第一次连上服务器时记下它的指纹（`[server_trust]`），之后只认它。
-pub const DEFAULT_SERVER_FP: &str = match option_env!("AIRHAND_SERVER_FP") {
+pub const DEFAULT_SERVER_FP: &str = match option_env!("NIFE_REMOTE_SERVER_FP") {
     Some(v) => v,
     None => "",
 };
 
-// 指纹写错了在编译时就报错，而不是等到运行时连不上服务器（规则与 airhand_link::net::parse_fingerprint 相同）
+// 指纹写错了在编译时就报错，而不是等到运行时连不上服务器（规则与 nife_remote_link::net::parse_fingerprint 相同）
 const _: () = assert!(
     fingerprint_is_valid(DEFAULT_SERVER_FP),
-    "AIRHAND_SERVER_FP must be the 64 hex digit fingerprint printed in the server log (`:` and spaces are allowed)"
+    "NIFE_REMOTE_SERVER_FP must be the 64 hex digit fingerprint printed in the server log (`:` and spaces are allowed)"
 );
 
 const fn fingerprint_is_valid(s: &str) -> bool {
@@ -80,7 +80,7 @@ pub const FILE_NAME: &str = "config.toml";
 
 /// 与 tauri.conf.json 的 `identifier` 相同：macOS 上配置目录以它命名（Apple 的建议）
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub(crate) const BUNDLE_ID: &str = "app.airhand.client";
+pub(crate) const BUNDLE_ID: &str = "app.nife-remote.client";
 
 /// 卸载中（见 [`freeze`]）：不再写配置文件，删掉了也不再重新生成
 static FROZEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -140,9 +140,9 @@ impl Settings {
 
 /// 配置文件的路径：
 /// * Windows：程序所在目录（安装目录）下的 `config.toml`，被控端（系统服务）和所有账户共用；
-/// * macOS：`~/Library/Application Support/app.airhand.client/config.toml`（Apple 的建议：
+/// * macOS：`~/Library/Application Support/app.nife-remote.client/config.toml`（Apple 的建议：
 ///   Application Support 下以 bundle ID 命名的目录）；
-/// * Linux：`$XDG_CONFIG_HOME/airhand/config.toml`，默认 `~/.config/airhand/config.toml`（XDG 基础目录规范）。
+/// * Linux：`$XDG_CONFIG_HOME/nife-remote/config.toml`，默认 `~/.config/nife-remote/config.toml`（XDG 基础目录规范）。
 ///
 /// 找不到用户目录时（极少见）返回 `None`：这次运行不保存任何东西
 pub fn path() -> Option<PathBuf> {
@@ -157,7 +157,7 @@ pub fn path() -> Option<PathBuf> {
         #[cfg(target_os = "macos")]
         let dir = base.join(BUNDLE_ID);
         #[cfg(not(target_os = "macos"))]
-        let dir = base.join("airhand");
+        let dir = base.join("nife-remote");
         Some(dir.join(FILE_NAME))
     }
     // 测试默认不读写配置文件（每次都是新的控制码）；测试配置文件本身时在那个测试的线程里指定一个临时路径
@@ -321,8 +321,8 @@ fn put_trust(doc: &mut DocumentMut, server: &str, fp: &[u8; 32]) {
 /// 写在 `[server_trust]` 前面的说明
 fn trust_comment() -> String {
     tr!(
-        "# 第一次连上中转服务器时记下的证书指纹（没有设置 server_fp 时使用）：之后服务器的证书变了就拒绝连接，防止有人冒充服务器。\n# 服务器确实换了证书时，删掉这一段（或者写上新的 server_fp），然后重新启动 Airhand\n",
-        "# Certificate fingerprint remembered on the first connection to the relay server (used when server_fp isn't set): if the server's certificate changes later, Airhand refuses to connect, so nobody can impersonate the server.\n# If the server really got a new certificate, delete this section (or set the new server_fp) and restart Airhand\n"
+        "# 第一次连上中转服务器时记下的证书指纹（没有设置 server_fp 时使用）：之后服务器的证书变了就拒绝连接，防止有人冒充服务器。\n# 服务器确实换了证书时，删掉这一段（或者写上新的 server_fp），然后重新启动 Nife Remote\n",
+        "# Certificate fingerprint remembered on the first connection to the relay server (used when server_fp isn't set): if the server's certificate changes later, Nife Remote refuses to connect, so nobody can impersonate the server.\n# If the server really got a new certificate, delete this section (or set the new server_fp) and restart Nife Remote\n"
     )
 }
 
@@ -354,9 +354,9 @@ fn template() -> String {
 fn template_windows(server: &str, fp: &str) -> String {
     let access = access_comment();
     tr!(
-        r#"# Airhand 配置文件。修改后要重新启动 Airhand 才生效（托盘菜单"退出"，然后再打开 Airhand）。
-# 这个文件由 Airhand 维护（保存控制码、开机自动启动、控制台的"我的设备"），手动修改的内容和注释都会保留。
-# 不小心删掉了也没关系：Airhand 会按默认配置重新生成，控制码和我的设备不会丢。
+        r#"# Nife Remote 配置文件。修改后要重新启动 Nife Remote 才生效（托盘菜单"退出"，然后再打开 Nife Remote）。
+# 这个文件由 Nife Remote 维护（保存控制码、开机自动启动、控制台的"我的设备"），手动修改的内容和注释都会保留。
+# 不小心删掉了也没关系：Nife Remote 会按默认配置重新生成，控制码和我的设备不会丢。
 
 # 中转服务器地址 host:port（UDP）。不设置时使用编译进程序的地址：{server}
 # server = "relay.example.com:4433"
@@ -372,12 +372,12 @@ autostart = true
 
 # 控制码：第一次连上服务器时由服务器分配，之后一直使用同一个（重启、掉线、升级都不变）。
 # 托盘菜单"更换控制码"会换一个新的；删掉 code 和 secret 则下次启动时重新分配。
-# secret 是取回这个控制码的凭据，用 Windows DPAPI 加密过，只有这台电脑上的 Airhand 能解开
+# secret 是取回这个控制码的凭据，用 Windows DPAPI 加密过，只有这台电脑上的 Nife Remote 能解开
 [code]
 "#,
-        r#"# Airhand configuration. Restart Airhand after editing it (tray menu "Quit", then open Airhand again).
-# Airhand maintains this file (it saves the control code, the autostart setting and the console's "My devices"); your edits and comments are kept.
-# If it gets deleted by accident, Airhand recreates it with the default settings, keeping the control code and your devices.
+        r#"# Nife Remote configuration. Restart Nife Remote after editing it (tray menu "Quit", then open Nife Remote again).
+# Nife Remote maintains this file (it saves the control code, the autostart setting and the console's "My devices"); your edits and comments are kept.
+# If it gets deleted by accident, Nife Remote recreates it with the default settings, keeping the control code and your devices.
 
 # Relay server address host:port (UDP). Without it the address built into the program is used: {server}
 # server = "relay.example.com:4433"
@@ -394,7 +394,7 @@ autostart = true
 
 # Control code: assigned by the server the first time, then always the same (across restarts, disconnects and upgrades).
 # "Change control code" in the tray menu gets a new one; delete code and secret to get a new one at the next start.
-# secret proves to the server that this computer owns the code. It's encrypted with Windows DPAPI, only Airhand on this computer can read it
+# secret proves to the server that this computer owns the code. It's encrypted with Windows DPAPI, only Nife Remote on this computer can read it
 [code]
 "#
     )
@@ -413,9 +413,9 @@ fn template_user(server: &str, fp: &str) -> String {
         tr!("托盘菜单\"退出\"", "tray menu \"Quit\"")
     };
     tr!(
-        r#"# Airhand 配置文件。修改后要重新启动 Airhand 才生效（{quit}，然后再打开 Airhand）。
-# 这个文件由 Airhand 维护（保存控制码和控制台的"我的设备"），手动修改的内容和注释都会保留。
-# 不小心删掉了也没关系：Airhand 会按默认配置重新生成，控制码和我的设备不会丢。
+        r#"# Nife Remote 配置文件。修改后要重新启动 Nife Remote 才生效（{quit}，然后再打开 Nife Remote）。
+# 这个文件由 Nife Remote 维护（保存控制码和控制台的"我的设备"），手动修改的内容和注释都会保留。
+# 不小心删掉了也没关系：Nife Remote 会按默认配置重新生成，控制码和我的设备不会丢。
 # 里面的控制码能用来控制电脑，所以只有你的账户能读写这个文件（权限 600），不要发给别人。
 
 # 中转服务器地址 host:port（UDP）。不设置时使用编译进程序的地址：{server}
@@ -432,9 +432,9 @@ fn template_user(server: &str, fp: &str) -> String {
 # secret 是取回这个控制码的凭据
 [code]
 "#,
-        r#"# Airhand configuration. Restart Airhand after editing it ({quit}, then open Airhand again).
-# Airhand maintains this file (it saves the control code and the console's "My devices"); your edits and comments are kept.
-# If it gets deleted by accident, Airhand recreates it with the default settings, keeping the control code and your devices.
+        r#"# Nife Remote configuration. Restart Nife Remote after editing it ({quit}, then open Nife Remote again).
+# Nife Remote maintains this file (it saves the control code and the console's "My devices"); your edits and comments are kept.
+# If it gets deleted by accident, Nife Remote recreates it with the default settings, keeping the control code and your devices.
 # The control codes in it can be used to control computers, so only your account can read and write it (mode 600). Don't share it.
 
 # Relay server address host:port (UDP). Without it the address built into the program is used: {server}
@@ -627,7 +627,7 @@ pub fn keep_file() {
         return;
     };
     let spawned = std::thread::Builder::new()
-        .name("airhand-config".into())
+        .name("nife-remote-config".into())
         .spawn(move || {
             let mut seen = None;
             loop {
@@ -669,7 +669,7 @@ pub fn keep_file() {
     }
 }
 
-/// 卸载（macOS 菜单里的"卸载 Airhand…"）：从现在起不再写配置文件，配置文件被删掉也不再重新生成。
+/// 卸载（macOS 菜单里的"卸载 Nife Remote…"）：从现在起不再写配置文件，配置文件被删掉也不再重新生成。
 /// 还在运行的东西（例如正在停下来的被控端保存控制码）也写不回去。返回时，正在写的那一次已经写完
 #[cfg(target_os = "macos")]
 pub fn freeze() {
@@ -710,7 +710,7 @@ pub fn save_autostart(on: bool) -> Result<()> {
 
 /// macOS：还没有按默认打开过登录时自动启动（配置文件里还没有 `autostart`）。
 ///
-/// macOS 的模板里没有这一项：第一次从"应用程序"文件夹运行时，Airhand 和 Windows 一样默认打开登录时自动启动，
+/// macOS 的模板里没有这一项：第一次从"应用程序"文件夹运行时，Nife Remote 和 Windows 一样默认打开登录时自动启动，
 /// 然后记下 `autostart`，之后再也不会自己打开——用户关掉了就一直关着（见 [`crate::login_item`]）。
 /// 配置文件不存在、写坏了时返回 `false`：判断不了，宁可不打开
 #[cfg(target_os = "macos")]
@@ -760,7 +760,7 @@ fn put_autostart(doc: &mut DocumentMut, on: bool) {
 fn autostart_note() -> String {
     tr!(
         "# 登录时自动启动（\"系统设置 → 通用 → 登录项\"里的\"登录时打开\"）。第一次从\"应用程序\"文件夹运行时默认打开。\n# 以系统设置为准：在菜单栏图标的菜单里切换、或者在系统设置里改，这里都会跟着更新；只改这一项不起作用\n",
-        "# Open at login (\"Open at Login\" in System Settings → General → Login Items). Turned on the first time Airhand runs from the Applications folder.\n# System Settings is what counts: switch it in the menu bar icon's menu or in System Settings and this line follows; editing only this line has no effect\n"
+        "# Open at login (\"Open at Login\" in System Settings → General → Login Items). Turned on the first time Nife Remote runs from the Applications folder.\n# System Settings is what counts: switch it in the menu bar icon's menu or in System Settings and this line follows; editing only this line has no effect\n"
     )
 }
 
@@ -820,8 +820,8 @@ pub struct HostSecurity {
 /// 写在 `[host]` 前面的说明
 fn host_comment() -> String {
     tr!(
-        "# 本机作为被控端的端到端加密身份（key）和配对码（pairing），由 Airhand 维护，都是加密保存的。\n# 删掉 key 会生成新的身份：连过本机的控制端会提示本机的身份变了\n",
-        "# This computer's end-to-end encryption identity as a host (key) and its pairing code (pairing). Maintained by Airhand, stored encrypted.\n# Deleting key creates a new identity: controllers that connected before will warn that this computer's identity changed\n"
+        "# 本机作为被控端的端到端加密身份（key）和配对码（pairing），由 Nife Remote 维护，都是加密保存的。\n# 删掉 key 会生成新的身份：连过本机的控制端会提示本机的身份变了\n",
+        "# This computer's end-to-end encryption identity as a host (key) and its pairing code (pairing). Maintained by Nife Remote, stored encrypted.\n# Deleting key creates a new identity: controllers that connected before will warn that this computer's identity changed\n"
     )
 }
 
@@ -857,7 +857,7 @@ fn host_security_in(doc: &DocumentMut) -> HostSecurity {
         s.key = open("key", secret::Kind::HostKey).and_then(|b| <[u8; 32]>::try_from(b).ok());
         s.pairing = open("pairing", secret::Kind::Pairing)
             .and_then(|b| String::from_utf8(b).ok())
-            .and_then(|p| airhand_proto::parse_pairing(&p));
+            .and_then(|p| nife_remote_proto::parse_pairing(&p));
         s.pairing_locked = t
             .get("pairing_locked")
             .and_then(Item::as_bool)
@@ -868,7 +868,7 @@ fn host_security_in(doc: &DocumentMut) -> HostSecurity {
             .iter()
             .filter_map(|t| {
                 let key = t.get("key")?.as_str()?.trim().to_ascii_lowercase();
-                airhand_link::secure::unhex32(&key)?;
+                nife_remote_link::secure::unhex32(&key)?;
                 Some(Paired {
                     key,
                     name: t
@@ -1039,9 +1039,9 @@ pub(crate) mod secret {
     use base64::engine::general_purpose::STANDARD;
 
     #[cfg(windows)]
-    const ENTROPY: &[u8] = b"airhand control code secret v1";
+    const ENTROPY: &[u8] = b"nife-remote control code secret v1";
     #[cfg(windows)]
-    const DEVICE_ENTROPY: &[u8] = b"airhand saved device code v1";
+    const DEVICE_ENTROPY: &[u8] = b"nife-remote saved device code v1";
 
     /// 端到端加密用到的密文：各用各的 DPAPI 熵，不能互相冒充
     #[derive(Debug, Clone, Copy)]
@@ -1057,9 +1057,9 @@ pub(crate) mod secret {
     #[cfg(windows)]
     fn entropy(kind: Kind) -> &'static [u8] {
         match kind {
-            Kind::HostKey => b"airhand host identity v1",
-            Kind::Pairing => b"airhand pairing code v1",
-            Kind::ControllerKey => b"airhand console identity v1",
+            Kind::HostKey => b"nife-remote host identity v1",
+            Kind::Pairing => b"nife-remote pairing code v1",
+            Kind::ControllerKey => b"nife-remote console identity v1",
         }
     }
 
@@ -1152,7 +1152,7 @@ pub(crate) mod secret {
             if protect {
                 CryptProtectData(
                     &input,
-                    windows::core::w!("Airhand"),
+                    windows::core::w!("Nife Remote"),
                     Some(&entropy),
                     None,
                     None,
@@ -1219,7 +1219,7 @@ mod tests {
         ] {
             assert_eq!(
                 super::fingerprint_is_valid(&s),
-                airhand_link::net::parse_fingerprint(&s).is_ok(),
+                nife_remote_link::net::parse_fingerprint(&s).is_ok(),
                 "{s:?}"
             );
         }
@@ -1386,7 +1386,7 @@ mod tests {
         // 模板的注释都还在，而且在原来的位置
         let tpl = template();
         let secret_note = tpl.lines().find(|l| l.starts_with("# secret")).unwrap();
-        assert!(after.lines().next().unwrap().starts_with("# Airhand"));
+        assert!(after.lines().next().unwrap().starts_with("# Nife Remote"));
         assert!(after.find(secret_note).unwrap() < after.find("[code]").unwrap());
 
         // 之前的文件是手写的、没有注释：生成的文件照样有说明
@@ -1470,10 +1470,10 @@ mod tests {
     fn file_lifecycle() {
         use std::time::Instant;
         let root = std::env::temp_dir().join(format!(
-            "airhand-config-test-{:016x}",
+            "nife-remote-config-test-{:016x}",
             rand::random::<u64>()
         ));
-        let dir = root.join("airhand");
+        let dir = root.join("nife-remote");
         let file = dir.join(FILE_NAME);
         TEST_PATH.with(|p| *p.borrow_mut() = Some(file.clone()));
         let wait_for = |what: &str, ok: &dyn Fn() -> bool| {
@@ -1517,7 +1517,7 @@ mod tests {
         std::fs::remove_file(&file).unwrap();
         wait_for("the file to be recreated", &|| file.exists());
         let text = read_text().unwrap();
-        assert!(text.starts_with("# Airhand"));
+        assert!(text.starts_with("# Nife Remote"));
         assert_eq!(parse(&text).unwrap().code(), Some(code));
         assert_eq!(crate::devices::load(), vec![d.clone()]);
 

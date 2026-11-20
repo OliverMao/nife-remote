@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    airhand_lib::run();
+    nife_remote_lib::run();
 }

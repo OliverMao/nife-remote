@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::{DisplayInfo, InputEvent, MouseButton};
+use nife_remote_proto::session::{DisplayInfo, InputEvent, MouseButton};
 use objc2_core_foundation::{CFRetained, CGPoint};
 use objc2_core_graphics::{
     CGEvent, CGEventField, CGEventFlags, CGEventSource, CGEventSourceStateID, CGEventTapLocation,
@@ -231,7 +231,7 @@ impl MacInjector {
         self.post_move(p, dx, dy);
     }
 
-    /// 相对移动（被控端光标隐藏时，见 `airhand_proto::session` 的模块说明）：从光标现在真正所在的位置移过去，
+    /// 相对移动（被控端光标隐藏时，见 `nife_remote_proto::session` 的模块说明）：从光标现在真正所在的位置移过去，
     /// 事件里的移动量就是控制端给的。游戏读的是移动量，光标被游戏固定住时也照样有
     fn mouse_delta(&mut self, dx: i32, dy: i32) {
         // 之后的移动、点击都从光标真正所在的位置算（系统会把光标限制在屏幕里，游戏也会把它拉回去）

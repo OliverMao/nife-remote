@@ -90,7 +90,7 @@
 //!
 //! # 之后的每一帧
 //!
-//! 密钥从 Noise 的结果派生（HKDF-SHA256，salt 是握手的哈希），每条通道、每个方向一把（见 `airhand_link::secure`）。
+//! 密钥从 Noise 的结果派生（HKDF-SHA256，salt 是握手的哈希），每条通道、每个方向一把（见 `nife_remote_link::secure`）。
 //! AEAD 是 AES-256-GCM（x86 和 ARMv8 都有硬件 AES，几 MiB 的关键帧也只要零点几毫秒）。加密的单位是**密封单元**：`密文 | 16 字节标签 | u64 LE 计数`（[`SEAL_OVERHEAD`]），
 //! nonce 就是后面的计数（这条通道这个方向从 0 开始递增）。计数写在线上，每个单元自己就能解开：
 //!
@@ -124,8 +124,8 @@ pub const NOISE_FIRST: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
 pub const NOISE_PAIRING: &str = "Noise_XXpsk3_25519_ChaChaPoly_BLAKE2s";
 
 /// SPAKE2 里的两个身份
-pub const PAKE_CONTROLLER: &[u8] = b"airhand controller";
-pub const PAKE_HOST: &[u8] = b"airhand host";
+pub const PAKE_CONTROLLER: &[u8] = b"nife-remote controller";
+pub const PAKE_HOST: &[u8] = b"nife-remote host";
 
 open_enum! {
     /// 握手的模式（见模块说明）。握手要改就加一个新的模式，编号越来越大
@@ -302,7 +302,7 @@ impl Negotiated {
 
 /// Noise 的 prologue：把握手绑定到这条 [`HandshakeInit`]（除了 Noise 消息本身）
 pub fn prologue(init: &HandshakeInit) -> Vec<u8> {
-    let mut p = b"airhand e2e 9".to_vec();
+    let mut p = b"nife-remote e2e 9".to_vec();
     p.extend_from_slice(&init.pattern.code().to_le_bytes());
     if let Some(pake) = &init.pake {
         p.extend_from_slice(&(pake.len() as u32).to_le_bytes());
@@ -313,13 +313,13 @@ pub fn prologue(init: &HandshakeInit) -> Vec<u8> {
 
 /// SPAKE2 的密码：配对码，加上控制码（同一个配对码在别的控制码上算出来的不一样）
 pub fn pake_password(code: u32, pairing: &str) -> Vec<u8> {
-    let mut p = b"airhand pairing 9".to_vec();
+    let mut p = b"nife-remote pairing 9".to_vec();
     p.extend_from_slice(&code.to_le_bytes());
     p.extend_from_slice(pairing.as_bytes());
     p
 }
 
-/// 安全码：从两端一样的一段随机字节（`airhand_link` 从握手的哈希派生）取 6 位数，写成 `123-456`
+/// 安全码：从两端一样的一段随机字节（`nife_remote_link` 从握手的哈希派生）取 6 位数，写成 `123-456`
 pub fn safety_code(seed: &[u8; 32]) -> String {
     let n = u64::from_le_bytes(seed[..8].try_into().unwrap()) % 1_000_000;
     format!("{:03}-{:03}", n / 1000, n % 1000)

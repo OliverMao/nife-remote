@@ -57,7 +57,7 @@ pub struct Handlers {
 define_class!(
     // SAFETY: NSObject 没有特殊的子类化要求；本类没有实现 Drop（实例变量会被正常释放）
     #[unsafe(super(NSObject))]
-    #[name = "AirhandStreamOutput"]
+    #[name = "NifeRemoteStreamOutput"]
     #[ivars = Handlers]
     struct StreamOutput;
 

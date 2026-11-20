@@ -12,7 +12,7 @@ let pending: RemoteSession | null = null;
 
 /**
  * 怎么连：配对码（对方要求配对时；对方的身份变了、用户确认是重装之后也是重新配对，
- * 配对码认的就是对方，记着的旧公钥不作数，见 airhand_proto::handshake 的"身份"）
+ * 配对码认的就是对方，记着的旧公钥不作数，见 nife_remote_proto::handshake 的"身份"）
  */
 export interface OpenOptions {
   pairing?: string | null;

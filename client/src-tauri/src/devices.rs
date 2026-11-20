@@ -12,7 +12,7 @@
 //! host_key = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 //! ```
 //!
-//! `host_key` 是那台电脑的端到端加密公钥（第一次连上时记下，见 `airhand_link::controller` 的"端到端加密"）：
+//! `host_key` 是那台电脑的端到端加密公钥（第一次连上时记下，见 `nife_remote_link::controller` 的"端到端加密"）：
 //! 之后只认它，对不上就警告。是公钥，不用加密。
 //!
 //! 控制码能直接控制那台电脑，相当于钥匙：
@@ -22,8 +22,8 @@
 //!
 //! 手动添加时 `code` 写 6 位数字在所有平台上都可以。
 
-use airhand_proto::session::{Codec, QualitySettings, VideoPriority};
-use airhand_proto::signal::ResumeToken;
+use nife_remote_proto::session::{Codec, QualitySettings, VideoPriority};
+use nife_remote_proto::signal::ResumeToken;
 use anyhow::Result;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -67,7 +67,7 @@ pub struct Device {
     pub quality: Option<QualitySettings>,
 }
 
-/// 6 位数字、不以 0 开头（与 airhand_proto::parse_code 相同）
+/// 6 位数字、不以 0 开头（与 nife_remote_proto::parse_code 相同）
 pub fn valid_code(code: &str) -> bool {
     code.len() == 6 && code.bytes().all(|b| b.is_ascii_digit()) && !code.starts_with('0')
 }
@@ -95,7 +95,7 @@ pub fn normalize(mut list: Vec<Device>) -> Vec<Device> {
 /// 64 位十六进制的公钥（小写）；不像样的不要
 fn host_key(s: &str) -> Option<String> {
     let k = s.trim().to_ascii_lowercase();
-    airhand_link::secure::unhex32(&k).map(|_| k)
+    nife_remote_link::secure::unhex32(&k).map(|_| k)
 }
 
 // ───────────────────────────── 读 ─────────────────────────────

@@ -2,7 +2,7 @@
 //!
 //! * 两端开过来的通道（单向流，开头是会话头）转给另一端：服务器向另一端开一条单向流、写同样的会话头，
 //!   然后以 `Bytes` 块为单位零拷贝透传（[`pipe`]）。不用配对，也不管通道是什么：每端每条通道只能开一次，最多
-//!   [`airhand_proto::MAX_LANES`] 条；
+//!   [`nife_remote_proto::MAX_LANES`] 条；
 //! * 会话的数据报按开头的会话 ID 在两端之间原样转发（[`Broker::relay_datagrams`]）。
 //!
 //! 任何一端的控制通道（0 号）结束，整个会话结束：其它通道随之断开、不再转发数据报、归还会话槽位。
@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use airhand_proto::{Role, SessionHeader, SessionLane, datagram};
+use nife_remote_proto::{Role, SessionHeader, SessionLane, datagram};
 use anyhow::{Context, Result, anyhow, bail};
 use quinn::{RecvStream, SendStream, VarInt};
 use rand::Rng;

@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use airhand_proto::session::{Codec, EncoderInfo};
+use nife_remote_proto::session::{Codec, EncoderInfo};
 use anyhow::{Result, anyhow};
 use openh264::OpenH264API;
 use openh264::encoder::{

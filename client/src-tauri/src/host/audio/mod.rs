@@ -29,7 +29,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::{Duration, Instant};
 
-use airhand_proto::media::{self, AUDIO_CHANNELS, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader};
+use nife_remote_proto::media::{self, AUDIO_CHANNELS, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader};
 use anyhow::Result;
 use bytes::Bytes;
 use tokio::sync::{mpsc, watch};
@@ -91,7 +91,7 @@ impl Packetizer {
             pcm: Vec::with_capacity(FRAME_SAMPLES * CHANNELS * 4),
             t0: None,
             frame: vec![0.0; FRAME_SAMPLES * CHANNELS],
-            // 编码器保证每包不超过这么大：加密之后正好放得进一个数据报（见 airhand_proto::media）
+            // 编码器保证每包不超过这么大：加密之后正好放得进一个数据报（见 nife_remote_proto::media）
             out: vec![0; media::MAX_OPUS_PACKET],
             quiet: 0,
             active: false,
@@ -271,7 +271,7 @@ pub fn subscribe(tx: mpsc::Sender<Bytes>) -> AudioSubscription {
     *hub = Arc::downgrade(&shared);
     let thread_shared = shared.clone();
     std::thread::Builder::new()
-        .name("airhand-audio".into())
+        .name("nife-remote-audio".into())
         .spawn(move || capture_loop(thread_shared))
         .expect("spawn audio thread");
     AudioSubscription::new(shared, id)

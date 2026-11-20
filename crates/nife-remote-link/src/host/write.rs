@@ -1,8 +1,8 @@
 //! 被控端一个会话的写任务：控制、大块通道（两端共用的 [`write_lane`]），画面（[`write_video`]）和声音（[`write_audio`]）。
 //! 画面、声音走哪条路由直连任务决定（[`Paths::media`]，见 `crate::direct`），这里每一帧、每一包看一眼。
 
-use airhand_proto::SessionLane;
-use airhand_proto::datagram;
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::datagram;
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use quinn::{Connection, SendDatagramError, SendStream};

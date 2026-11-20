@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use airhand_proto::media::AUDIO_SAMPLE_RATE;
+use nife_remote_proto::media::AUDIO_SAMPLE_RATE;
 use anyhow::{Context as _, Result, anyhow, bail};
 use libpulse_binding as pa;
 use pa::callbacks::ListResult;
@@ -63,7 +63,7 @@ impl Client {
             Mainloop::new().ok_or_else(|| anyhow!("can't create the PulseAudio main loop"))?;
         let mut props =
             Proplist::new().ok_or_else(|| anyhow!("can't create the PulseAudio property list"))?;
-        let _ = props.set_str(properties::APPLICATION_NAME, "Airhand");
+        let _ = props.set_str(properties::APPLICATION_NAME, "Nife Remote");
         let mut context = Context::new_with_proplist(&mainloop, name, &props)
             .ok_or_else(|| anyhow!("can't create the PulseAudio context"))?;
         const CONNECT: &str = "can't connect to the sound server (is PulseAudio/PipeWire running?)";
@@ -155,10 +155,10 @@ pub struct Loopback {
 
 impl Loopback {
     pub fn open() -> Result<Self> {
-        let mut client = Client::connect("Airhand audio capture")?;
+        let mut client = Client::connect("Nife Remote audio capture")?;
         let sink = client.default_sink()?;
         let monitor = client.monitor_of(&sink)?;
-        let mut stream = Stream::new(&mut client.context, "Airhand audio capture", &SPEC, None)
+        let mut stream = Stream::new(&mut client.context, "Nife Remote audio capture", &SPEC, None)
             .ok_or_else(|| anyhow!("can't create the capture stream"))?;
         let attr = BufferAttr {
             maxlength: u32::MAX,
@@ -266,8 +266,8 @@ impl TonePlayer {
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<()>>();
         let thread = std::thread::spawn(move || {
             let run = || -> Result<()> {
-                let mut client = Client::connect("Airhand test tone")?;
-                let mut stream = Stream::new(&mut client.context, "Airhand test tone", &SPEC, None)
+                let mut client = Client::connect("Nife Remote test tone")?;
+                let mut stream = Stream::new(&mut client.context, "Nife Remote test tone", &SPEC, None)
                     .ok_or_else(|| anyhow!("can't create the playback stream"))?;
                 // 50 ms 的播放缓冲
                 let tlength = AUDIO_SAMPLE_RATE / 20 * FRAME_BYTES as u32;

@@ -447,7 +447,7 @@ export class RemoteSession {
   /**
    * 带着用户输入的配对码重新连：对方要求配对（pairingRequired / pairingFailed），或者对方的身份变了
    * （hostKeyChanged，用户确认是对方重装了）。配对码认的就是对方，连上之后记下对方现在的公钥；
-   * 身份变了不能不验证就换成新的：hostKeyChanged 服务器也伪造得出来（见 airhand_proto::handshake 的"身份"）
+   * 身份变了不能不验证就换成新的：hostKeyChanged 服务器也伪造得出来（见 nife_remote_proto::handshake 的"身份"）
    */
   pairWith(pairing: string) {
     this.pairing = pairing.replace(/\D/g, "");
@@ -534,7 +534,7 @@ export class RemoteSession {
           // 对方把权限都打开了：撤下之前的权限提示
           if (this.notice?.kind === "missingPermissions" || this.notice?.kind === "androidNoInput") this.notice = null;
         } else if (n.kind === "missingPermissions" && this.hostPlatform === "android") {
-          // 对方是手机：缺的是 Airhand 的"远程操作"（无障碍服务），不是 Mac 的系统权限
+          // 对方是手机：缺的是 Nife Remote 的"远程操作"（无障碍服务），不是 Mac 的系统权限
           this.notice = { kind: "androidNoInput" };
         } else if (n.kind === "audioFailed") {
           this.audioError = n.detail;

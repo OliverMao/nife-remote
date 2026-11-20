@@ -31,10 +31,10 @@ pub fn run(args: &[String]) -> i32 {
 
     // 同一时刻只能有一个被控端（服务保证这一点；这里防止手动运行的 --agent 和服务里的同时注册）
     let _single = unsafe {
-        match CreateMutexW(None, true, w!("Global\\Airhand.Host")) {
+        match CreateMutexW(None, true, w!("Global\\Nife Remote.Host")) {
             Ok(h) if GetLastError() != ERROR_ALREADY_EXISTS => h,
             _ => {
-                warn!("another Airhand host is already running");
+                warn!("another Nife Remote host is already running");
                 return 1;
             }
         }

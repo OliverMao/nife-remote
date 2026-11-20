@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 use std::sync::mpsc;
 
-use airhand_proto::session::{DisplayInfo, InputEvent, MouseButton};
+use nife_remote_proto::session::{DisplayInfo, InputEvent, MouseButton};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT,
     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KEYEVENTF_UNICODE,
@@ -210,7 +210,7 @@ impl WinInjector {
 static INJECTOR: LazyLock<mpsc::Sender<Vec<INPUT>>> = LazyLock::new(|| {
     let (tx, rx) = mpsc::channel::<Vec<INPUT>>();
     std::thread::Builder::new()
-        .name("airhand-input".into())
+        .name("nife-remote-input".into())
         .spawn(move || {
             while let Ok(batch) = rx.recv() {
                 crate::host::desktop::follow();

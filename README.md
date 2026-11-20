@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/icon.svg" width="96" alt="Airhand"></p>
+<p align="center"><img src="assets/icon.svg" width="96" alt="Nife Remote"></p>
 
-<h1 align="center">Airhand</h1>
+<h1 align="center">Nife Remote</h1>
 
 <p align="center"><b>High-performance, low-latency remote desktop</b><br>QUIC transport · hardware encoding and decoding · up to 120 fps<br>Windows · macOS · Linux · browser</p>
 
@@ -8,12 +8,12 @@
 
 ---
 
-Airhand is a **high-performance, low-latency** remote desktop: the screen is encoded on the GPU (AV1 / HEVC / H.264) at up to 120 fps and sent over QUIC; when the network slows down it skips to the latest frame instead of letting lag pile up; and the mouse pointer is drawn locally, so it moves without delay.
+Nife Remote is a **high-performance, low-latency** remote desktop: the screen is encoded on the GPU (AV1 / HEVC / H.264) at up to 120 fps and sent over QUIC; when the network slows down it skips to the latest frame instead of letting lag pile up; and the mouse pointer is drawn locally, so it moves without delay.
 
 The same program is both the **host** (the device being controlled) and the **controller** (the device you control it from). The two sides meet through a **relay server** that you deploy yourself. It's small, and Docker Compose deploys it with one command. Enter the other side's 6-digit **control code** to connect.
 
 > [!NOTE]
-> **Work in progress (0.2.3).** Since protocol v9, client ⇄ server and host ⇄ controller each support a range of versions, new features are negotiated with capability bits and unknown messages are skipped, so later versions can be mixed; versions before v9 are incompatible, which is detected and reported (see [Protocol versions](docs/development.md#protocol-versions)).
+> **Work in progress (0.0.1).** Since protocol v9, client ⇄ server and host ⇄ controller each support a range of versions, new features are negotiated with capability bits and unknown messages are skipped, so later versions can be mixed; versions before v9 are incompatible, which is detected and reported (see [Protocol versions](docs/development.md#protocol-versions)).
 
 ## Performance
 
@@ -39,7 +39,7 @@ See [How it works → Video](docs/architecture.md#video) for details.
 - **Audio**: the host's system audio plays on the controller (Opus + adaptive jitter buffer), with optional A/V sync for watching videos. The other way, the controller's microphone can go into a virtual microphone on Windows hosts (Steam Streaming Microphone, there once Steam Remote Play has been used) for meetings and voice typing over there
 - **Handy tools**: two-way clipboard sync, typing the clipboard as keystrokes, system shortcuts (Win, Alt+Tab, Ctrl+Shift+Esc…), multiple monitors, keyboard lock in fullscreen, quality presets
 - **Secure by default**: sessions are end-to-end encrypted, so the relay server can't see the screen or keystrokes; the first connection needs the pairing code from the other computer's tray (it never goes through the server), and its identity is recognized afterwards; TLS 1.3 with certificate pinning, brute-force protection for control codes; the host always sees who is connected and can disconnect them with one click
-- **Leaves nothing behind**: the host is just a tray icon and doesn't start a WebView; everything worth keeping is in one `config.toml`, other runtime files are deleted on exit, and nothing is left after [uninstalling](docs/usage.md#uninstalling) (Windows has an uninstaller, macOS has "Uninstall Airhand…" in the menu, Linux takes two commands)
+- **Leaves nothing behind**: the host is just a tray icon and doesn't start a WebView; everything worth keeping is in one `config.toml`, other runtime files are deleted on exit, and nothing is left after [uninstalling](docs/usage.md#uninstalling) (Windows has an uninstaller, macOS has "Uninstall Nife Remote…" in the menu, Linux takes two commands)
 - **English and Chinese**: follows the system language; notices from the other computer and the server also appear in **your** language
 
 ## Platforms
@@ -58,7 +58,7 @@ See [Known limitations](docs/limitations.md) for platform-specific caveats.
 ```mermaid
 flowchart LR
     host["Host<br>Windows / macOS / Linux"]
-    relay["Relay server<br>airhand-server (Docker)"]
+    relay["Relay server<br>nife-remote-server (Docker)"]
     ctrl["Controller<br>desktop console / web console"]
     host <-->|"QUIC · UDP 4433"| relay
     relay <-->|"QUIC · UDP 4433"| ctrl
@@ -77,13 +77,17 @@ You need:
 ### 1. Deploy the relay server
 
 ```bash
-git clone https://github.com/sqlpxc/airhand.git
-cd airhand
+git clone https://github.com/sqlpxc/nife-remote.git
+cd nife-remote
+# the image is built on a machine with spare CPU / in CI and pushed to a registry; the host only pulls it
+# (see .env.example, and docker-compose.build.yml for the build side)
+cp .env.example .env          # NIFE_REMOTE_IMAGE=registry.example.com/nife-remote-server:0.0.1
+docker compose pull
 docker compose up -d
-docker compose logs airhand | grep fingerprint   # note the certificate's SHA-256 fingerprint
+docker compose logs nife-remote | grep fingerprint   # note the certificate's SHA-256 fingerprint
 ```
 
-The certificate and the control-code database live in `data/`. **Keep that directory**: with a new certificate, clients you've already built can no longer connect. Server settings are in [Deployment](docs/deploy.md#relay-server).
+The certificate and the control-code database live in `data/`. **Keep that directory**: with a new certificate, clients you've already built can no longer connect. Server settings are in `docker-compose.yml`.
 
 ### 2. Build the client
 
@@ -94,8 +98,8 @@ Windows (PowerShell):
 ```powershell
 cd client
 npm install
-$env:AIRHAND_SERVER    = "relay.example.com:4433"
-$env:AIRHAND_SERVER_FP = "<fingerprint from step 1>"
+$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
+$env:NIFE_REMOTE_SERVER_FP = "<fingerprint from step 1>"
 npm run tauri build
 ```
 
@@ -104,8 +108,8 @@ macOS / Linux:
 ```bash
 cd client
 npm install
-export AIRHAND_SERVER=relay.example.com:4433
-export AIRHAND_SERVER_FP=<fingerprint from step 1>
+export NIFE_REMOTE_SERVER=relay.example.com:4433
+export NIFE_REMOTE_SERVER_FP=<fingerprint from step 1>
 npm run tauri build
 ```
 
@@ -113,15 +117,15 @@ The packages are under `client/src-tauri/target/release/bundle/`:
 
 | System | Package |
 |---|---|
-| Windows | `nsis/Airhand_<version>_x64-setup.exe` |
-| macOS | `macos/Airhand.app`, `dmg/Airhand_<version>_<arch>.dmg` |
-| Linux | `deb/Airhand_<version>_amd64.deb` |
+| Windows | `nsis/Nife Remote_<version>_x64-setup.exe` |
+| macOS | `macos/Nife Remote.app`, `dmg/Nife Remote_<version>_<arch>.dmg` |
+| Linux | `deb/Nife Remote_<version>_amd64.deb` |
 
 The server address and fingerprint can also be changed later in [`config.toml`](docs/usage.md#configuration-file).
 
 ### 3. Connect
 
-1. Install Airhand on both computers (on Windows run the installer, which needs administrator rights; on macOS grant the permissions it asks for the first time)
+1. Install Nife Remote on both computers (on Windows run the installer, which needs administrator rights; on macOS grant the permissions it asks for the first time)
 2. On the computer **to be controlled**, right-click the tray icon (on macOS, click the menu bar icon) to see its 6-digit **control code**
 3. On **your** computer, choose **Open console** from the tray menu (**Switch to controller** on macOS / Linux) and enter the code. The first time you connect to that computer, also enter the 6-digit **pairing code** from its tray menu; after that it isn't needed
 
@@ -133,17 +137,16 @@ Start the web console on any machine with Docker and use it from a browser:
 
 ```bash
 cd web
-AIRHAND_SERVER=relay.example.com:4433 AIRHAND_SERVER_FP=<fingerprint> docker compose up -d
+NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<fingerprint> docker compose up -d
 ```
 
-Open `http://localhost:8080` on that machine, or `https://<its address>:8080` from other computers. For the access password, the HTTPS certificate and reverse proxies, see [Deployment → Web console](docs/deploy.md#web-console-docker).
+Open `http://localhost:8080` on that machine, or `https://<its address>:8080` from other computers. The access password, the HTTPS certificate and the reverse proxy setup are all commented in `web/docker-compose.yml` and `web/.env.example`.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
 | [Usage](docs/usage.md) | Host, Windows installation, configuration file, uninstalling, console, quality, language |
-| [Deployment](docs/deploy.md) | Each side in turn: relay server, host, desktop controller, web console, ports, upgrades, troubleshooting |
 | [Building](docs/building.md) | Per-platform requirements and packages, signing, APK |
 | [How it works](docs/architecture.md) | Architecture, source layout, Windows service, video and audio pipelines, A/V sync, files on disk |
 | [Security](docs/security.md) | Encryption and pinning, brute-force protection, control codes and resume tokens |
@@ -162,7 +165,7 @@ See [Security](docs/security.md) for details.
 
 | Directory | Contents |
 |---|---|
-| `crates/` | The protocol (`airhand-proto`) and the client-to-relay link (`airhand-link`) |
+| `crates/` | The protocol (`nife-remote-proto`) and the client-to-relay link (`nife-remote-link`) |
 | `server/` | Relay server |
 | `web/` | Web console service |
 | `client/` | Desktop client: Tauri (Rust) + React UI, which the web console uses too |

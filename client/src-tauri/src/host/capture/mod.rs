@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::{CursorShape, CursorVisibility, DisplayInfo, Notice, QualitySettings};
+use nife_remote_proto::session::{CursorShape, CursorVisibility, DisplayInfo, Notice, QualitySettings};
 use anyhow::{Result, anyhow};
 use tracing::{info, warn};
 
@@ -395,7 +395,7 @@ pub enum Output {
 pub fn output_for(index: u8, s: &QualitySettings) -> Output {
     #[cfg(target_os = "macos")]
     {
-        use airhand_proto::session::VideoPriority;
+        use nife_remote_proto::session::VideoPriority;
         if s.priority.or_latency() == VideoPriority::Clarity
             && let Ok(d) = super::macos::display(index)
             && super::encoder::needs_scaling(d.width, d.height, s.max_short)
@@ -490,7 +490,7 @@ pub fn subscribe(index: u8, fps: u8, output: Output) -> Subscription {
     hub.insert(key, Arc::downgrade(&shared));
     let thread_shared = shared.clone();
     std::thread::Builder::new()
-        .name(format!("airhand-capture-{index}"))
+        .name(format!("nife-remote-capture-{index}"))
         .spawn(move || capture_loop(thread_shared))
         .expect("spawn capture thread");
     Subscription { shared, id }

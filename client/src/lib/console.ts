@@ -1,7 +1,7 @@
 // 控制台和控制端服务之间的连接，桌面版和网页版共用：两边只是 WebSocket 的地址不同
-// （backend/tauri.ts：本程序只监听 127.0.0.1 的服务；backend/web.ts：airhand-web），再加上各自的功能。
+// （backend/tauri.ts：本程序只监听 127.0.0.1 的服务；backend/web.ts：nife-remote-web），再加上各自的功能。
 //
-// 协议见 crates/airhand-link/src/console.rs。WebSocket、画面和声音的解码、绘制都在 Worker 里（console-worker.ts），
+// 协议见 crates/nife-remote-link/src/console.rs。WebSocket、画面和声音的解码、绘制都在 Worker 里（console-worker.ts），
 // 这里（主线程）只处理 JSON：
 // * 命令 `{"id", "cmd", ...参数}`；对会话的操作就是 Command。输入这类高频消息不带 id，不等回复。
 //   命令都经同一个 Worker、同一条 WebSocket，按调用的先后到达；

@@ -10,9 +10,9 @@ use tauri::{AppHandle, Wry};
 
 use crate::i18n::{self, Lang};
 use crate::status::{AppStatus, Mode, ServiceStatus};
-use airhand_link::{Problem, ServerState};
+use nife_remote_link::{Problem, ServerState};
 
-const TRAY_ID: &str = "airhand";
+const TRAY_ID: &str = "nife-remote";
 static ICON_PNG: &[u8] = include_bytes!("../icons/tray.png");
 
 fn icon_online() -> Image<'static> {
@@ -79,7 +79,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
     let builder = builder.temp_dir_path(crate::ephemeral::process_dir().join("tray"));
     builder
         .icon(icon_offline())
-        .tooltip("Airhand")
+        .tooltip("Nife Remote")
         .menu(&build_menu(app, &st)?)
         // macOS 的菜单栏图标习惯上左键就弹出菜单；Windows / Linux 左键在控制端模式下打开控制台
         .show_menu_on_left_click(cfg!(target_os = "macos"))
@@ -125,7 +125,7 @@ fn build_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::new(app)?;
     menu.append(&label(
         app,
-        format!("Airhand  v{}", crate::config::VERSION),
+        format!("Nife Remote  v{}", crate::config::VERSION),
     )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
@@ -174,7 +174,7 @@ fn build_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Menu<Wry>> {
         menu.append(&item(
             app,
             "uninstall",
-            tr!("卸载 Airhand…", "Uninstall Airhand…"),
+            tr!("卸载 Nife Remote…", "Uninstall Nife Remote…"),
         )?)?;
     }
     menu.append(&item(app, "quit", tr!("退出", "Quit"))?)?;
@@ -237,8 +237,8 @@ fn login_item_entry(
     use crate::login_item::State;
     let text = match s {
         State::NotInstalled => tr!(
-            "登录时自动启动（先把 Airhand 拖进“应用程序”文件夹）",
-            "Open at login (move Airhand to the Applications folder first)"
+            "登录时自动启动（先把 Nife Remote 拖进“应用程序”文件夹）",
+            "Open at login (move Nife Remote to the Applications folder first)"
         ),
         State::NeedsApproval => tr!(
             "登录时自动启动（要在系统设置里允许，点击打开）",
@@ -263,7 +263,7 @@ fn host_items(app: &AppHandle, menu: &Menu<Wry>, st: &AppStatus) -> tauri::Resul
         #[cfg(target_os = "macos")]
         permission_items(app, menu)?;
         if let (ServerState::Connected, Some(code)) = (&st.host.server, st.host.code) {
-            let code = airhand_proto::format_code(code);
+            let code = nife_remote_proto::format_code(code);
             menu.append(&label(app, tr!("控制码：{code}", "Control code: {code}"))?)?;
             menu.append(&item(
                 app,
@@ -292,7 +292,7 @@ fn host_items(app: &AppHandle, menu: &Menu<Wry>, st: &AppStatus) -> tauri::Resul
                 } else {
                     c.peer.name.clone()
                 };
-                // 安全码：控制端显示的是同一个，两边的人可以对一下（见 airhand_proto::handshake）
+                // 安全码：控制端显示的是同一个，两边的人可以对一下（见 nife_remote_proto::handshake）
                 let line = match &c.safety {
                     Some(s) => tr!(
                         "    {name} ({ip}) · 安全码 {s}",
@@ -429,8 +429,8 @@ fn server_problem(p: &Problem) -> String {
         Problem::CertMismatch => tr!("服务器：证书指纹不匹配", "Server: certificate mismatch"),
         Problem::Incompatible { server, client } if server > client => {
             tr!(
-                "服务器：版本不兼容，请更新 Airhand",
-                "Server: incompatible, please update Airhand"
+                "服务器：版本不兼容，请更新 Nife Remote",
+                "Server: incompatible, please update Nife Remote"
             )
         }
         Problem::Incompatible { .. } => tr!(
@@ -471,7 +471,7 @@ pub fn refresh(app: &AppHandle, st: &AppStatus) {
         icon_offline()
     }));
     let code_line = |code: u32| {
-        let code = airhand_proto::format_code(code);
+        let code = nife_remote_proto::format_code(code);
         tr!("控制码 {code}", "Control code {code}")
     };
     let (shown, server, code) = if st.shows_host() {
@@ -482,33 +482,33 @@ pub fn refresh(app: &AppHandle, st: &AppStatus) {
     let controllers = st.host.controllers.len();
     let tip = match (shown, server, code) {
         (Mode::Host, _, _) if !host_known => match st.service {
-            Some(s) if s.running => tr!("Airhand · 被控端", "Airhand · Host"),
+            Some(s) if s.running => tr!("Nife Remote · 被控端", "Nife Remote · Host"),
             _ => tr!(
-                "Airhand · 被控端服务未运行",
-                "Airhand · Host service not running"
+                "Nife Remote · 被控端服务未运行",
+                "Nife Remote · Host service not running"
             ),
         },
         (Mode::Host, ServerState::Connected, Some(code)) if controllers > 0 => {
             format!(
-                "Airhand · {}\n{}",
+                "Nife Remote · {}\n{}",
                 controlled_by(controllers),
                 code_line(code)
             )
         }
         (Mode::Host, ServerState::Connected, Some(code)) => {
-            format!("Airhand · {}\n{}", tr!("被控端", "Host"), code_line(code))
+            format!("Nife Remote · {}\n{}", tr!("被控端", "Host"), code_line(code))
         }
-        (Mode::Host, ServerState::Connected, None) => tr!("Airhand · 被控端", "Airhand · Host"),
+        (Mode::Host, ServerState::Connected, None) => tr!("Nife Remote · 被控端", "Nife Remote · Host"),
         (Mode::Controller, ServerState::Connected, _) => {
-            tr!("Airhand · 控制端", "Airhand · Controller")
+            tr!("Nife Remote · 控制端", "Nife Remote · Controller")
         }
         (_, ServerState::Connecting, _) => tr!(
-            "Airhand · 正在连接服务器…",
-            "Airhand · Connecting to server…"
+            "Nife Remote · 正在连接服务器…",
+            "Nife Remote · Connecting to server…"
         ),
         (_, ServerState::Disconnected { .. }, _) => tr!(
-            "Airhand · 未连接服务器",
-            "Airhand · Not connected to server"
+            "Nife Remote · 未连接服务器",
+            "Nife Remote · Not connected to server"
         ),
     };
     let _ = tray.set_tooltip(Some(tip));

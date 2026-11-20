@@ -382,7 +382,7 @@ mod tests {
         let wire = minicbor::to_vec(&answer).unwrap();
         assert_eq!(wire[..5], [0xa4, 0x00, 0x09, 0x01, 0x09]);
         assert_eq!(answer.version, Some(9));
-        assert_eq!(crate::ALPN, b"airhand/1");
+        assert_eq!(crate::ALPN, b"nife-remote/1");
     }
 
     /// 以后的版本在握手里加了字段、换了别的东西：照样读得出版本区间，照样能回答"不兼容"

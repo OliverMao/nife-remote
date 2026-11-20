@@ -1,4 +1,4 @@
-// 网页版：浏览器打开 airhand-web 的端口，控制端服务跑在那台机器上（web/src/console.rs）。
+// 网页版：浏览器打开 nife-remote-web 的端口，控制端服务跑在那台机器上（web/src/console.rs）。
 //
 // 会话和桌面版一样走 WebSocket（console.ts），连的是同一个端口的 `/ws`。网页版自己的：
 // * 剪贴板在浏览器里同步（navigator.clipboard），规则与桌面版相同：只同步连接之后的变化，并抑制回声；
@@ -17,7 +17,7 @@ interface Clip {
   synced: string | null;
 }
 
-/** 与 airhand_proto::session::MAX_CLIPBOARD_TEXT 相同（按字符数粗略限制，服务端还会按字节检查） */
+/** 与 nife_remote_proto::session::MAX_CLIPBOARD_TEXT 相同（按字符数粗略限制，服务端还会按字节检查） */
 const MAX_CLIPBOARD = 1 << 20;
 const CLIPBOARD_POLL_MS = 1000;
 

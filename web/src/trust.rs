@@ -1,12 +1,12 @@
-//! 没有设置 `AIRHAND_SERVER_FP` 时，第一次连上中转服务器时记下它的证书指纹（见 `airhand_link::net` 的模块说明），
-//! 存在一个文件里（`AIRHAND_SERVER_TRUST`，Docker 镜像里是 `/data/server-trust.txt`）：重启之后也只认这个指纹，
-//! 服务器的证书变了就拒绝连接。服务器确实换了证书时删掉这个文件（或者设置 `AIRHAND_SERVER_FP`）。
+//! 没有设置 `NIFE_REMOTE_SERVER_FP` 时，第一次连上中转服务器时记下它的证书指纹（见 `nife_remote_link::net` 的模块说明），
+//! 存在一个文件里（`NIFE_REMOTE_SERVER_TRUST`，Docker 镜像里是 `/data/server-trust.txt`）：重启之后也只认这个指纹，
+//! 服务器的证书变了就拒绝连接。服务器确实换了证书时删掉这个文件（或者设置 `NIFE_REMOTE_SERVER_FP`）。
 //!
 //! 文件只有一行：`服务器地址 指纹`。换了服务器地址就重新记。
 
 use std::path::PathBuf;
 
-use airhand_link::net::{MemoryTrust, TrustStore, format_fingerprint, parse_fingerprint};
+use nife_remote_link::net::{MemoryTrust, TrustStore, format_fingerprint, parse_fingerprint};
 use tracing::{info, warn};
 
 pub struct FileTrust {
@@ -71,7 +71,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir()
-            .join(format!("airhand-web-trust-{}-{nanos}", std::process::id()))
+            .join(format!("nife-remote-web-trust-{}-{nanos}", std::process::id()))
             .join("server-trust.txt");
         let a = FileTrust::new(path.clone());
         assert_eq!(a.load("relay:4433"), None);

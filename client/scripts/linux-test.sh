@@ -7,7 +7,7 @@
 #   bash client/scripts/linux-test.sh
 #
 # 需要：Xvfb（xvfb 包）、Node.js 20+，以及 README"构建客户端"一节里的 Linux 依赖。
-# 在 WSL 里使用时，建议先把仓库复制到 WSL 自己的磁盘上（例如 ~/airhand）再运行，/mnt 下编译很慢。
+# 在 WSL 里使用时，建议先把仓库复制到 WSL 自己的磁盘上（例如 ~/nife-remote）再运行，/mnt 下编译很慢。
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -37,7 +37,7 @@ fi
 step "协议 + 链路库 + 服务器"
 cd "$ROOT"
 cargo test --quiet
-cargo build --quiet -p airhand-server
+cargo build --quiet -p nife-remote-server
 
 step "网页控制台"
 cd "$ROOT/web"
@@ -59,8 +59,8 @@ fi
 
 step "端到端：真实服务器 + 被控端 + 协议级控制端"
 mkdir -p "$ROOT/target/e2e"
-AIRHAND_LISTEN=127.0.0.1:4433 AIRHAND_CERT="$ROOT/target/e2e/cert.pem" AIRHAND_KEY="$ROOT/target/e2e/key.pem" \
-  RUST_LOG=warn "$ROOT/target/debug/airhand-server" &
+NIFE_REMOTE_LISTEN=127.0.0.1:4433 NIFE_REMOTE_CERT="$ROOT/target/e2e/cert.pem" NIFE_REMOTE_KEY="$ROOT/target/e2e/key.pem" \
+  RUST_LOG=warn "$ROOT/target/debug/nife-remote-server" &
 SERVER=$!
 PIDS+=($SERVER)
 sleep 1

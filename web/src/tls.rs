@@ -95,7 +95,7 @@ mod tests {
         let a = generate(&["localhost".into(), "192.168.1.10".into()]).unwrap();
         assert_eq!(a.fingerprint.len(), 64);
 
-        let dir = std::env::temp_dir().join(format!("airhand-web-tls-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("nife-remote-web-tls-{}", std::process::id()));
         let (cert, key) = (dir.join("cert.pem"), dir.join("key.pem"));
         let first = load_or_generate(&cert, &key, &["localhost".into()]).unwrap();
         // 第二次读取同一张证书

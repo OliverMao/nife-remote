@@ -1,4 +1,4 @@
-//! Airhand 客户端：同一个二进制既是被控端也是控制端。
+//! Nife Remote 客户端：同一个二进制既是被控端也是控制端。
 //!
 //! * 启动后默认是**被控端**：只有托盘图标，没有任何窗口；
 //! * 托盘菜单可切换为**控制端**：打开现代化控制台，可同时控制多台电脑；
@@ -6,8 +6,8 @@
 //!   调试构建直接运行时被控端在本进程里运行。macOS / Linux 的被控端一直在本进程里运行；
 //! * macOS 的登录时自动启动是系统的登录项（见 [`login_item`]），第一次从"应用程序"文件夹运行时默认打开；
 //! * 配置和数据只有一个 `config.toml`（见 [`config`]）：服务器设置、本机的控制码、控制台的"我的设备"
-//!   （见 [`devices`]）。Windows 在安装目录，macOS 在 `~/Library/Application Support/app.airhand.client/`，
-//!   Linux 在 `~/.config/airhand/`；被删掉了会自动重新生成。其余运行时产生的文件退出时删除（见 [`ephemeral`]）；
+//!   （见 [`devices`]）。Windows 在安装目录，macOS 在 `~/Library/Application Support/app.nife-remote.client/`，
+//!   Linux 在 `~/.config/nife-remote/`；被删掉了会自动重新生成。其余运行时产生的文件退出时删除（见 [`ephemeral`]）；
 //! * 界面支持中文 / 英文，默认跟随系统语言（见 [`i18n`]）。
 
 // 最先声明：其它模块都要用到 `tr!`
@@ -38,8 +38,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use airhand_link::secure::Identity;
-use airhand_link::{Problem, ServerState};
+use nife_remote_link::secure::Identity;
+use nife_remote_link::{Problem, ServerState};
 use serde::Serialize;
 use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
@@ -231,7 +231,7 @@ fn open_console(app: &AppHandle) {
             .title(console_title())
             // 首屏就用当前语言（之后的切换通过 lang-changed 事件通知）
             .initialization_script(format!(
-                "window.__AIRHAND_LANG__ = {:?};",
+                "window.__NIFE_REMOTE_LANG__ = {:?};",
                 i18n::current().code()
             ))
             .inner_size(1360.0, 860.0)
@@ -261,7 +261,7 @@ fn open_console(app: &AppHandle) {
 }
 
 fn console_title() -> String {
-    tr!("Airhand 控制台", "Airhand Console")
+    tr!("Nife Remote 控制台", "Nife Remote Console")
 }
 
 /// 切换界面语言（托盘菜单或控制台）。
@@ -335,7 +335,7 @@ pub(crate) fn on_menu(app: &AppHandle, id: &str) {
         "start_service" => {
             std::thread::spawn(|| {
                 if let Err(e) = winsvc::start() {
-                    warn!("can't start the Airhand service: {e:#}");
+                    warn!("can't start the Nife Remote service: {e:#}");
                 }
             });
         }
@@ -395,7 +395,7 @@ pub(crate) fn on_menu(app: &AppHandle, id: &str) {
             if state.service_mode
                 && let Err(e) = winsvc::stop()
             {
-                warn!("can't stop the Airhand service: {e:#}");
+                warn!("can't stop the Nife Remote service: {e:#}");
             }
             let mut sv = state.services.lock().unwrap();
             sv.host = None;
@@ -469,7 +469,7 @@ async fn devices_save(
                 Ok(())
             }
             _ => Err(Problem::failed(
-                "the Airhand service isn't reachable from this session",
+                "the Nife Remote service isn't reachable from this session",
             )),
         };
     }
@@ -534,7 +534,7 @@ pub fn run() {
         // 已经有一个实例在运行（托盘里），直接退出
         return;
     };
-    // Windows：安装好的 Airhand 由系统服务运行被控端；发布版必须安装，调试构建直接运行时被控端在本进程里运行
+    // Windows：安装好的 Nife Remote 由系统服务运行被控端；发布版必须安装，调试构建直接运行时被控端在本进程里运行
     #[cfg(windows)]
     let service_mode = winsvc::installed_here();
     #[cfg(all(windows, not(debug_assertions)))]
@@ -599,7 +599,7 @@ pub fn run() {
             app.state::<AppState>().services.lock().unwrap().host = Some(hosting);
             // 仅调试构建：方便开发时直接进入控制端
             let dev_controller =
-                cfg!(debug_assertions) && std::env::var_os("AIRHAND_DEV_CONTROLLER").is_some();
+                cfg!(debug_assertions) && std::env::var_os("NIFE_REMOTE_DEV_CONTROLLER").is_some();
             if dev_controller {
                 set_mode(&handle, Mode::Controller);
             }
@@ -678,7 +678,7 @@ pub fn run() {
     });
 }
 
-/// Windows 安装版：被控端在系统服务里运行。打开 Airhand 时服务没有运行就启动它；服务停止后托盘也退出。
+/// Windows 安装版：被控端在系统服务里运行。打开 Nife Remote 时服务没有运行就启动它；服务停止后托盘也退出。
 #[cfg(windows)]
 fn start_service_link(app: &AppHandle, hub: &StatusHub) -> Hosting {
     hub.send_modify(|s| {
@@ -691,7 +691,7 @@ fn start_service_link(app: &AppHandle, hub: &StatusHub) -> Hosting {
     });
     std::thread::spawn(|| {
         if let Err(e) = winsvc::start() {
-            warn!("can't start the Airhand service: {e:#}");
+            warn!("can't start the Nife Remote service: {e:#}");
         }
     });
     let app = app.clone();
@@ -769,7 +769,7 @@ fn login_item_startup(hub: StatusHub) {
     });
 }
 
-/// macOS：菜单里的"卸载 Airhand…"。确认之后停掉被控端和控制端、配置文件不再写入，再按顺序清理（见 [`uninstall`]），
+/// macOS：菜单里的"卸载 Nife Remote…"。确认之后停掉被控端和控制端、配置文件不再写入，再按顺序清理（见 [`uninstall`]），
 /// 最后告诉用户结果并退出
 #[cfg(target_os = "macos")]
 fn uninstall_app(app: &AppHandle) {
@@ -801,7 +801,7 @@ fn uninstall_app(app: &AppHandle) {
         exe_name: std::env::current_exe()
             .ok()
             .and_then(|p| Some(p.file_name()?.to_string_lossy().into_owned()))
-            .unwrap_or_else(|| "airhand".into()),
+            .unwrap_or_else(|| "nife-remote".into()),
         config_dir: config::path().and_then(|p| Some(p.parent()?.to_path_buf())),
     };
     let problems = uninstall::run(&plan);
@@ -823,7 +823,7 @@ fn record_login_item(s: login_item::State) {
 }
 
 fn init_logging() {
-    let filter = tracing_subscriber::EnvFilter::try_from_env("AIRHAND_LOG")
+    let filter = tracing_subscriber::EnvFilter::try_from_env("NIFE_REMOTE_LOG")
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,quinn=warn,quinn_proto=warn"));
     // 只输出到 stderr，绝不写日志文件
     let _ = tracing_subscriber::fmt()

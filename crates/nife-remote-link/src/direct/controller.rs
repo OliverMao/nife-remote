@@ -9,8 +9,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use airhand_proto::SessionLane;
-use airhand_proto::session::DirectOffer;
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::session::DirectOffer;
 use anyhow::Result;
 use quinn::{Connection, Endpoint};
 use tokio::sync::mpsc;

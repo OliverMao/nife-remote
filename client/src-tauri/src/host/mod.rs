@@ -21,16 +21,16 @@ pub(crate) mod x11;
 
 use std::sync::Arc;
 
-use airhand_link::ServerState;
-use airhand_link::host::HostEvents;
-use airhand_proto::signal::Reclaim;
+use nife_remote_link::ServerState;
+use nife_remote_link::host::HostEvents;
+use nife_remote_proto::signal::Reclaim;
 
 use gate::DesktopGate;
 use tauri::async_runtime::JoinHandle;
 use tokio::sync::mpsc;
 use tracing::warn;
 
-pub use airhand_link::host::HostCmd;
+pub use nife_remote_link::host::HostCmd;
 
 use crate::config;
 use crate::status::StatusHub;
@@ -126,7 +126,7 @@ async fn run(hub: StatusHub, gate: Arc<DesktopGate>, cmds: mpsc::UnboundedReceiv
     // 保存过的控制码（config.toml）：第一次连接就取回它
     let reclaim = config::settings().code();
     let events = Arc::new(TrayStatus(hub, gate.clone()));
-    airhand_link::host::run(
+    nife_remote_link::host::run(
         config::link(),
         config::persistent(),
         reclaim,

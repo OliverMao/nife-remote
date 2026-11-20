@@ -1,4 +1,4 @@
-//! 被控端的端到端身份和授权（协议见 `airhand_proto::handshake`）：本机的身份密钥、配对码、配对过的控制端。
+//! 被控端的端到端身份和授权（协议见 `nife_remote_proto::handshake`）：本机的身份密钥、配对码、配对过的控制端。
 //!
 //! * 都保存在 config.toml 里（`[host]`、`[[paired]]`，见 [`crate::config`]），身份密钥和配对码加密保存；
 //! * 没配对过的控制端：默认要配对码（config.toml 的 `access`），配对码显示在托盘菜单里，从不经过服务器；
@@ -8,9 +8,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use airhand_link::host::{Access, Admitted, Gate};
-use airhand_link::secure::{Identity, PairingAttempt, hex};
-use airhand_proto::handshake::PublicKey;
+use nife_remote_link::host::{Access, Admitted, Gate};
+use nife_remote_link::secure::{Identity, PairingAttempt, hex};
+use nife_remote_proto::handshake::PublicKey;
 use tracing::{info, warn};
 
 use crate::config::{self, Paired};
@@ -36,7 +36,7 @@ struct State {
     paired: Vec<Paired>,
 }
 
-/// 新的配对码：[`airhand_proto::PAIRING_DIGITS`] 位随机数字
+/// 新的配对码：[`nife_remote_proto::PAIRING_DIGITS`] 位随机数字
 fn new_code() -> String {
     format!("{:06}", rand::random_range(0..1_000_000u32))
 }
@@ -165,7 +165,7 @@ impl DesktopGate {
         self.hub.send_modify(|s| {
             s.host.controllers.push(crate::status::Controller {
                 session_id,
-                peer: airhand_proto::signal::Peer {
+                peer: nife_remote_proto::signal::Peer {
                     name: a.name.clone(),
                     ip,
                 },
@@ -271,7 +271,7 @@ mod tests {
 
     #[tokio::test]
     async fn reserved_pairing_budget_rejects_a_real_handshake_without_publishing_a_controller() {
-        use airhand_link::secure::{
+        use nife_remote_link::secure::{
             InitiatorParams, ResponderParams, controller_intro, initiate, respond,
         };
         let hub = crate::status::new_hub();
@@ -309,8 +309,8 @@ mod tests {
             .err()
             .expect("a sixth concurrent attempt must be refused");
         assert_eq!(
-            error.downcast_ref::<airhand_link::Problem>(),
-            Some(&airhand_link::Problem::PairingUnavailable)
+            error.downcast_ref::<nife_remote_link::Problem>(),
+            Some(&nife_remote_link::Problem::PairingUnavailable)
         );
         assert!(host.is_err());
         assert!(hub.borrow().host.controllers.is_empty());

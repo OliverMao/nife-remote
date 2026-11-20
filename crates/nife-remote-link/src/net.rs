@@ -22,9 +22,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::wire::read_frame;
-use airhand_proto::framing;
-use airhand_proto::signal::{ClientHello, ClientMsg, ServerHello};
-use airhand_proto::{ALPN, Features, MAX_SIGNAL_MSG, Role, SIGNAL_MIN, SIGNAL_VERSION};
+use nife_remote_proto::framing;
+use nife_remote_proto::signal::{ClientHello, ClientMsg, ServerHello};
+use nife_remote_proto::{ALPN, Features, MAX_SIGNAL_MSG, Role, SIGNAL_MIN, SIGNAL_VERSION};
 use anyhow::{Context, Result, anyhow, bail};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{
@@ -200,7 +200,7 @@ pub struct Signal {
     pub conn: Connection,
     pub send: SendStream,
     pub recv: RecvStream,
-    /// 和服务器商定的信令版本，双方都支持的信令能力位（见 `airhand_proto::signal` 的"版本握手"）
+    /// 和服务器商定的信令版本，双方都支持的信令能力位（见 `nife_remote_proto::signal` 的"版本握手"）
     pub version: u16,
     pub features: Features,
     /// 连服务器的 endpoint：直连也用它（同一个 socket，见模块说明的"直连"）
@@ -262,7 +262,7 @@ async fn resolve(addr: &str) -> Result<(Vec<SocketAddr>, String)> {
         .unwrap_or(addr)
         .trim_matches(['[', ']']);
     let sni = if host.parse::<std::net::IpAddr>().is_ok() {
-        "airhand".to_string()
+        "nife-remote".to_string()
     } else {
         host.to_string()
     };
@@ -437,7 +437,7 @@ async fn handshake(
     }
     let resp: ServerHello =
         framing::decode_known(&buf).context("unexpected answer from the server")?;
-    // 对方说的是 Airhand 的协议（版本对不上也算）：第一次连接的话，记下它的指纹
+    // 对方说的是 Nife Remote 的协议（版本对不上也算）：第一次连接的话，记下它的指纹
     if let (Trust::FirstUse(store), None) = (&cfg.trust, expected) {
         info!(server = %cfg.server, fingerprint = %format_fingerprint(&fp), "first connection to this server, remembering its certificate");
         store.save(&cfg.server, fp);

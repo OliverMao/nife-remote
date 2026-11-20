@@ -21,7 +21,7 @@ pub fn acquire() -> Option<Guard> {
     use windows::core::w;
 
     unsafe {
-        let handle = CreateMutexW(None, true, w!("Local\\Airhand.SingleInstance")).ok()?;
+        let handle = CreateMutexW(None, true, w!("Local\\Nife Remote.SingleInstance")).ok()?;
         if GetLastError() == ERROR_ALREADY_EXISTS {
             return None;
         }
@@ -35,7 +35,7 @@ pub fn acquire() -> Option<Guard> {
     use std::os::unix::net::{SocketAddr, UnixListener};
 
     // 每个用户一个实例
-    let name = format!("airhand.single-instance.{}", unsafe { libc::getuid() });
+    let name = format!("nife-remote.single-instance.{}", unsafe { libc::getuid() });
     let socket =
         match SocketAddr::from_abstract_name(name).and_then(|a| UnixListener::bind_addr(&a)) {
             Ok(s) => Some(s),
@@ -54,7 +54,7 @@ pub fn acquire() -> Option<Guard> {
     use objc2_core_foundation::{CFMessagePort, CFString};
 
     // 每个用户一个实例（不同用户的 bootstrap 命名空间本来就是分开的，带上 uid 更保险）
-    let name = CFString::from_str(&format!("app.airhand.single-instance.{}", unsafe {
+    let name = CFString::from_str(&format!("app.nife-remote.single-instance.{}", unsafe {
         libc::getuid()
     }));
     let running = || CFMessagePort::new_remote(None, Some(&name)).is_some();
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn only_one_instance() {
         let first =
-            super::acquire().expect("第一个实例应该能运行（是不是已经有 Airhand 在运行？）");
+            super::acquire().expect("第一个实例应该能运行（是不是已经有 Nife Remote 在运行？）");
         assert!(super::acquire().is_none(), "第二个实例不应该运行");
         drop(first);
         assert!(super::acquire().is_some(), "第一个实例退出后应该可以再运行");

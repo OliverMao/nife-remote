@@ -8,6 +8,6 @@
 	<true/>
 	<!-- 控制台里打开麦克风（把本机的麦克风发给对方）时系统询问用的说明；没有它的话 macOS 不让用麦克风 -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Airhand sends your voice to the remote computer when you turn on the microphone in a connection. 在连接里打开麦克风时，Airhand 把你的声音发给对方电脑。</string>
+	<string>Nife Remote sends your voice to the remote computer when you turn on the microphone in a connection. 在连接里打开麦克风时，Nife Remote 把你的声音发给对方电脑。</string>
 </dict>
 </plist>

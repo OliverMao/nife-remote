@@ -8,7 +8,7 @@ use std::ffi::c_void;
 use std::sync::Once;
 use std::time::Instant;
 
-use airhand_proto::session::DisplayInfo;
+use nife_remote_proto::session::DisplayInfo;
 use anyhow::{Result, anyhow};
 use objc2_core_foundation::{CFBoolean, CFDictionary, CFString};
 use objc2_core_graphics::{
@@ -111,7 +111,7 @@ pub fn open_privacy_settings(pane: PrivacyPane) {
 
 /// 没有"屏幕与系统录音"权限，无法采集画面和声音。
 ///
-/// 会话已经用 [`Notice::MissingPermissions`](airhand_proto::session::Notice::MissingPermissions)
+/// 会话已经用 [`Notice::MissingPermissions`](nife_remote_proto::session::Notice::MissingPermissions)
 /// 告诉控制端了，所以采集线程认出这个错误后不再把它当作采集失败发过去（见 [`super::missing_permission`]）。
 #[derive(Debug)]
 pub struct PermissionDenied;

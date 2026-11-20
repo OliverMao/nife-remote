@@ -1,7 +1,7 @@
 // 界面语言：简体中文 / 英文。
 //
 // 当前语言由 Rust 端决定（默认跟随系统语言，不是中文就用英文；托盘菜单里也能切换），
-// 打开控制台时通过 window.__AIRHAND_LANG__ 注入，之后的切换通过 "lang-changed" 事件同步。
+// 打开控制台时通过 window.__NIFE_REMOTE_LANG__ 注入，之后的切换通过 "lang-changed" 事件同步。
 // 与其它状态一样不持久化。词条在 src/locales/。
 import { useSyncExternalStore } from "react";
 import en from "../locales/en.ts";
@@ -23,7 +23,7 @@ export function langFromTag(tag: string | undefined | null): Lang {
 }
 
 function initialLang(): Lang {
-  const injected = (globalThis as { __AIRHAND_LANG__?: unknown }).__AIRHAND_LANG__;
+  const injected = (globalThis as { __NIFE_REMOTE_LANG__?: unknown }).__NIFE_REMOTE_LANG__;
   if (injected === "zh" || injected === "en") return injected;
   // 没有注入（例如直接用浏览器打开开发服务器）：按 WebView 的系统语言
   return langFromTag(globalThis.navigator?.language);

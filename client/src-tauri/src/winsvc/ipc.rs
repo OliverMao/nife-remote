@@ -1,6 +1,6 @@
 //! 托盘 ⇄ 系统服务里的被控端：命名管道，每行一条 JSON 消息。
 //!
-//! * 管道名带会话编号（`\\.\pipe\airhand-host-<会话>`），每个会话的托盘只连自己会话里的被控端；
+//! * 管道名带会话编号（`\\.\pipe\nife-remote-host-<会话>`），每个会话的托盘只连自己会话里的被控端；
 //!   被控端还会核对连上来的进程是不是在同一个会话里；
 //! * 只有交互登录的用户（和 SYSTEM、管理员）能连接，而且不能另开同名管道冒充被控端（见 [`PIPE_SDDL`]）；
 //!   托盘还会核对管道的所有者是 SYSTEM（或管理员），普通用户的程序抢先开了同名管道也骗不了托盘；
@@ -55,7 +55,7 @@ fn my_session() -> u32 {
 }
 
 fn pipe_name(session: u32) -> String {
-    format!(r"\\.\pipe\airhand-host-{session}")
+    format!(r"\\.\pipe\nife-remote-host-{session}")
 }
 
 /// 被控端 → 托盘
@@ -344,7 +344,7 @@ async fn run(
         .await
         .unwrap_or((super::State::Running, my_session()));
         if seen_running && matches!(state, super::State::Missing | super::State::Stopped) {
-            info!(?state, "the Airhand service stopped");
+            info!(?state, "the Nife Remote service stopped");
             on_stopped();
             return;
         }
@@ -411,7 +411,7 @@ fn open_pipe(name: &str, check_owner: bool) -> std::io::Result<NamedPipeClient> 
         unsafe {
             let _ = CloseHandle(handle);
         }
-        warn!("{name} isn't served by Airhand, ignoring it");
+        warn!("{name} isn't served by Nife Remote, ignoring it");
         return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
     }
     unsafe { NamedPipeClient::from_raw_handle(handle.0) }
@@ -457,7 +457,7 @@ mod tests {
     /// 被控端一侧和托盘一侧的消息往返。管道的所有者是运行测试的用户：托盘本来会拒绝它（不是 SYSTEM），这里不检查
     #[tokio::test]
     async fn status_and_commands() {
-        let name = format!(r"\\.\pipe\airhand-test-{:016x}", rand::random::<u64>());
+        let name = format!(r"\\.\pipe\nife-remote-test-{:016x}", rand::random::<u64>());
         let hub = status::new_hub();
         let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
         let autostart = Arc::new(watch::Sender::new(true));

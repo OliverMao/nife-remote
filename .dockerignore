@@ -9,6 +9,9 @@ assets
 data
 web/data
 client/dist
+# 本机的 compose 配置（镜像名等），不进任何镜像
+.env
+**/.env
 # 桌面客户端的 Rust 部分，两个镜像都用不到
 client/src-tauri
 web/.env

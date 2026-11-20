@@ -1,6 +1,6 @@
 //! `--service`：系统服务（SYSTEM，会话 0）。
 //!
-//! 只做一件事：在当前的控制台会话里以 SYSTEM 身份运行被控端（`airhand.exe --agent`，见 [`super::agent`]），并看护它：
+//! 只做一件事：在当前的控制台会话里以 SYSTEM 身份运行被控端（`nife-remote.exe --agent`，见 [`super::agent`]），并看护它：
 //!
 //! * 控制台会话变了（切换用户、注销后回到登录界面）就把被控端挪过去；
 //! * 被控端意外退出就重新启动（退避 1 → 30 秒，运行超过一分钟后从头算）；
@@ -264,7 +264,7 @@ fn supervise(stop: &Owned, session_changed: &Owned) {
     }
 }
 
-/// 以 SYSTEM 身份（复制服务自己的令牌，改成目标会话）在 `session` 的 `winsta0\default` 桌面上运行 `airhand.exe --agent`
+/// 以 SYSTEM 身份（复制服务自己的令牌，改成目标会话）在 `session` 的 `winsta0\default` 桌面上运行 `nife-remote.exe --agent`
 fn spawn_agent(session: u32) -> Result<Agent> {
     unsafe {
         let mut token = HANDLE::default();

@@ -3,7 +3,11 @@ node_modules/
 client/dist/
 client/src-tauri/gen/
 *.log
+# docker compose 的 .env（镜像名等本机配置，不提交）
+/.env
 web/.env
+# 部署文档（含内网镜像仓库地址等内部信息）：只在本机保留，不提交
+/deploy/
 
 # docker compose 挂载的 data 目录：运行时自动生成的证书、私钥、SQLite 数据库等，不要提交
 # （写成 /data/ 只匹配根目录这一个；不能用不带斜杠开头的 data/，否则会匹配任何同名目录）

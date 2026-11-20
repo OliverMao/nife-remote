@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use airhand_proto::SessionLane;
-use airhand_proto::handshake::{Negotiated, PublicKey};
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::handshake::{Negotiated, PublicKey};
 use anyhow::Result;
 use quinn::{Connection, SendStream};
 
@@ -17,7 +17,7 @@ use crate::secure::{Initiator, STEP_TIMEOUT, Sealer};
 /// 握手做完了、本端的通道开好了的会话（见模块说明）
 pub struct Established {
     pub session_id: u64,
-    /// 被控端的公钥、安全码（见 `airhand_proto::handshake`）
+    /// 被控端的公钥、安全码（见 `nife_remote_proto::handshake`）
     pub peer: PublicKey,
     pub safety: String,
     /// 选定的会话版本和双方都支持的能力位
@@ -30,8 +30,8 @@ pub struct Established {
     pub paths: Paths,
     /// 发控制数据报（Ping、画面确认）
     pub datagrams: DatagramSender,
-    /// 麦克风的声音数据报的加密端（双方都支持 `airhand_proto::features::session::MIC` 时才用，
-    /// 见 `airhand_proto::session` 的"麦克风"）
+    /// 麦克风的声音数据报的加密端（双方都支持 `nife_remote_proto::features::session::MIC` 时才用，
+    /// 见 `nife_remote_proto::session` 的"麦克风"）
     pub mic: Sealer,
     /// 被控端发来的东西（被控端的探测在里面就弹回去了）
     pub receiver: HostReceiver,

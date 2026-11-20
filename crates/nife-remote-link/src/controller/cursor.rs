@@ -1,7 +1,7 @@
-//! 合并跨通道的光标状态（控制通道）与图像（大块通道），换成交给界面的光标包（`airhand_proto::media::cursor_packet`）：
+//! 合并跨通道的光标状态（控制通道）与图像（大块通道），换成交给界面的光标包（`nife_remote_proto::media::cursor_packet`）：
 //! 三种界面不需要各写一份乱序处理。
-use airhand_proto::media::{CursorSlot, CursorState};
-use airhand_proto::session::{CURSOR_SLOTS, CursorRef, CursorShape, CursorVisibility};
+use nife_remote_proto::media::{CursorSlot, CursorState};
+use nife_remote_proto::session::{CURSOR_SLOTS, CursorRef, CursorShape, CursorVisibility};
 
 struct Image {
     generation: u64,

@@ -7,10 +7,10 @@
 ```bash
 # repository root: protocol + link library + server (debug builds check the order of every server lock, see server/src/broker/lock.rs)
 cargo test
-# the server only uses airhand-link's wire module (default client feature off); the cargo test above always builds it with client, so check this separately
-cargo test -p airhand-link --no-default-features
+# the server only uses nife-remote-link's wire module (default client feature off); the cargo test above always builds it with client, so check this separately
+cargo test -p nife-remote-link --no-default-features
 
-# crates/airhand-proto/fuzz/: what the server parses before any authentication (version handshake, signaling messages, session headers); needs nightly and cargo-fuzz
+# crates/nife-remote-proto/fuzz/: what the server parses before any authentication (version handshake, signaling messages, session headers); needs nightly and cargo-fuzz
 cargo +nightly fuzz run signal    # also hello, session_header
 
 # web/: web console (WebSocket protocol, password, HTTPS certificate)
@@ -34,8 +34,8 @@ End to end (a real server, a real host with screen capture and encoding, and a p
 
 ```bash
 # repository root: start a server without certificate pinning
-cargo build -p airhand-server
-AIRHAND_CERT=target/e2e/cert.pem AIRHAND_KEY=target/e2e/key.pem ./target/debug/airhand-server &
+cargo build -p nife-remote-server
+NIFE_REMOTE_CERT=target/e2e/cert.pem NIFE_REMOTE_KEY=target/e2e/key.pem ./target/debug/nife-remote-server &
 
 # client/src-tauri/
 cargo test --lib e2e_roundtrip -- --ignored --nocapture   # video / codec switching / clipboard / audio / ping / disconnect
@@ -46,8 +46,8 @@ cargo test --lib e2e_mic -- --ignored --nocapture         # Windows: the control
 ## Debugging tools
 
 ```bash
-# client/: debug build that starts straight in controller mode; AIRHAND_LOG sets the log level
-AIRHAND_DEV_CONTROLLER=1 AIRHAND_LOG=debug npm run tauri dev
+# client/: debug build that starts straight in controller mode; NIFE_REMOTE_LOG sets the log level
+NIFE_REMOTE_DEV_CONTROLLER=1 NIFE_REMOTE_LOG=debug npm run tauri dev
 # client/: A/V sync measurement (the host plays a white flash + short beep; usage at the top of the script)
 node scripts/measure-avsync.mjs <control-code> [pairing-code]
 
@@ -66,12 +66,12 @@ Debug builds run the host inside the tray process, so `npm run tauri dev` needs 
 
 ```powershell
 # client/src-tauri/
-target\release\airhand.exe --install       # register and start the service for this airhand.exe (creates config.toml next to it)
-target\release\airhand.exe --stop-service  # stop it before rebuilding: the exe is in use
-target\release\airhand.exe --uninstall     # remove the service and the startup entry
+target\release\nife-remote.exe --install       # register and start the service for this nife-remote.exe (creates config.toml next to it)
+target\release\nife-remote.exe --stop-service  # stop it before rebuilding: the exe is in use
+target\release\nife-remote.exe --uninstall     # remove the service and the startup entry
 ```
 
-The service and the host log with `OutputDebugString`: run Sysinternals DebugView as administrator and enable Capture → Capture Global Win32. For a different log level, add `AIRHAND_LOG=debug` to the multi-string value `Environment` under `HKLM\SYSTEM\CurrentControlSet\Services\Airhand` and restart the service. While the service is installed, a debug build started from elsewhere still runs its own in-process host (with its own `config.toml` and control code).
+The service and the host log with `OutputDebugString`: run Sysinternals DebugView as administrator and enable Capture → Capture Global Win32. For a different log level, add `NIFE_REMOTE_LOG=debug` to the multi-string value `Environment` under `HKLM\SYSTEM\CurrentControlSet\Services\Nife Remote` and restart the service. While the service is installed, a debug build started from elsewhere still runs its own in-process host (with its own `config.toml` and control code).
 
 ## Web console
 
@@ -79,10 +79,10 @@ The service and the host log with `OutputDebugString`: run Sysinternals DebugVie
 # build the UI, then start the service in web/ (connects to a server on 127.0.0.1:4433, serves ../client/dist); open http://localhost:8080
 (cd client && npm run build)
 cd web && cargo run
-# while working on the UI: npm run dev in client/ and open http://localhost:1420 (/ws is proxied to airhand-web on port 8080)
+# while working on the UI: npm run dev in client/ and open http://localhost:1420 (/ws is proxied to nife-remote-web on port 8080)
 ```
 
-The WebSocket protocol between the console and the controller service (the same for the desktop console and the browser) is described at the top of `crates/airhand-link/src/console.rs`.
+The WebSocket protocol between the console and the controller service (the same for the desktop console and the browser) is described at the top of `crates/nife-remote-link/src/console.rs`.
 
 ## Linux / WSL
 
@@ -92,21 +92,21 @@ On Windows you can use WSL2 (tested on Ubuntu 24.04; WSLg ships with PulseAudio)
 
 ```bash
 # Copy the repository to WSL's own disk first (building under /mnt/c or /mnt/d is much slower)
-rsync -a --exclude target --exclude node_modules /mnt/<drive>/<path-to>/airhand/ ~/airhand/
-cd ~/airhand && bash client/scripts/linux-test.sh
+rsync -a --exclude target --exclude node_modules /mnt/<drive>/<path-to>/nife-remote/ ~/nife-remote/
+cd ~/nife-remote && bash client/scripts/linux-test.sh
 ```
 
-- The console works in WSLg: `AIRHAND_DEV_CONTROLLER=1 npm run tauri dev` opens it on the Windows desktop
+- The console works in WSLg: `NIFE_REMOTE_DEV_CONTROLLER=1 npm run tauri dev` opens it on the Windows desktop
 - To run a host: `Xvfb :99 &`, then `DISPLAY=:99 cargo run --example headless_host` (WSLg's own desktop is Wayland)
-- WSL2 uses NAT networking by default: Windows programs reach a server inside WSL through WSL's IP (`ip addr show eth0`), e.g. `AIRHAND_SERVER=172.30.x.x:4433`
+- WSL2 uses NAT networking by default: Windows programs reach a server inside WSL through WSL's IP (`ip addr show eth0`), e.g. `NIFE_REMOTE_SERVER=172.30.x.x:4433`
 
 ## Conventions
 
 ### Protocol versions
 
-There are two version numbers (`crates/airhand-proto/src/lib.rs`); the rules are in [How it works → Protocol evolution](architecture.md#protocol-evolution):
+There are two version numbers (`crates/nife-remote-proto/src/lib.rs`); the rules are in [How it works → Protocol evolution](architecture.md#protocol-evolution):
 
-- `SIGNAL_VERSION` / `SIGNAL_MIN`: client ⇄ server (signaling, the session header, the datagram's session ID). The server accepts clients within its range; without a common version it replies `Incompatible` (with its own range) and the client tells the user whether to update Airhand or the server, then retries once a minute
+- `SIGNAL_VERSION` / `SIGNAL_MIN`: client ⇄ server (signaling, the session header, the datagram's session ID). The server accepts clients within its range; without a common version it replies `Incompatible` (with its own range) and the client tells the user whether to update Nife Remote or the server, then retries once a minute
 - `SESSION_VERSION` / `SESSION_MIN`: host ⇄ controller, negotiated in the end-to-end handshake; the server never looks at it. Without a common version the controller shows `peerIncompatible`
 
 Before changing the protocol, look for a compatible way; if there is one, don't bump a version:
@@ -117,13 +117,13 @@ Before changing the protocol, look for a compatible way; if there is one, don't 
 - New variants of enums with fields: they can only be skipped as a whole message, in an `Option` field marked `crate::cbor::opt`, or as a list element marked `crate::cbor::open_vec`. Anywhere else an unknown variant is a decoding error, on purpose. Never put an enum with fields inside a plain derived `Option<…>` (also not inside a struct that sits in an `Option`): minicbor's derive treats any unknown variant inside as `None` and skips from the wrong position (see the notes in `cbor.rs`)
 - Numbers can't be changed or reused once released; bump the version only when there's no other way (e.g. removing a required field)
 
-The version range in the version handshake (keys 0 and 1 of the `ClientHello` / `ServerHello` CBOR maps, `signal::Versions`) and the ALPN must **never** change, otherwise different versions can't even tell each other that they differ. The `version_handshake_is_frozen` test guards this. The `airhand-proto` tests include examples of a newer peer sending new messages, fields and enum values; write one like them when adding a compatibility rule.
+The version range in the version handshake (keys 0 and 1 of the `ClientHello` / `ServerHello` CBOR maps, `signal::Versions`) and the ALPN must **never** change, otherwise different versions can't even tell each other that they differ. The `version_handshake_is_frozen` test guards this. The `nife-remote-proto` tests include examples of a newer peer sending new messages, fields and enum values; write one like them when adding a compatibility rule.
 
 ### One protocol, two implementations
 
-`crates/airhand-proto/tests/v9.rs` holds the v9 CBOR bytes. Once v9 is released they are fixed and must not be regenerated from the implementation: existing message numbers and field positions stay compatible, and new messages get separate fixtures. Cursor receiver tests cover ordering across both lanes, and a server test uses real QUIC and the controller session to verify that unknown video formats are acknowledged and subsequent frames still arrive.
+`crates/nife-remote-proto/tests/v9.rs` holds the v9 CBOR bytes. Once v9 is released they are fixed and must not be regenerated from the implementation: existing message numbers and field positions stay compatible, and new messages get separate fixtures. Cursor receiver tests cover ordering across both lanes, and a server test uses real QUIC and the controller session to verify that unknown video formats are acknowledged and subsequent frames still arrive.
 
-The Rust side and the console (TypeScript) speak the same formats: media packets (`crates/airhand-proto/src/media.rs`), input events, UI commands and connect options (`airhand_link::controller::Command`, `ConnectOptions`). All the JSON between the UIs and Rust is camelCase: field names, enum values (`"h264"`, `"android"`, `"quickSettings"`), and a field naming the variant of tagged unions (`cmd` for commands, `type` for events and input, `kind` for problems and notices). `crates/airhand-link/tests/protocol.json` holds samples of each, generated by a Rust test; `npm test` (`tests/protocol.test.ts`) checks its parser and builders against the same file. After changing a format, regenerate it with `AIRHAND_UPDATE_FIXTURES=1 cargo test -p airhand-link --test protocol`, then make the TypeScript tests pass.
+The Rust side and the console (TypeScript) speak the same formats: media packets (`crates/nife-remote-proto/src/media.rs`), input events, UI commands and connect options (`nife_remote_link::controller::Command`, `ConnectOptions`). All the JSON between the UIs and Rust is camelCase: field names, enum values (`"h264"`, `"android"`, `"quickSettings"`), and a field naming the variant of tagged unions (`cmd` for commands, `type` for events and input, `kind` for problems and notices). `crates/nife-remote-link/tests/protocol.json` holds samples of each, generated by a Rust test; `npm test` (`tests/protocol.test.ts`) checks its parser and builders against the same file. After changing a format, regenerate it with `NIFE_REMOTE_UPDATE_FIXTURES=1 cargo test -p nife-remote-link --test protocol`, then make the TypeScript tests pass.
 
 `client/tests/protocol-contract.ts` contains literals generated by the same Rust test. `satisfies` checks every field against the actual TypeScript types, and `npm test` runs `tsc` first. A type annotation on `JSON.parse()` cannot replace this check because its `any` result bypasses validation.
 

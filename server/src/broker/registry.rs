@@ -9,12 +9,12 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::time::{Duration, Instant};
 
-use airhand_link::wire::read_msg;
-use airhand_proto::handshake::MAX_MSG;
-use airhand_proto::signal::{
+use nife_remote_link::wire::read_msg;
+use nife_remote_proto::handshake::MAX_MSG;
+use nife_remote_proto::signal::{
     ClientMsg, ConnectError, Peer, Reclaim, ResumeToken, ServerMsg, SessionGrant,
 };
-use airhand_proto::{CODE_MAX, CODE_MIN, MAX_SIGNAL_MSG};
+use nife_remote_proto::{CODE_MAX, CODE_MIN, MAX_SIGNAL_MSG};
 use anyhow::{Result, bail};
 use quinn::{RecvStream, VarInt};
 use rand::Rng;

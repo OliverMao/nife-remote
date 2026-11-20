@@ -1,0 +1,15 @@
+# 只给构建机 / CI 用的覆盖文件：给主 compose 的 service 补上 build 段（image 名仍取自 docker-compose.yml）。
+# 部署机上不需要这个文件，部署机只 docker compose pull。
+#
+#   在算力好的机器上（仓库根目录）：
+#     docker compose -f docker-compose.yml -f docker-compose.build.yml build
+#     docker push <NIFE_REMOTE_IMAGE 指向的仓库名>:<tag>
+#
+#   构建机的架构决定镜像的架构；部署机是 amd64 而构建机是 Apple 芯片时，用 buildx 指定：
+#     docker buildx build --platform linux/amd64 -f server/Dockerfile \
+#       -t <registry>/nife-remote-server:<version> --push .
+services:
+  nife-remote:
+    build:
+      context: .
+      dockerfile: server/Dockerfile

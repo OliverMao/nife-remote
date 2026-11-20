@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use airhand_link::LinkConfig;
+use nife_remote_link::LinkConfig;
 use axum::Router;
 use axum::extract::{ConnectInfo, Request};
 use axum::http::HeaderValue;
@@ -37,7 +37,7 @@ pub struct App {
     pub link: Arc<LinkConfig>,
     pub auth: Option<Auth>,
     /// 网页控制台的身份（端到端加密，见 [`crate::identity`]）：所有标签页共用，配对过的电脑靠它认出这个控制台
-    pub identity: airhand_link::secure::Identity,
+    pub identity: nife_remote_link::secure::Identity,
 }
 
 /// 连接信息（放在请求的 extensions 里）

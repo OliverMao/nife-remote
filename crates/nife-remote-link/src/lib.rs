@@ -1,7 +1,7 @@
-//! Airhand 客户端一侧的链路，桌面客户端（`client/src-tauri`）、网页控制台（`web/`）和 Android（`android/native`）共用：
+//! Nife Remote 客户端一侧的链路，桌面客户端（`client/src-tauri`）、网页控制台（`web/`）和 Android（`android/native`）共用：
 //!
 //! * [`net`]：QUIC 连接、证书固定、版本握手、断线重连；
-//! * [`wire`]：从流里读写长度前缀帧（帧的格式和消息的编解码在 `airhand_proto::framing`，那边不碰 IO）；
+//! * [`wire`]：从流里读写长度前缀帧（帧的格式和消息的编解码在 `nife_remote_proto::framing`，那边不碰 IO）；
 //! * [`secure`]：端到端加密：设备的身份密钥、握手、每一帧的加解密；
 //! * [`lanes`]：会话的通道（每端为自己要发的开单向流）和数据报从哪里来，中转和直连共用；
 //!   [`paths`]：往哪条路发（中转、直连，控制帧和 Ping / 确认两条路都发，画面、声音只走一条）；

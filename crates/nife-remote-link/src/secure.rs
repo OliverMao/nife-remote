@@ -1,4 +1,4 @@
-//! 端到端加密（协议见 `airhand_proto::handshake`）：设备的身份密钥、握手、之后每一帧的加解密。
+//! 端到端加密（协议见 `nife_remote_proto::handshake`）：设备的身份密钥、握手、之后每一帧的加解密。
 //!
 //! * [`Identity`]：一台设备的长期 X25519 密钥（Noise 的静态密钥），由各端自己保存；
 //! * [`initiate`] / [`Initiator::finish`]：控制端开始握手（第一条消息放进发起会话的请求里），之后在控制通道上做完
@@ -7,21 +7,21 @@
 //! * [`Secured`]：握手一次性派生的通道密钥：每条通道每个方向一个 [`Sealer`] / [`Opener`]，声音数据报、
 //!   控制数据报各一对。
 //!
-//! 加解密都是原地做的：发送的帧预留了标签和计数的位置（`airhand_proto::framing::encode_with_spare`、
-//! `airhand_proto::media::frame`），收到的帧解密之后截掉尾巴，画面包照样原样交给界面，不多拷贝。
+//! 加解密都是原地做的：发送的帧预留了标签和计数的位置（`nife_remote_proto::framing::encode_with_spare`、
+//! `nife_remote_proto::media::frame`），收到的帧解密之后截掉尾巴，画面包照样原样交给界面，不多拷贝。
 
 use std::future::Future;
 use std::time::Duration;
 
 use crate::wire::{read_frame, write_frame};
-use airhand_proto::framing::{self, PREFIX};
-use airhand_proto::handshake::{
+use nife_remote_proto::framing::{self, PREFIX};
+use nife_remote_proto::handshake::{
     self, Confirm, ControllerIntro, HandshakeError, HandshakeFinish, HandshakeInit, HandshakeReply,
     HostVerdict, MAX_MSG, NONCE_LEN, PAKE_CONTROLLER, PAKE_HOST, Pattern, PublicKey, Refusal,
     SEAL_OVERHEAD, TAG_LEN,
 };
-use airhand_proto::session::QualitySettings;
-use airhand_proto::{Features, Role, SESSION_MIN, SESSION_VERSION, SessionLane, datagram};
+use nife_remote_proto::session::QualitySettings;
+use nife_remote_proto::{Features, Role, SESSION_MIN, SESSION_VERSION, SessionLane, datagram};
 use anyhow::{Context, Result, anyhow, bail};
 use ring::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use ring::hkdf;
@@ -29,7 +29,7 @@ use spake2::{Ed25519Group, Identity as PakeId, Password, Spake2};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::{debug, info};
 
-pub use airhand_proto::handshake::Negotiated;
+pub use nife_remote_proto::handshake::Negotiated;
 
 use crate::Problem;
 
@@ -110,7 +110,7 @@ fn aead_key(raw: &[u8; 32]) -> LessSafeKey {
 }
 
 /// 一条通道一个方向的发送端。每个密封单元是 `密文 | 标签 | 计数`，计数就是 nonce，从 0 开始递增
-/// （见 `airhand_proto::handshake` 的"之后的每一帧"）
+/// （见 `nife_remote_proto::handshake` 的"之后的每一帧"）
 pub struct Sealer {
     key: LessSafeKey,
     counter: u64,
@@ -135,7 +135,7 @@ impl Sealer {
         Ok(out)
     }
 
-    /// 数据报：`会话 ID | 种类 | 密文 | 标签 | 计数`（见 `airhand_proto::datagram`）
+    /// 数据报：`会话 ID | 种类 | 密文 | 标签 | 计数`（见 `nife_remote_proto::datagram`）
     pub fn seal_datagram(&mut self, session_id: u64, kind: u8, packet: &[u8]) -> Result<Vec<u8>> {
         let mut d = Vec::with_capacity(datagram::HEADER + packet.len() + SEAL_OVERHEAD);
         d.extend_from_slice(&session_id.to_le_bytes());
@@ -172,7 +172,7 @@ pub struct Opener {
     order: Order,
 }
 
-/// 接收端认哪些计数（见 `airhand_proto::handshake` 的"之后的每一帧"）
+/// 接收端认哪些计数（见 `nife_remote_proto::handshake` 的"之后的每一帧"）
 enum Order {
     /// 控制、大块通道：必须是下一个，丢掉、重排、重放的消息都不认
     Next(u64),
@@ -270,13 +270,13 @@ pub struct LaneKeys {
 pub struct Secured {
     /// 对方的公钥
     pub peer: PublicKey,
-    /// 安全码（两端一样，见 `airhand_proto::handshake::safety_code`）
+    /// 安全码（两端一样，见 `nife_remote_proto::handshake::safety_code`）
     pub safety: String,
     pub video: LaneKeys,
     pub bulk: LaneKeys,
     /// 声音数据报。乱序可以、重放不行
     pub audio: LaneKeys,
-    /// 控制数据报（Ping、Pong、画面确认、探测和回声，`airhand_proto::datagram::CONTROL`）。乱序可以、重放不行：
+    /// 控制数据报（Ping、Pong、画面确认、探测和回声，`nife_remote_proto::datagram::CONTROL`）。乱序可以、重放不行：
     /// 直连通着时同一个数据报两条路各发一份，后到的那份就是重放
     pub datagrams: LaneKeys,
 }
@@ -304,9 +304,9 @@ impl Drop for KeyMaterial {
 /// 每条通道、每种数据报的密钥用不同的标签派生：从别的通道搬过来的帧解不开
 fn label(lane: SessionLane) -> &'static [u8] {
     match lane {
-        SessionLane::Control => b"airhand control",
-        SessionLane::Video => b"airhand video",
-        SessionLane::Bulk => b"airhand bulk",
+        SessionLane::Control => b"nife-remote control",
+        SessionLane::Video => b"nife-remote video",
+        SessionLane::Bulk => b"nife-remote bulk",
     }
 }
 
@@ -323,7 +323,7 @@ impl KeyMaterial {
             .context("unexpected handshake hash length")?;
         let (i2r, r2i) = hs.dangerously_get_raw_split();
         let mut seed = [0u8; 32];
-        derive(&h, &h, b"airhand safety code", &mut seed);
+        derive(&h, &h, b"nife-remote safety code", &mut seed);
         Ok(Self {
             role,
             i2r,
@@ -343,8 +343,8 @@ impl KeyMaterial {
                 safety: self.safety.clone(),
                 video: self.keys(label(SessionLane::Video), window()),
                 bulk: self.keys(label(SessionLane::Bulk), Order::Next(0)),
-                audio: self.keys(b"airhand audio", window()),
-                datagrams: self.keys(b"airhand control datagram", window()),
+                audio: self.keys(b"nife-remote audio", window()),
+                datagrams: self.keys(b"nife-remote control datagram", window()),
             },
             self.keys(label(SessionLane::Control), Order::Next(0)),
         )
@@ -420,7 +420,7 @@ async fn read_step<R: AsyncRead + Unpin>(r: &mut R, buf: &mut Vec<u8>) -> Result
     Ok(())
 }
 
-async fn send_step<W: AsyncWrite + Unpin, T: airhand_proto::minicbor::Encode<()>>(
+async fn send_step<W: AsyncWrite + Unpin, T: nife_remote_proto::minicbor::Encode<()>>(
     w: &mut W,
     msg: &T,
 ) -> Result<()> {
@@ -454,7 +454,7 @@ pub struct InitiatorParams<'a> {
     /// 之前记下的被控端公钥（"我的设备"）：只认它
     pub host_key: Option<PublicKey>,
     /// 配对码（被控端要求配对、或者对方的身份变了时用户输入的）。带着它就用配对码认对方，
-    /// 对方的公钥可以和 `host_key` 不一样（重新配对之后记下新的，见 `airhand_proto::handshake` 的"身份"）
+    /// 对方的公钥可以和 `host_key` 不一样（重新配对之后记下新的，见 `nife_remote_proto::handshake` 的"身份"）
     pub pairing: Option<&'a str>,
     pub intro: &'a ControllerIntro,
 }
@@ -522,7 +522,7 @@ pub fn initiate(p: InitiatorParams<'_>) -> Result<(Initiator, Vec<u8>)> {
 }
 
 impl Initiator {
-    /// 读被控端的回答、做完握手（见 `airhand_proto::handshake`）。`recv` / `send`：控制通道收、发的两半。
+    /// 读被控端的回答、做完握手（见 `nife_remote_proto::handshake`）。`recv` / `send`：控制通道收、发的两半。
     /// 失败时的错误是 [`Problem`]（对方身份变了、要配对码、配对码不对、版本不兼容……）或者普通的网络错误
     pub async fn finish<R, W>(self, recv: &mut R, send: &mut W) -> Result<Initiated>
     where
@@ -616,7 +616,7 @@ impl Initiator {
         );
         let mut negotiated = Negotiated::new(version, verdict.features);
         negotiated.features = negotiated.features.common(features);
-        // 确认（见 airhand_proto::handshake 的"确认"）：被控端解开它才算本机进来了，重放的握手消息走不到这一步
+        // 确认（见 nife_remote_proto::handshake 的"确认"）：被控端解开它才算本机进来了，重放的握手消息走不到这一步
         let mut confirm = framing::encode_with_spare(&Confirm::default(), SEAL_OVERHEAD);
         sealer.seal_frame(&mut confirm)?;
         tokio::time::timeout(STEP_TIMEOUT, send.write_all(&confirm))
@@ -720,7 +720,7 @@ pub enum Admission {
     NeedsApproval,
 }
 
-/// 被控端握手的结果。控制端还没确认（见 `airhand_proto::handshake` 的"确认"）：`opener` 解开的第一帧必须是
+/// 被控端握手的结果。控制端还没确认（见 `nife_remote_proto::handshake` 的"确认"）：`opener` 解开的第一帧必须是
 /// [`Confirm`]，在那之前不能显示"谁在连"、不能请本机用户同意
 pub struct Responded {
     pub secured: Secured,
@@ -740,7 +740,7 @@ pub struct ResponderParams<'a> {
     pub gate: &'a dyn Gate,
 }
 
-/// 被控端：回答控制端的握手（`init` 是 `ServerMsg::Incoming::init`，见 `airhand_proto::handshake`）。
+/// 被控端：回答控制端的握手（`init` 是 `ServerMsg::Incoming::init`，见 `nife_remote_proto::handshake`）。
 /// 回答写进 `send`（本端的控制通道）；控制端之后的消息从 `recv` 来（控制端的控制通道，要等它开过来：
 /// 用到时才等）。让不让进来由 [`Gate`] 决定；拒绝时已经把原因告诉了控制端，返回错误。
 ///
@@ -889,7 +889,7 @@ where
         None
     };
     // 配对：解开了第 3 条，配对码就是对的、这次握手也是新鲜的（第 3 条离不开本端这次的临时密钥）：现在就记住它。
-    // 配对码可能在这期间换掉了：本机在自己的锁里检查，换掉了就不认（见 airhand_proto::handshake 的"配对"）
+    // 配对码可能在这期间换掉了：本机在自己的锁里检查，换掉了就不认（见 nife_remote_proto::handshake 的"配对"）
     if let (None, Some(attempt)) = (refused, pairing) {
         if !attempt.complete(secured.peer, &intro.name) {
             fail(send, HandshakeError::PairingUnavailable).await;
@@ -899,7 +899,7 @@ where
     }
     let verdict = HostVerdict {
         version: refused.is_none().then_some(version),
-        features: airhand_proto::features::session::SUPPORTED,
+        features: nife_remote_proto::features::session::SUPPORTED,
         refused,
         min: SESSION_MIN,
         max: SESSION_VERSION,
@@ -944,7 +944,7 @@ pub fn controller_intro(
     ControllerIntro {
         min: SESSION_MIN,
         max: SESSION_VERSION,
-        features: airhand_proto::features::session::SUPPORTED,
+        features: nife_remote_proto::features::session::SUPPORTED,
         name: name.to_string(),
         os: os.to_string(),
         settings: settings.sanitized(),
@@ -1112,7 +1112,7 @@ mod tests {
         let mut c_send = c.secured.bulk.sealer;
         let mut h_recv = h.secured.bulk.opener;
         let mut frame = framing::encode_with_spare(
-            &airhand_proto::session::ControllerMsg::Clipboard { text: "hi".into() },
+            &nife_remote_proto::session::ControllerMsg::Clipboard { text: "hi".into() },
             SEAL_OVERHEAD,
         );
         let cap = frame.capacity();
@@ -1122,20 +1122,20 @@ mod tests {
         h_recv.open(&mut payload).unwrap();
         let mut h_send = h.secured.video.sealer;
         let mut c_recv = c.secured.video.opener;
-        let mut frame = airhand_proto::media::frame(&[7; 24], &[b"hello"]);
+        let mut frame = nife_remote_proto::media::frame(&[7; 24], &[b"hello"]);
         h_send.seal_frame(&mut frame).unwrap();
         let mut payload = frame[4..].to_vec();
         c_recv.open(&mut payload).unwrap();
         assert_eq!(&payload[24..], b"hello");
         // 控制通道：被控端的发送端接着决定往下数，控制端的发送端接着确认往下数
         let (mut h_send, mut c_recv) = (h.sealer, c.opener);
-        let mut f = framing::encode(&airhand_proto::session::HostMsg::AwaitingApproval);
+        let mut f = framing::encode(&nife_remote_proto::session::HostMsg::AwaitingApproval);
         h_send.seal_frame(&mut f).unwrap();
         let mut p = f[4..].to_vec();
         c_recv.open(&mut p).unwrap();
         let (mut c_send, mut h_recv) = (c.sealer, h.opener);
         let mut f =
-            framing::encode(&airhand_proto::session::ControllerMsg::RequestKeyframe { after: 1 });
+            framing::encode(&nife_remote_proto::session::ControllerMsg::RequestKeyframe { after: 1 });
         c_send.seal_frame(&mut f).unwrap();
         let mut p = f[4..].to_vec();
         h_recv.open(&mut p).unwrap();
@@ -1349,7 +1349,7 @@ mod tests {
             (0..3u8)
                 .map(|k| {
                     let mut f = framing::encode_with_spare(
-                        &airhand_proto::session::ControllerMsg::RequestKeyframe { after: k as u32 },
+                        &nife_remote_proto::session::ControllerMsg::RequestKeyframe { after: k as u32 },
                         SEAL_OVERHEAD,
                     );
                     let cap = f.capacity();
@@ -1393,16 +1393,16 @@ mod tests {
         let mut o = ctl_keys.audio.opener;
         let d: Vec<Vec<u8>> = (0..4u8)
             .map(|k| {
-                s.seal_datagram(7, airhand_proto::datagram::AUDIO, &[k; 10])
+                s.seal_datagram(7, nife_remote_proto::datagram::AUDIO, &[k; 10])
                     .unwrap()
             })
             .collect();
-        assert_eq!(airhand_proto::datagram::session(&d[0]), Some(7));
+        assert_eq!(nife_remote_proto::datagram::session(&d[0]), Some(7));
         assert_eq!(
-            airhand_proto::datagram::kind(&d[0]),
-            Some(airhand_proto::datagram::AUDIO)
+            nife_remote_proto::datagram::kind(&d[0]),
+            Some(nife_remote_proto::datagram::AUDIO)
         );
-        let body = |d: &Vec<u8>| d[airhand_proto::datagram::HEADER..].to_vec();
+        let body = |d: &Vec<u8>| d[nife_remote_proto::datagram::HEADER..].to_vec();
         // 计数在末尾，不用解密就看得到
         assert_eq!(counter_of(&body(&d[2])), Some(2));
         assert_eq!(counter_of(&[0; SEAL_OVERHEAD - 1]), None);

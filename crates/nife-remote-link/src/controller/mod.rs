@@ -3,12 +3,12 @@
 //! 与界面无关。三种界面（桌面版的 WebView、网页控制台的浏览器、Android）用同一套接口：
 //!
 //! * 界面 → 服务：[`ControllerService::connect`] 开始会话（[`ConnectOptions`]），之后都是 [`Command`]（JSON 形状三边一样）；
-//! * 服务 → 界面：会话的画面、光标、声音是媒体包（[`airhand_proto::media`]，原样转交），
+//! * 服务 → 界面：会话的画面、光标、声音是媒体包（[`nife_remote_proto::media`]，原样转交），
 //!   其它是 [`SessionEvent`]（JSON），都交给 [`SessionUi`]。
 //!
 //! 界面的 JSON 全都是 camelCase：字段名、枚举值（`"h264"`、`"android"`、`"quickSettings"`）、
 //! 带字段的枚举用一个字段标明是哪一种（命令 `cmd`、事件和输入 `type`、问题和提示 `kind`）。
-//! 样例见 `crates/airhand-link/tests/protocol.json`，三种界面的测试都读它。
+//! 样例见 `crates/nife-remote-link/tests/protocol.json`，三种界面的测试都读它。
 //!
 //! 界面和本服务可以在同一台电脑上（桌面版、Android），也可以是经网络连过来的浏览器（网页版），
 //! 区别见 [`Frontend`]。
@@ -16,7 +16,7 @@
 //! # 被控端掉线后的重连
 //!
 //! 会话断了由控制台决定是否重连（再调用一次 [`ControllerService::connect`]）。连上时得到的重连凭证
-//!（[`SessionInfo::resume`]，见 `airhand_proto::signal` 模块说明）由控制台保管，重连时带上：
+//!（[`SessionInfo::resume`]，见 `nife_remote_proto::signal` 模块说明）由控制台保管，重连时带上：
 //! 这样的重连不会被服务器当成猜码而限速。被控端不在线时 `connect` 返回 [`Problem::HostOffline`]，
 //! 被控端重新上线时服务器通知，本服务调用 [`HostOnline`]，控制台这时再连一次即可，等待期间不需要反复尝试。
 //! 与服务器的连接断过之后服务器不再记得谁在等谁，控制台在重新连上服务器时再连一次（还不在线的话会重新登记）。
@@ -26,7 +26,7 @@
 //!
 //! # 端到端加密
 //!
-//! `connect` 发起会话时就带着握手的第一条消息（[`crate::secure::initiate`]，协议见 `airhand_proto::handshake`），
+//! `connect` 发起会话时就带着握手的第一条消息（[`crate::secure::initiate`]，协议见 `nife_remote_proto::handshake`），
 //! 服务器批准之后在控制通道上做完（[`establish`]），之后每条通道的每一帧都是密文。本机的身份（[`Identity`]）由平台保存，
 //! 启动服务时给进来；被控端的公钥由界面保管（"我的设备"，和重连凭证一样，见 [`ConnectOptions::host_key`]）：
 //!
@@ -49,7 +49,7 @@
 //!
 //! # 麦克风
 //!
-//! 双方都支持时（`airhand_proto::features::session::MIC`），被控端说明它能不能接麦克风（[`SessionEvent::Mic`]）。
+//! 双方都支持时（`nife_remote_proto::features::session::MIC`），被控端说明它能不能接麦克风（[`SessionEvent::Mic`]）。
 //! 界面打开麦克风（[`Command::Mic`]）之后自己采集、编码，把打好的声音包交给 [`ControllerService::mic`]：
 //! 这里带上之前几包的副本、加密，发成声音数据报（走画面来的那条路）。界面不知道有冗余、有几条路。
 
@@ -69,12 +69,12 @@ use crate::lanes::Router;
 use crate::secure::{self, Identity, InitiatorParams};
 use crate::tasks::OwnedTask;
 use crate::wire::{read_msg, write_msg};
-use airhand_proto::framing;
-use airhand_proto::handshake::SEAL_OVERHEAD;
-use airhand_proto::media;
-use airhand_proto::session::{ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, QualitySettings};
-use airhand_proto::signal::{ClientMsg, ResumeToken, ServerMsg, SessionGrant, connect_outcome};
-use airhand_proto::{MAX_SIGNAL_MSG, Role};
+use nife_remote_proto::framing;
+use nife_remote_proto::handshake::SEAL_OVERHEAD;
+use nife_remote_proto::media;
+use nife_remote_proto::session::{ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, QualitySettings};
+use nife_remote_proto::signal::{ClientMsg, ResumeToken, ServerMsg, SessionGrant, connect_outcome};
+use nife_remote_proto::{MAX_SIGNAL_MSG, Role};
 use anyhow::{Result, anyhow};
 use bytes::Bytes;
 use quinn::{Connection, Endpoint};
@@ -323,10 +323,10 @@ impl ControllerService {
         ui: Arc<dyn SessionUi>,
         frontend: Frontend,
     ) -> Result<SessionInfo, Problem> {
-        let code = airhand_proto::parse_code(code).ok_or(Problem::InvalidCode)?;
+        let code = nife_remote_proto::parse_code(code).ok_or(Problem::InvalidCode)?;
         let pairing = match opts.pairing.as_deref().map(str::trim) {
             None | Some("") => None,
-            Some(p) => Some(airhand_proto::parse_pairing(p).ok_or(Problem::PairingFailed)?),
+            Some(p) => Some(nife_remote_proto::parse_pairing(p).ok_or(Problem::PairingFailed)?),
         };
         let host_key = match opts.host_key.as_deref() {
             None | Some("") => None,
@@ -406,7 +406,7 @@ impl ControllerService {
         let (mic_tx, mic_rx) = mpsc::channel(MIC_QUEUE);
         let mic = link
             .negotiated
-            .has(airhand_proto::features::session::MIC)
+            .has(nife_remote_proto::features::session::MIC)
             .then(|| Mic {
                 tx: mic_tx,
                 on: AtomicBool::new(false),
@@ -482,7 +482,7 @@ impl ControllerService {
         info!(sid, code, host = %grant.host_name, %safety, "session established");
         Ok(SessionInfo {
             sid,
-            code: airhand_proto::format_code(code),
+            code: nife_remote_proto::format_code(code),
             host_name: grant.host_name,
             host_os: grant.host_os,
             resume: grant.resume,
@@ -558,7 +558,7 @@ impl ControllerService {
         Ok(())
     }
 
-    /// 界面采集、编码好的一个麦克风声音包（`airhand_proto::media` 格式：头 + Opus 包，见模块说明的"麦克风"）。
+    /// 界面采集、编码好的一个麦克风声音包（`nife_remote_proto::media` 格式：头 + Opus 包，见模块说明的"麦克风"）。
     /// 被控端不支持、麦克风没打开、包不对的丢掉；网络跟不上（排满了）也丢掉
     pub fn mic(&self, sid: u32, packet: Bytes) -> Result<(), Problem> {
         let sessions = self.inner.sessions.lock().unwrap();

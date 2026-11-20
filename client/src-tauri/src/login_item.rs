@@ -1,6 +1,6 @@
 //! macOS：登录时自动启动（登录项）。
 //!
-//! 用 `SMAppService.mainApp`（macOS 13+）把 Airhand.app 自己登记为登录项：出现在"系统设置 → 通用 → 登录项"（有的系统版本叫"登录项与扩展"）
+//! 用 `SMAppService.mainApp`（macOS 13+）把 Nife Remote.app 自己登记为登录项：出现在"系统设置 → 通用 → 登录项"（有的系统版本叫"登录项与扩展"）
 //! 的"登录时打开"里，用户也可以在那里关掉。不写任何文件（系统自己记着），App 挪了位置也照样找得到
 //! （`~/Library/LaunchAgents` 里的 plist 写死了路径，App 一挪就失效，系统还照样显示"已启用"）。
 //!
@@ -8,7 +8,7 @@
 //! * 用户在系统设置里关掉之后，状态变成 `NotFound`（有的系统版本是 `RequiresApproval`），和"从来没登记过"分不出来，
 //!   而这时再 `register()` 会把它**重新打开**（Postgres.app 每次启动都登记一次，用户怎么关都关不掉）。
 //!   所以只在用户点菜单时、以及第一次运行时（默认打开，只做一次，见 `lib.rs`）登记，不会自己再登记；
-//! * 只在"应用程序"文件夹（/Applications、~/Applications）里的 Airhand.app 上做：直接运行可执行文件（开发时）
+//! * 只在"应用程序"文件夹（/Applications、~/Applications）里的 Nife Remote.app 上做：直接运行可执行文件（开发时）
 //!   没有 App 可登记；从下载目录、磁盘映像里直接打开的 App，系统会把它挪到一个临时位置运行（App Translocation），
 //!   登记了下次也找不到。
 //!
@@ -29,7 +29,7 @@ pub enum State {
     NeedsApproval,
 }
 
-/// 本程序所在的 App 包（`…/Airhand.app`）。直接运行可执行文件时（开发时）为 `None`：没有这个功能
+/// 本程序所在的 App 包（`…/Nife Remote.app`）。直接运行可执行文件时（开发时）为 `None`：没有这个功能
 pub fn bundle() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     bundle_of(&exe.canonicalize().unwrap_or(exe))
@@ -50,7 +50,7 @@ pub fn state() -> Option<State> {
 /// `interactive`：用户点了菜单。要在系统设置里允许时直接打开那个页面（第一次运行时默认打开的那次不打开，免得吓人）
 pub fn set(on: bool, interactive: bool) -> Result<State, String> {
     match state() {
-        None => return Err("Airhand isn't running from an app bundle".into()),
+        None => return Err("Nife Remote isn't running from an app bundle".into()),
         Some(State::NotInstalled) => return Ok(State::NotInstalled),
         Some(_) => {}
     }
@@ -100,7 +100,7 @@ fn status() -> SMAppServiceStatus {
     unsafe { SMAppService::mainAppService().status() }
 }
 
-/// `…/Airhand.app/Contents/MacOS/airhand` → `…/Airhand.app`
+/// `…/Nife Remote.app/Contents/MacOS/nife-remote` → `…/Nife Remote.app`
 fn bundle_of(exe: &Path) -> Option<PathBuf> {
     let macos = exe.parent()?;
     let contents = macos.parent()?;
@@ -158,41 +158,41 @@ mod tests {
     fn finds_the_bundle() {
         let p = |s: &str| bundle_of(Path::new(s));
         assert_eq!(
-            p("/Applications/Airhand.app/Contents/MacOS/airhand"),
-            Some(PathBuf::from("/Applications/Airhand.app"))
+            p("/Applications/Nife Remote.app/Contents/MacOS/nife-remote"),
+            Some(PathBuf::from("/Applications/Nife Remote.app"))
         );
         // 开发时直接运行的可执行文件
-        assert_eq!(p("/Users/me/airhand/target/release/airhand"), None);
-        assert_eq!(p("/Applications/Airhand/Contents/MacOS/airhand"), None);
-        assert_eq!(p("/x/Airhand.app/Contents/Resources/airhand"), None);
-        assert_eq!(p("airhand"), None);
+        assert_eq!(p("/Users/me/nife-remote/target/release/nife-remote"), None);
+        assert_eq!(p("/Applications/Nife Remote/Contents/MacOS/nife-remote"), None);
+        assert_eq!(p("/x/Nife Remote.app/Contents/Resources/nife-remote"), None);
+        assert_eq!(p("nife-remote"), None);
     }
 
     #[test]
     fn only_from_the_applications_folder() {
         let home = Some(Path::new("/Users/me"));
-        assert!(installed(Path::new("/Applications/Airhand.app"), home));
+        assert!(installed(Path::new("/Applications/Nife Remote.app"), home));
         assert!(installed(
-            Path::new("/Applications/Tools/Airhand.app"),
+            Path::new("/Applications/Tools/Nife Remote.app"),
             home
         ));
         assert!(installed(
-            Path::new("/Users/me/Applications/Airhand.app"),
+            Path::new("/Users/me/Applications/Nife Remote.app"),
             home
         ));
         // 下载目录、磁盘映像、系统挪到临时位置运行的
         assert!(!installed(
-            Path::new("/Users/me/Downloads/Airhand.app"),
+            Path::new("/Users/me/Downloads/Nife Remote.app"),
             home
         ));
-        assert!(!installed(Path::new("/Volumes/Airhand/Airhand.app"), home));
+        assert!(!installed(Path::new("/Volumes/Nife Remote/Nife Remote.app"), home));
         assert!(!installed(
-            Path::new("/private/var/folders/ab/T/AppTranslocation/X/d/Airhand.app"),
+            Path::new("/private/var/folders/ab/T/AppTranslocation/X/d/Nife Remote.app"),
             home
         ));
-        assert!(!installed(Path::new("/ApplicationsX/Airhand.app"), home));
+        assert!(!installed(Path::new("/ApplicationsX/Nife Remote.app"), home));
         assert!(!installed(
-            Path::new("/Users/me/Applications/Airhand.app"),
+            Path::new("/Users/me/Applications/Nife Remote.app"),
             None
         ));
     }

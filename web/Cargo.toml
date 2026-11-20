@@ -1,7 +1,7 @@
 [package]
-name = "airhand-web"
-description = "Airhand web console: runs the controller on a server or in a container and serves the console to browsers"
-version = "0.2.3"
+name = "nife-remote-web"
+description = "Nife Remote web console: runs the controller on a server or in a container and serves the console to browsers"
+version = "0.0.1"
 edition = "2024"
 license = "MIT"
 
@@ -9,8 +9,8 @@ license = "MIT"
 [workspace]
 
 [dependencies]
-airhand-link = { path = "../crates/airhand-link", features = ["console"] }
-airhand-proto = { path = "../crates/airhand-proto" }
+nife-remote-link = { path = "../crates/nife-remote-link", features = ["console"] }
+nife-remote-proto = { path = "../crates/nife-remote-proto" }
 anyhow = "1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws"] }
 base64 = "0.22"

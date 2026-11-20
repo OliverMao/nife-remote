@@ -11,7 +11,7 @@ use std::ptr::NonNull;
 use std::sync::Mutex;
 use std::time::Instant;
 
-use airhand_proto::session::{Codec, EncoderInfo};
+use nife_remote_proto::session::{Codec, EncoderInfo};
 use anyhow::{Result, anyhow, bail};
 use objc2_core_foundation::{CFBoolean, CFDictionary, CFNumber, CFRetained, CFString, CFType};
 use objc2_core_media::{

@@ -70,8 +70,8 @@ async function rustVariants(file: string, enumName: string): Promise<string[]> {
 
 /** Rust 端每一种问题 / 提示，前端两种语言都要有词条（Rust 只传类型，文字全在前端） */
 test("Rust 的 Problem / NoticeView 在两种语言里都有词条", async () => {
-  const problems = await rustVariants("../../crates/airhand-link/src/problem.rs", "Problem");
-  const notices = await rustVariants("../../crates/airhand-link/src/controller/session.rs", "NoticeView");
+  const problems = await rustVariants("../../crates/nife-remote-link/src/problem.rs", "Problem");
+  const notices = await rustVariants("../../crates/nife-remote-link/src/controller/session.rs", "NoticeView");
   for (const k of notices.filter((k) => k.endsWith("Recovered"))) {
     assert.ok(notices.includes(k.replace(/Recovered$/, "Failed")), `${k} 没有对应的 Failed 提示`);
   }
@@ -112,7 +112,7 @@ async function rustOpenEnumNames(file: string, enumName: string): Promise<string
 
 /** 系统操作（对方是手机时的快捷键菜单）：每一种在两种语言里都有词条（词条用 JSON 里的名字） */
 test("Rust 的 SystemAction 在两种语言里都有词条", async () => {
-  const actions = await rustOpenEnumNames("../../crates/airhand-proto/src/session.rs", "SystemAction");
+  const actions = await rustOpenEnumNames("../../crates/nife-remote-proto/src/session.rs", "SystemAction");
   assert.ok(actions.includes("back") && actions.includes("quickSettings") && actions.length >= 10, `解析结果不对: ${actions}`);
   const before = getLang();
   try {
@@ -132,11 +132,11 @@ test("问题文字：版本不兼容按版本号提示更新哪一方，技术�
   const before = getLang();
   try {
     setLang("zh");
-    assert.match(t("problem.incompatible", { server: 3, client: 2 }), /请更新 Airhand/);
+    assert.match(t("problem.incompatible", { server: 3, client: 2 }), /请更新 Nife Remote/);
     assert.match(t("problem.incompatible", { server: 1, client: 2 }), /请更新服务器/);
     assert.equal(t("notice.captureFailed", { detail: "AcquireNextFrame: 0x887A0026" }), "对方电脑的屏幕采集失败，正在重试：AcquireNextFrame: 0x887A0026");
     setLang("en");
-    assert.match(t("problem.incompatible", { server: 3, client: 2 }), /please update Airhand/);
+    assert.match(t("problem.incompatible", { server: 3, client: 2 }), /please update Nife Remote/);
     assert.match(t("problem.incompatible", { server: 1, client: 2 }), /please update the server/);
     assert.equal(t("problem.kicked"), "The remote user disconnected you");
   } finally {

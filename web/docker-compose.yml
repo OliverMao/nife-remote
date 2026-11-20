@@ -1,35 +1,35 @@
-# Airhand 网页控制台：控制端跑在容器里，用浏览器打开一个端口就能远程控制
-#   启动：AIRHAND_SERVER=relay.example.com:4433 AIRHAND_SERVER_FP=<指纹> docker compose up -d
-#        （也可以把这些变量写进本目录的 .env 文件，见 .env.example）
+# Nife Remote 网页控制台：控制端跑在容器里，用浏览器打开一个端口就能远程控制
+#   部署机上只拉镜像，不编译（镜像在算力好的机器 / CI 上构建，构建侧见 docker-compose.build.yml）
+#   启动：NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker compose pull && docker compose up -d
+#        （也可以把这些变量写进本目录的 .env 文件，见 .env.example；镜像名用 NIFE_REMOTE_WEB_IMAGE 指定）
 #   打开：在这台电脑上用 http://localhost:8080 ，在其它电脑上用 https://<这台电脑的地址>:8080
 #        （自签名证书，浏览器第一次会提示不安全，确认继续即可）
-name: airhand-web
+#   在构建机上构建：docker compose -f docker-compose.yml -f docker-compose.build.yml build
+name: nife-remote-web
 services:
-  airhand-web:
-    build:
-      context: ..
-      dockerfile: web/Dockerfile
-    image: airhand-web:latest
-    container_name: airhand-web
+  nife-remote-web:
+    # 和构建机打出来的 tag 必须完全一致；升级就是换 tag，然后 docker compose pull && docker compose up -d
+    image: ${NIFE_REMOTE_WEB_IMAGE:?set NIFE_REMOTE_WEB_IMAGE in .env, e.g. registry.example.com/nife-remote-web:0.0.1}
+    container_name: nife-remote-web
     restart: unless-stopped
     ports:
-      - "${AIRHAND_WEB_PORT:-8080}:8080" # HTTP 和 HTTPS 共用这一个端口（TCP）
+      - "${NIFE_REMOTE_WEB_PORT:-8080}:8080" # HTTP 和 HTTPS 共用这一个端口（TCP）
     volumes:
       # 网页的自签名 HTTPS 证书（保持不变，浏览器就不会每次都提示）、第一次连上中转服务器时记下的证书指纹、
       # 网页控制台的端到端加密身份（controller-key.txt：配对过的电脑靠它认出这个网页控制台，删掉了就要重新配对）
       - ./data:/data
     environment:
       # 中转服务器地址（host:port，UDP）
-      AIRHAND_SERVER: ${AIRHAND_SERVER:?set AIRHAND_SERVER to the relay server address, e.g. relay.example.com:4433}
-      # 中转服务器的证书指纹（docker compose logs airhand | grep fingerprint）。留空则第一次连上时记下服务器的证书
+      NIFE_REMOTE_SERVER: ${NIFE_REMOTE_SERVER:?set NIFE_REMOTE_SERVER to the relay server address, e.g. relay.example.com:4433}
+      # 中转服务器的证书指纹（docker compose logs nife-remote | grep fingerprint）。留空则第一次连上时记下服务器的证书
       # （data/server-trust.txt），之后证书变了就拒绝连接；服务器确实换了证书时删掉那个文件
-      AIRHAND_SERVER_FP: ${AIRHAND_SERVER_FP:-}
+      NIFE_REMOTE_SERVER_FP: ${NIFE_REMOTE_SERVER_FP:-}
       # 被控端托盘里"谁在控制"显示的名称
-      AIRHAND_NAME: ${AIRHAND_NAME:-Airhand Web}
+      NIFE_REMOTE_NAME: ${NIFE_REMOTE_NAME:-Nife Remote Web}
       # 访问密码（浏览器弹出登录框，用户名随意）。留空则任何能访问这个端口的人都能使用控制台
-      AIRHAND_WEB_PASSWORD: ${AIRHAND_WEB_PASSWORD:-}
+      NIFE_REMOTE_WEB_PASSWORD: ${NIFE_REMOTE_WEB_PASSWORD:-}
       # 自动生成 HTTPS 证书时写入的域名 / IP（逗号分隔）
-      AIRHAND_WEB_CERT_NAMES: ${AIRHAND_WEB_CERT_NAMES:-localhost}
+      NIFE_REMOTE_WEB_CERT_NAMES: ${NIFE_REMOTE_WEB_CERT_NAMES:-localhost}
       RUST_LOG: info
     logging:
       driver: json-file

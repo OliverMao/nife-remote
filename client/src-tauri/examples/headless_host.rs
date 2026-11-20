@@ -1,5 +1,5 @@
 //! 无界面被控端（开发调试用）：`cargo run --example headless_host`
-use airhand_lib::{host::HostService, status};
+use nife_remote_lib::{host::HostService, status};
 
 #[tokio::main]
 async fn main() {

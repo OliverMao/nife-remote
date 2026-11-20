@@ -17,7 +17,7 @@ mod windows;
 #[cfg(target_os = "linux")]
 mod x11;
 
-use airhand_proto::session::{DisplayInfo, InputEvent};
+use nife_remote_proto::session::{DisplayInfo, InputEvent};
 
 pub use thread::InjectorThread;
 
@@ -104,7 +104,7 @@ mod tests {
 mod x11_tests {
     use std::time::{Duration, Instant};
 
-    use airhand_proto::session::MouseButton;
+    use nife_remote_proto::session::MouseButton;
     use x11rb::connection::Connection;
     use x11rb::protocol::Event;
     use x11rb::protocol::xproto::{

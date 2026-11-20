@@ -12,7 +12,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use airhand_proto::{SessionHeader, SessionLane, datagram};
+use nife_remote_proto::{SessionHeader, SessionLane, datagram};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use quinn::{Connection, RecvStream, SendStream};

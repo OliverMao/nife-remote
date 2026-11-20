@@ -1,6 +1,6 @@
 //! 控制台窗口（WebView）和控制端服务之间的 WebSocket。
 //!
-//! 协议和网页版一样（见 `airhand_link::console`）：画面、声音从 WebSocket 直接进到 WebView 的 Worker 里解码、绘制，
+//! 协议和网页版一样（见 `nife_remote_link::console`）：画面、声音从 WebSocket 直接进到 WebView 的 Worker 里解码、绘制，
 //! 命令按顺序到达，都不经过 Tauri 的 IPC（它的命令和 Channel 都要在主线程上来回，画面多了会挡住输入和确认）。
 //!
 //! * 只监听 127.0.0.1，控制台第一次要地址（`console_url` 命令）时才开始监听；
@@ -11,7 +11,7 @@ use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use airhand_link::console::{self, MAX_MESSAGE, Setup, WsMessage};
+use nife_remote_link::console::{self, MAX_MESSAGE, Setup, WsMessage};
 use futures_util::{SinkExt, StreamExt, future};
 use tauri::{AppHandle, Manager};
 use tokio::net::{TcpListener, TcpStream};

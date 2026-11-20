@@ -12,7 +12,7 @@ use std::mem::ManuallyDrop;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::{Codec, EncoderInfo};
+use nife_remote_proto::session::{Codec, EncoderInfo};
 use anyhow::{Context, Result, anyhow, bail};
 use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Direct3D11::*;

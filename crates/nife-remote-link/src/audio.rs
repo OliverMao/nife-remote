@@ -1,13 +1,13 @@
-//! 声音数据报的冗余（格式见 `airhand_proto::media` 的"声音数据报"）：发的一方每个数据报带上之前几包的副本
+//! 声音数据报的冗余（格式见 `nife_remote_proto::media` 的"声音数据报"）：发的一方每个数据报带上之前几包的副本
 //! （[`Bundler`]），收的一方拆开、按采集时刻只留没收过的（[`Unbundler`]）。丢了的包这样就补回来了，不用等重传；
 //! 乱序到的数据报也一样：晚到的那包在后一个数据报里已经有了。被控端的系统声音（被控端发、控制端收）和
 //! 控制端的麦克风（控制端发、被控端收）都这样。
 
 use std::collections::VecDeque;
 
-use airhand_proto::framing;
-use airhand_proto::handshake::SEAL_OVERHEAD;
-use airhand_proto::media::{self, AudioHeader};
+use nife_remote_proto::framing;
+use nife_remote_proto::handshake::SEAL_OVERHEAD;
+use nife_remote_proto::media::{self, AudioHeader};
 use bytes::Bytes;
 
 /// 每个声音数据报最多带上之前这么多包的副本（放得下的话）：连着丢了这么多个数据报也补得回来。
@@ -234,10 +234,10 @@ mod tests {
         let mut rx = Unbundler::default();
         let mut out = VecDeque::new();
         assert_eq!(rx.unbundle(&[1, 2, 3], &mut out), 0);
-        let video = airhand_proto::media::VideoHeader {
+        let video = nife_remote_proto::media::VideoHeader {
             seq: 1,
             key: true,
-            codec: airhand_proto::session::Codec::H264,
+            codec: nife_remote_proto::session::Codec::H264,
             width: 2,
             height: 2,
             capture_us: 0,

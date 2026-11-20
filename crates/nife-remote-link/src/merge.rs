@@ -1,4 +1,4 @@
-//! 一条通道从几条路（中转上的流、直连上的流）收到的帧，按计数排好再解密、交出去（见 `airhand_proto` 的"直连"）。
+//! 一条通道从几条路（中转上的流、直连上的流）收到的帧，按计数排好再解密、交出去（见 `nife_remote_proto` 的"直连"）。
 //! 只有中转一条路的通道（大块通道）也用它：解密、按通道的上限读帧，和别的通道是同一段代码。
 //!
 //! 每个密封单元末尾的计数是明文（[`crate::secure::counter_of`]），每条路自己是有序的，发送端的计数一个接一个，
@@ -18,8 +18,8 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use airhand_proto::SessionLane;
-use airhand_proto::media::{Kind, VideoHeader};
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::media::{Kind, VideoHeader};
 use anyhow::{Context, Result, bail};
 use quinn::RecvStream;
 use tokio::sync::mpsc;
@@ -362,8 +362,8 @@ async fn sleep_until(t: Option<Instant>) {
 mod tests {
     use super::*;
     use crate::secure::{Sealer, test_lane};
-    use airhand_proto::media::{self, HEADER_LEN};
-    use airhand_proto::session::Codec;
+    use nife_remote_proto::media::{self, HEADER_LEN};
+    use nife_remote_proto::session::Codec;
 
     fn sealed(s: &mut Sealer, body: &[u8]) -> Vec<u8> {
         s.seal(body).unwrap()

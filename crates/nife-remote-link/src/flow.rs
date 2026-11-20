@@ -41,7 +41,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::QualitySettings;
+use nife_remote_proto::session::QualitySettings;
 
 /// 在途帧数的上限（Android 的画面队列、控制端记到达时刻的环形缓冲都按它定大小）
 pub const MAX_WINDOW: u32 = 32;

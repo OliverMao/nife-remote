@@ -53,7 +53,7 @@ fn pause_edge_resize(window: &WebviewWindow, paused: bool) -> tauri::Result<()> 
     use glib::translate::IntoGlib;
 
     // 记在 webview 上：屏蔽和解除要配对（重复全屏、控制台关掉重开都不会弄乱）
-    const PAUSED: &str = "airhand-edge-resize-paused";
+    const PAUSED: &str = "nife-remote-edge-resize-paused";
 
     window.with_webview(move |wv| {
         let view = wv.inner();

@@ -1,7 +1,7 @@
 //! 通道流开头的 16 字节（服务器按它找到会话的另一端）
 #![no_main]
 
-use airhand_proto::SessionHeader;
+use nife_remote_proto::SessionHeader;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

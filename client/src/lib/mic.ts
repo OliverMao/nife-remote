@@ -2,7 +2,7 @@
 // 每 20 ms 一块）→ 经 MessageChannel 直接交给控制台的 Worker（mic-encoder.ts：编成 Opus、打包、发给控制端服务）。
 //
 // 被控端把这些声音放进它的虚拟麦克风（Windows：Steam Streaming Microphone），那台电脑上的程序就听得到
-// （协议见 crates/airhand-proto/src/session.rs 的"麦克风"）。打开浏览器的回声消除：远程的声音从这台电脑的扬声器放出来，
+// （协议见 crates/nife-remote-proto/src/session.rs 的"麦克风"）。打开浏览器的回声消除：远程的声音从这台电脑的扬声器放出来，
 // 不会再被麦克风录回去。
 import workletUrl from "./mic-worklet?worker&url";
 import { MIC_CONFIG } from "./mic-encoder";
@@ -75,7 +75,7 @@ export class MicCapture {
     try {
       await ctx.audioWorklet.addModule(workletUrl);
       if (gen !== this.gen) throw new Error("stopped");
-      const node = new AudioWorkletNode(ctx, "airhand-mic", {
+      const node = new AudioWorkletNode(ctx, "nife-remote-mic", {
         numberOfInputs: 1,
         numberOfOutputs: 1,
         outputChannelCount: [1],

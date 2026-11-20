@@ -11,8 +11,8 @@
 
 use std::fmt;
 
-use airhand_proto::session::ByeReason;
-use airhand_proto::signal::ConnectError;
+use nife_remote_proto::session::ByeReason;
+use nife_remote_proto::signal::ConnectError;
 use serde::{Deserialize, Serialize};
 
 /// 序列化为 `{ "kind": "serverLost", "detail": "..." }` 这样的 JSON。
@@ -50,7 +50,7 @@ pub enum Problem {
     /// 对方暂时不在线（重连时才会遇到：服务器确认过是之前连上的那台），对方重新上线后自动重连
     HostOffline,
 
-    // ── 端到端握手（见 airhand_proto::handshake）──
+    // ── 端到端握手（见 nife_remote_proto::handshake）──
     /// 对方的身份（端到端加密的公钥）和之前记下的不一样：对方重装过、换了身份，或者有人在中间冒充它。
     /// 不自动重连；用户确认之后忘掉记下的身份再连
     HostKeyChanged,
@@ -60,7 +60,7 @@ pub enum Problem {
     PairingFailed,
     /// 对方现在不接受配对（有人多次输错了配对码，要对方的用户换一个配对码）
     PairingUnavailable,
-    /// 和对方的协议不兼容（会话版本，或者对方不会本机用的端到端握手模式）。`peer` 比 `ours` 大：要更新本机的 Airhand；
+    /// 和对方的协议不兼容（会话版本，或者对方不会本机用的端到端握手模式）。`peer` 比 `ours` 大：要更新本机的 Nife Remote；
     /// 否则要对方更新。数字只用来比较（会话版本或者握手模式的编号）
     PeerIncompatible { peer: u16, ours: u16 },
 

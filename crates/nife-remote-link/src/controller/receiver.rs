@@ -3,9 +3,9 @@
 
 use std::collections::VecDeque;
 
-use airhand_proto::SessionLane;
-use airhand_proto::datagram;
-use airhand_proto::session::{ControllerDatagram, HostDatagram, HostMsg};
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::datagram;
+use nife_remote_proto::session::{ControllerDatagram, HostDatagram, HostMsg};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use tokio::sync::mpsc;
@@ -25,7 +25,7 @@ pub enum FromHost {
     Control(HostMsg),
     /// 回应 Ping（`HostDatagram::Pong`）：`t` 是 Ping 里的时刻
     Pong(u64),
-    /// 画面包（`airhand_proto::media` 格式：头 + 码流），原样交给界面。`arrived`：开始从网络上到达的时刻
+    /// 画面包（`nife_remote_proto::media` 格式：头 + 码流），原样交给界面。`arrived`：开始从网络上到达的时刻
     /// （控制端的时钟，微秒，见 [`crate::wire::read_packet_timed`]），确认时带给被控端（见 `ControllerDatagram::Ack`）。
     /// `direct`：从直连来的；`gap`：前面有帧没等到（断在了直连上），要一个关键帧（见 [`crate::merge`]）
     Video {
@@ -34,7 +34,7 @@ pub enum FromHost {
         direct: bool,
         gap: bool,
     },
-    /// 声音包（`airhand_proto::media` 格式：头 + Opus 包），原样交给界面。一个数据报里带着之前几包的副本，
+    /// 声音包（`nife_remote_proto::media` 格式：头 + Opus 包），原样交给界面。一个数据报里带着之前几包的副本，
     /// 拆开之后只交出没收过的（丢了的包这样补回来，见 `crate::audio`），一个一个、按采集先后
     Audio(Vec<u8>),
 }

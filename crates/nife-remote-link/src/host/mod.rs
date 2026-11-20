@@ -30,10 +30,10 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use airhand_proto::MAX_SIGNAL_MSG;
-use airhand_proto::Role;
-use airhand_proto::session::ByeReason;
-use airhand_proto::signal::{ClientMsg, Peer, Reclaim, ServerMsg};
+use nife_remote_proto::MAX_SIGNAL_MSG;
+use nife_remote_proto::Role;
+use nife_remote_proto::session::ByeReason;
+use nife_remote_proto::signal::{ClientMsg, Peer, Reclaim, ServerMsg};
 use anyhow::{Result, anyhow, bail};
 use quinn::Connection;
 use tokio::sync::{mpsc, watch};
@@ -115,7 +115,7 @@ pub struct Incoming {
 
 /// 被控端服务：一直连着服务器，直到 future 被丢掉（丢掉时依次释放会话、QUIC 连接）。
 ///
-/// * `keep`：让服务器一直为本机保留控制码（被控端会保存控制码，见 `airhand_proto::signal` 的"固定控制码"）；
+/// * `keep`：让服务器一直为本机保留控制码（被控端会保存控制码，见 `nife_remote_proto::signal` 的"固定控制码"）；
 /// * `reclaim`：上次保存的控制码，第一次连接就取回它；
 /// * `session`：开始一个会话（[`serve`]）。
 pub async fn run<E, S, F>(

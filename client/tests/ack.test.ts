@@ -3,11 +3,11 @@ import { test } from "node:test";
 import { ACK_INTERVAL_MS, AckCoalescer, ackMessage } from "../src/lib/ack.ts";
 import { micMessage } from "../src/lib/media.ts";
 
-test("二进制确认与 crates/airhand-link/src/console.rs 的 parse_ack 一致", () => {
+test("二进制确认与 crates/nife-remote-link/src/console.rs 的 parse_ack 一致", () => {
   assert.deepEqual([...new Uint8Array(ackMessage(3, 298))], [1, 3, 0, 0, 0, 0x2a, 1, 0, 0]);
 });
 
-test("麦克风的声音包与 crates/airhand-link/src/console.rs 的 parse_mic 一致", () => {
+test("麦克风的声音包与 crates/nife-remote-link/src/console.rs 的 parse_mic 一致", () => {
   assert.deepEqual([...new Uint8Array(micMessage(259, Uint8Array.of(9, 8, 7)))], [2, 3, 1, 0, 0, 9, 8, 7]);
 });
 

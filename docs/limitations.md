@@ -6,7 +6,7 @@
 
 - The clipboard syncs text only, not files
 - Audio is captured after the host's volume control, so a muted host sends silence
-- The controller's microphone only reaches Windows hosts that have Steam Streaming Microphone (Steam installed and Steam Remote Play used once): Airhand has no virtual sound card driver of its own. macOS and Linux hosts can't take it yet
+- The controller's microphone only reaches Windows hosts that have Steam Streaming Microphone (Steam installed and Steam Remote Play used once): Nife Remote has no virtual sound card driver of its own. macOS and Linux hosts can't take it yet
 - Sessions are end-to-end encrypted, so the relay can't see their content, but it still knows who connected to whom, when, and how much traffic flowed (see [Security](security.md#end-to-end-encryption))
 - The web console is where end-to-end encryption ends: the machine running it can see the picture
 - On the first connection to a computer its identity is whatever was seen then (like SSH): only the pairing code (or comparing the safety code) proves nobody is impersonating it

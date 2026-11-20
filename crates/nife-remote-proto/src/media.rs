@@ -12,7 +12,7 @@
 //! 线上的包是加密的（见 [`crate::handshake`] 的"之后的每一帧"）：控制端读到一个包后原地解密，只看一眼头（统计、校验），
 //! 不解码、不拷贝，原样交给界面；
 //! 界面按同一个格式解析（`client/src/lib/media.ts`、`android/.../controller/Protocol.kt` 里的 `Media`，
-//! 三边都用 `crates/airhand-link/tests/protocol.json` 里的样例检查）。
+//! 三边都用 `crates/nife-remote-link/tests/protocol.json` 里的样例检查）。
 //! 光标（[`HostMsg::Cursor`](crate::session::HostMsg::Cursor) / [`HostMsg::CursorImage`](crate::session::HostMsg::CursorImage)）
 //! 由控制端合并成同样格式的光标包（[`cursor_packet`]）交给界面。
 //!

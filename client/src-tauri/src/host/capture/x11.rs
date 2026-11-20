@@ -10,7 +10,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::CursorShape;
+use nife_remote_proto::session::CursorShape;
 use anyhow::{Context, Result, anyhow, bail};
 use x11rb::connection::Connection;
 use x11rb::protocol::Event;
@@ -34,7 +34,7 @@ impl Shm {
     fn new(x: &X11, len: usize) -> Result<Self> {
         let seg = x.conn.generate_id()?;
         unsafe {
-            let fd = libc::memfd_create(c"airhand-capture".as_ptr(), libc::MFD_CLOEXEC);
+            let fd = libc::memfd_create(c"nife-remote-capture".as_ptr(), libc::MFD_CLOEXEC);
             if fd < 0 {
                 bail!("memfd_create: {}", std::io::Error::last_os_error());
             }

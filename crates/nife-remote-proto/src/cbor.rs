@@ -55,7 +55,7 @@ pub fn strict(e: Error) -> Error {
     }
     let pos = e.position();
     let e = Error::message(format!(
-        "{e}: an unknown variant where the protocol doesn't allow skipping (see airhand_proto::cbor)"
+        "{e}: an unknown variant where the protocol doesn't allow skipping (see nife_remote_proto::cbor)"
     ));
     match pos {
         Some(p) => e.at(p),

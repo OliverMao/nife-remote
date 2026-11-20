@@ -13,7 +13,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use airhand_proto::session::CursorShape;
+use nife_remote_proto::session::CursorShape;
 use anyhow::{Context, Result, anyhow, bail};
 use objc2::rc::{Retained, autoreleasepool};
 use objc2_core_foundation::CFRetained;
@@ -184,7 +184,7 @@ impl SckCapturer {
             &target,
             &config,
             &[SCStreamOutputType::Screen],
-            "app.airhand.capture",
+            "app.nife-remote.capture",
             move |sb, kind| {
                 if kind != SCStreamOutputType::Screen
                     || sck::frame_status(sb) != Some(SCFrameStatus::Complete.0)

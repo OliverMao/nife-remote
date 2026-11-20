@@ -5,11 +5,11 @@
 //! * 信令消息（包括版本握手，见 [`crate::signal`]）、端到端握手、会话的控制和大块消息：CBOR（[`encode`] / [`decode`]）；
 //! * 画面通道：媒体包（见 [`crate::media`]），原样读出来交给界面。
 //!
-//! 会话通道上的负载在端到端握手之后都是密文（见 `airhand_link::secure`），解密之后才是上面的格式。
+//! 会话通道上的负载在端到端握手之后都是密文（见 `nife_remote_link::secure`），解密之后才是上面的格式。
 //!
-//! 这里只有编解码，不碰 IO，也不依赖任何异步运行时：从流里读写帧在 `airhand_link::wire`（它用的就是这里的
+//! 这里只有编解码，不碰 IO，也不依赖任何异步运行时：从流里读写帧在 `nife_remote_link::wire`（它用的就是这里的
 //! [`payload_len`] / [`decode`]）。手里已经有一段字节的（网页里的 wasm、fuzz）用 [`split`] / [`take_msg`]：
-//! 和 `airhand_link::wire::read_msg` 走的是同一段解码代码。
+//! 和 `nife_remote_link::wire::read_msg` 走的是同一段解码代码。
 //!
 //! # 兼容规则
 //!

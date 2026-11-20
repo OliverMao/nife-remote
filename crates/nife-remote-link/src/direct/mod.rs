@@ -1,4 +1,4 @@
-//! 直连：在中转之外再打通一条两端之间的路（协议见 `airhand_proto` 的"直连"）。
+//! 直连：在中转之外再打通一条两端之间的路（协议见 `nife_remote_proto` 的"直连"）。
 //!
 //! * [`Punch`]（`socket`）：连中转的那个 UDP socket 也用来打洞（同一个端口、同一个 NAT 映射）；
 //! * `tls`：直连的 QUIC 配置和证书。两端各有一张临时生成的自签名证书，指纹在加密的控制通道上交换
@@ -25,7 +25,7 @@ pub(crate) mod tls;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-use airhand_proto::session::MAX_DIRECT_ADDRS;
+use nife_remote_proto::session::MAX_DIRECT_ADDRS;
 use quinn::{Connection, Endpoint};
 
 pub use crate::lanes::Via;

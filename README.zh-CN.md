@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/icon.svg" width="96" alt="Airhand"></p>
+<p align="center"><img src="assets/icon.svg" width="96" alt="Nife Remote"></p>
 
-<h1 align="center">Airhand</h1>
+<h1 align="center">Nife Remote</h1>
 
 <p align="center"><b>高性能、低延迟的远程桌面</b><br>QUIC 传输 · 硬件编解码 · 最高 120 fps<br>Windows · macOS · Linux · 浏览器</p>
 
@@ -8,12 +8,12 @@
 
 ---
 
-Airhand 是一个**高性能、低延迟**的远程桌面：画面用 GPU 硬件编码（AV1 / HEVC / H.264），最高 120 fps，经 QUIC 传输；网络变慢时直接跳到最新一帧，延迟不会越积越多；鼠标指针在本地绘制，移动感觉不到延迟。
+Nife Remote 是一个**高性能、低延迟**的远程桌面：画面用 GPU 硬件编码（AV1 / HEVC / H.264），最高 120 fps，经 QUIC 传输；网络变慢时直接跳到最新一帧，延迟不会越积越多；鼠标指针在本地绘制，移动感觉不到延迟。
 
 同一个程序既是**被控端**（被远程控制的设备），也是**控制端**（你用来操作的设备）。两端通过你自己部署的**中转服务器**相连，服务器很小，用 Docker Compose 一条命令就能部署。输入对方的 6 位**控制码**就能连上。
 
 > [!NOTE]
-> **开发中（0.2.3）。** 从协议 v9 起，客户端和服务器、被控端和控制端之间各有一个版本区间，新功能用能力位协商、不认识的消息跳过，以后的版本可以混用；和 v9 之前的版本不兼容，会检测出来并提示（见[协议版本](docs/development.zh-CN.md#协议版本)）。
+> **开发中（0.0.1）。** 从协议 v9 起，客户端和服务器、被控端和控制端之间各有一个版本区间，新功能用能力位协商、不认识的消息跳过，以后的版本可以混用；和 v9 之前的版本不兼容，会检测出来并提示（见[协议版本](docs/development.zh-CN.md#协议版本)）。
 
 ## 性能
 
@@ -39,7 +39,7 @@ Airhand 是一个**高性能、低延迟**的远程桌面：画面用 GPU 硬件
 - **声音**：被控端的系统声音同步到控制端（Opus + 自适应抖动缓冲），看视频时可以打开音画同步。反过来，控制端的麦克风可以放进 Windows 被控端的虚拟麦克风（Steam Streaming Microphone，用过一次 Steam 远程同乐就有），在那边开会、语音输入
 - **实用工具**：剪贴板双向同步、以键盘输入方式发送剪贴板、系统快捷键（Win、Alt+Tab、Ctrl+Shift+Esc……）、多显示器、全屏时锁定键盘、画质预设
 - **默认安全**：会话端到端加密，中转服务器看不到画面和键盘输入；第一次连接要输入对方托盘里的配对码（不经过服务器），之后认得出对方的身份；TLS 1.3 + 证书指纹固定，控制码防暴力猜测；被控端随时能看到谁连着，一键断开
-- **不留痕迹**：被控端只有一个托盘图标，不启动 WebView；要保存的东西都在一个 `config.toml` 里，其余运行时文件退出时删除；[卸载](docs/usage.zh-CN.md#卸载)后什么都不剩（Windows 用卸载程序，macOS 在菜单里选“卸载 Airhand…”，Linux 两条命令）
+- **不留痕迹**：被控端只有一个托盘图标，不启动 WebView；要保存的东西都在一个 `config.toml` 里，其余运行时文件退出时删除；[卸载](docs/usage.zh-CN.md#卸载)后什么都不剩（Windows 用卸载程序，macOS 在菜单里选“卸载 Nife Remote…”，Linux 两条命令）
 - **中英双语**：跟随系统语言；对方电脑和服务器发来的提示也按**你**的语言显示
 
 ## 支持的平台
@@ -58,7 +58,7 @@ Airhand 是一个**高性能、低延迟**的远程桌面：画面用 GPU 硬件
 ```mermaid
 flowchart LR
     host["被控端<br>Windows / macOS / Linux"]
-    relay["中转服务器<br>airhand-server（Docker）"]
+    relay["中转服务器<br>nife-remote-server（Docker）"]
     ctrl["控制端<br>桌面控制台 / 网页控制台"]
     host <-->|"QUIC · UDP 4433"| relay
     relay <-->|"QUIC · UDP 4433"| ctrl
@@ -77,13 +77,16 @@ flowchart LR
 ### 1. 部署中转服务器
 
 ```bash
-git clone https://github.com/sqlpxc/airhand.git
-cd airhand
+git clone https://github.com/sqlpxc/nife-remote.git
+cd nife-remote
+# 镜像在算力好的机器（或 CI）上构建好并推送到镜像仓库，部署机只拉取（见 .env.example，构建侧见 docker-compose.build.yml）
+cp .env.example .env          # NIFE_REMOTE_IMAGE=registry.example.com/nife-remote-server:0.0.1
+docker compose pull
 docker compose up -d
-docker compose logs airhand | grep fingerprint   # 记下证书的 SHA-256 指纹
+docker compose logs nife-remote | grep fingerprint   # 记下证书的 SHA-256 指纹
 ```
 
-证书和控制码数据库都在 `data/` 目录里，**请保留这个目录**：证书换了，已经构建好的客户端就连不上了。服务器的配置项见[部署](docs/deploy.zh-CN.md#中转服务器)。
+证书和控制码数据库都在 `data/` 目录里，**请保留这个目录**：证书换了，已经构建好的客户端就连不上了。服务器的配置项在 `docker-compose.yml` 里。
 
 ### 2. 构建客户端
 
@@ -94,8 +97,8 @@ Windows（PowerShell）：
 ```powershell
 cd client
 npm install
-$env:AIRHAND_SERVER    = "relay.example.com:4433"
-$env:AIRHAND_SERVER_FP = "<第 1 步的指纹>"
+$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
+$env:NIFE_REMOTE_SERVER_FP = "<第 1 步的指纹>"
 npm run tauri build
 ```
 
@@ -104,8 +107,8 @@ macOS / Linux：
 ```bash
 cd client
 npm install
-export AIRHAND_SERVER=relay.example.com:4433
-export AIRHAND_SERVER_FP=<第 1 步的指纹>
+export NIFE_REMOTE_SERVER=relay.example.com:4433
+export NIFE_REMOTE_SERVER_FP=<第 1 步的指纹>
 npm run tauri build
 ```
 
@@ -113,15 +116,15 @@ npm run tauri build
 
 | 系统 | 安装包 |
 |---|---|
-| Windows | `nsis/Airhand_<版本>_x64-setup.exe` |
-| macOS | `macos/Airhand.app`、`dmg/Airhand_<版本>_<架构>.dmg` |
-| Linux | `deb/Airhand_<版本>_amd64.deb` |
+| Windows | `nsis/Nife Remote_<版本>_x64-setup.exe` |
+| macOS | `macos/Nife Remote.app`、`dmg/Nife Remote_<版本>_<架构>.dmg` |
+| Linux | `deb/Nife Remote_<版本>_amd64.deb` |
 
 装好之后也可以在 [`config.toml`](docs/usage.zh-CN.md#配置文件) 里修改服务器地址和指纹。
 
 ### 3. 连接
 
-1. 两台电脑都装上 Airhand（Windows 运行安装程序，需要管理员权限；macOS 第一次打开时按提示授予权限）
+1. 两台电脑都装上 Nife Remote（Windows 运行安装程序，需要管理员权限；macOS 第一次打开时按提示授予权限）
 2. 在**被控**的电脑上右键托盘图标（macOS 是单击菜单栏图标），看到 6 位**控制码**
 3. 在**你自己**的电脑上，从托盘菜单选择**打开控制台**（macOS / Linux 是**切换为控制端**），输入控制码。第一次连接这台电脑时还要输入它托盘菜单里的 6 位**配对码**，之后就不用了
 
@@ -133,17 +136,16 @@ npm run tauri build
 
 ```bash
 cd web
-AIRHAND_SERVER=relay.example.com:4433 AIRHAND_SERVER_FP=<指纹> docker compose up -d
+NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker compose up -d
 ```
 
-在这台机器上打开 `http://localhost:8080`，从其它电脑打开 `https://<这台机器的地址>:8080`。访问密码、HTTPS 证书、反向代理等见[部署 → 网页控制台](docs/deploy.zh-CN.md#网页控制台docker)。
+在这台机器上打开 `http://localhost:8080`，从其它电脑打开 `https://<这台机器的地址>:8080`。访问密码、HTTPS 证书、反向代理的配置都在 `web/docker-compose.yml` 和 `web/.env.example` 的注释里。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
 | [使用指南](docs/usage.zh-CN.md) | 被控端、Windows 安装版、配置文件、卸载、控制台、画质、界面语言 |
-| [部署](docs/deploy.zh-CN.md) | 按端拆开：中转服务器、被控端、桌面控制端、网页控制台、端口、升级、排错 |
 | [构建](docs/building.zh-CN.md) | 各平台的依赖和安装包、签名、APK |
 | [工作原理](docs/architecture.zh-CN.md) | 架构、代码目录、Windows 服务、画面和声音、音画同步、磁盘上的文件 |
 | [安全](docs/security.zh-CN.md) | 加密和证书固定、防暴力猜码、控制码和重连凭证 |
@@ -162,7 +164,7 @@ AIRHAND_SERVER=relay.example.com:4433 AIRHAND_SERVER_FP=<指纹> docker compose 
 
 | 目录 | 内容 |
 |---|---|
-| `crates/` | 协议（`airhand-proto`）和客户端到服务器的链路（`airhand-link`） |
+| `crates/` | 协议（`nife-remote-proto`）和客户端到服务器的链路（`nife-remote-link`） |
 | `server/` | 中转服务器 |
 | `web/` | 网页控制台服务 |
 | `client/` | 桌面客户端：Tauri（Rust）+ React 界面，界面也给网页控制台用 |

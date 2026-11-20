@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use airhand_proto::DIRECT_ALPN;
+use nife_remote_proto::DIRECT_ALPN;
 use anyhow::{Context, Result, anyhow};
 use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use quinn::{ClientConfig, Connection, ServerConfig, TransportConfig, VarInt};
@@ -20,7 +20,7 @@ use rustls::{DigitallySignedStruct, DistinguishedName, SignatureScheme};
 use sha2::{Digest, Sha256};
 
 /// 控制端连直连时用的服务器名（和证书里的一样，不过谁也不看它：只认指纹）
-pub(crate) const SERVER_NAME: &str = "airhand";
+pub(crate) const SERVER_NAME: &str = "nife-remote";
 
 /// 直连的传输参数：和连中转的差不多（BBR、大窗口、2 秒内发现掉线），另外打洞时第一个包常常被对方的 NAT 丢掉
 /// （对方还没往这边发过包）：起始 RTT 按 100 ms 算，重发得快一点。每条通道是一条单向流，没有双向流

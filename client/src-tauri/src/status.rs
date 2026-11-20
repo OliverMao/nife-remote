@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use airhand_link::ServerState;
-use airhand_link::net::Report;
-use airhand_proto::signal::Peer;
+use nife_remote_link::ServerState;
+use nife_remote_link::net::Report;
+use nife_remote_proto::signal::Peer;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
@@ -60,7 +60,7 @@ pub struct HostStatus {
     pub code: Option<u32>,
     /// 正在控制本机的控制端
     pub controllers: Vec<Controller>,
-    /// 配对码（6 位数字，见 `airhand_proto::handshake` 的"配对"）。`None`：不要配对码（config.toml 的 `access = "open"`）
+    /// 配对码（6 位数字，见 `nife_remote_proto::handshake` 的"配对"）。`None`：不要配对码（config.toml 的 `access = "open"`）
     #[serde(default)]
     pub pairing: Option<String>,
     /// 有人多次输错配对码，配对暂停了：本机用户换一个配对码才恢复
@@ -101,7 +101,7 @@ pub struct ServiceStatus {
 pub struct Controller {
     pub session_id: u64,
     pub peer: Peer,
-    /// 端到端握手之后才有：安全码（控制端显示的是同一个，见 `airhand_proto::handshake`）
+    /// 端到端握手之后才有：安全码（控制端显示的是同一个，见 `nife_remote_proto::handshake`）
     #[serde(default)]
     pub safety: Option<String>,
 }

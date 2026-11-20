@@ -1,5 +1,5 @@
-// 媒体包：画面、光标、声音。格式见 crates/airhand-proto/src/media.rs（被控端打包，控制端服务原样转交过来），
-// 样例在 crates/airhand-link/tests/protocol.json（tests/protocol.test.ts 检查这里的解析和它一致）。
+// 媒体包：画面、光标、声音。格式见 crates/nife-remote-proto/src/media.rs（被控端打包，控制端服务原样转交过来），
+// 样例在 crates/nife-remote-link/tests/protocol.json（tests/protocol.test.ts 检查这里的解析和它一致）。
 //
 // 头（小端）+ 数据：
 //   0 类型 u8（1 画面 / 2 光标 / 3 声音）  1 标志 u8  2 编码格式 u8（光标：槽位）  3 头的长度 u8（现在是 24）
@@ -123,7 +123,7 @@ export function audioPacket(h: AudioHeader, opus: Uint8Array): Uint8Array {
 }
 
 /**
- * 发给控制端服务的麦克风声音包：`2 | sid u32 LE | 声音包`（crates/airhand-link/src/console.rs 的 parse_mic），
+ * 发给控制端服务的麦克风声音包：`2 | sid u32 LE | 声音包`（crates/nife-remote-link/src/console.rs 的 parse_mic），
  * 每 20 ms 一个，和画面确认一样不走 JSON
  */
 export function micMessage(sid: number, packet: Uint8Array): ArrayBuffer {

@@ -14,7 +14,7 @@ declare class AudioWorkletProcessor {
 /** 主线程 → 音频线程：PCM 往哪个端口发；`null` = 停止 */
 export type MicControl = { port: MessagePort | null };
 
-class AirhandMic extends AudioWorkletProcessor {
+class NifeRemoteMic extends AudioWorkletProcessor {
   private out: MessagePort | null = null;
   /** 每个输出采样在输入上走多远（输入采样率 / 48000） */
   private readonly step = sampleRate / MIC_RATE;
@@ -62,4 +62,4 @@ class AirhandMic extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("airhand-mic", AirhandMic);
+registerProcessor("nife-remote-mic", NifeRemoteMic);

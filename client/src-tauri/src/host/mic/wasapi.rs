@@ -22,8 +22,8 @@ use windows::Win32::System::Variant::{VT_BLOB, VT_LPWSTR};
 use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 use windows::core::GUID;
 
-use airhand_proto::media::AUDIO_SAMPLE_RATE;
-use airhand_proto::session::MicState;
+use nife_remote_proto::media::AUDIO_SAMPLE_RATE;
+use nife_remote_proto::session::MicState;
 
 use super::{Format, Output, Sample};
 
@@ -282,8 +282,8 @@ impl Drop for Wasapi {
 pub(crate) mod tests {
     use super::*;
     use crate::host::mic::{MicInput, open as open_mic, tests::goertzel};
-    use airhand_link::host::MicSink;
-    use airhand_proto::media::{self, AudioHeader};
+    use nife_remote_link::host::MicSink;
+    use nife_remote_proto::media::{self, AudioHeader};
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 

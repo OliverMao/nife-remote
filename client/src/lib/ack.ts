@@ -9,7 +9,7 @@
 export const ACK_INTERVAL_MS = 8;
 
 /**
- * 发给控制端服务的二进制确认：`1 | sid u32 LE | seq u32 LE`（crates/airhand-link/src/console.rs 的 parse_ack），
+ * 发给控制端服务的二进制确认：`1 | sid u32 LE | seq u32 LE`（crates/nife-remote-link/src/console.rs 的 parse_ack），
  * 每帧都有的消息不走 JSON
  */
 export function ackMessage(sid: number, seq: number): ArrayBuffer {

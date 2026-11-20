@@ -32,7 +32,7 @@ interface Options {
 /** 时钟报告间隔（秒） */
 const CLOCK_INTERVAL = 0.1;
 
-class AirhandAudio extends AudioWorkletProcessor {
+class NifeRemoteAudio extends AudioWorkletProcessor {
   private readonly jb: JitterBuffer;
   private player: MessagePort | null = null;
   private alive = true;
@@ -87,4 +87,4 @@ class AirhandAudio extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("airhand-audio", AirhandAudio);
+registerProcessor("nife-remote-audio", NifeRemoteAudio);

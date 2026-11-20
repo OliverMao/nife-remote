@@ -6,7 +6,7 @@
 //!
 //! 比较一律用常数时间（[`ct_eq`]）：不能靠测量回答的快慢逐字节猜出来。
 
-use airhand_proto::signal::ResumeToken;
+use nife_remote_proto::signal::ResumeToken;
 use sha2::{Digest, Sha256};
 
 use super::Broker;
@@ -37,14 +37,14 @@ impl Secrets {
 
 /// 重连凭证的前一半：服务器为控制码 `code` 签的名（见 [`Broker::resume_token`]）
 fn token_proof(key: &[u8; 32], code: u32) -> [u8; 8] {
-    let mac = hmac_sha256(key, &[b"airhand resume proof v1\0", &code.to_le_bytes()]);
+    let mac = hmac_sha256(key, &[b"nife-remote resume proof v1\0", &code.to_le_bytes()]);
     mac[..8].try_into().unwrap()
 }
 
 /// 重连凭证的后一半：只对密钥 `secret` 有效（见 [`Broker::resume_token`]）
 fn token_auth(code: u32, secret: &[u8; 16]) -> [u8; 8] {
     let mut h = Sha256::new();
-    h.update(b"airhand resume token v2\0");
+    h.update(b"nife-remote resume token v2\0");
     h.update(code.to_le_bytes());
     h.update(secret);
     h.finalize()[..8].try_into().unwrap()
@@ -78,7 +78,7 @@ pub(super) fn hmac_sha256(key: &[u8; 32], parts: &[&[u8]]) -> [u8; 32] {
 fn secret_mac(key: &[u8; 32], code: u32, nonce: &[u8]) -> [u8; 8] {
     let mac = hmac_sha256(
         key,
-        &[b"airhand code secret v1\0", &code.to_le_bytes(), nonce],
+        &[b"nife-remote code secret v1\0", &code.to_le_bytes(), nonce],
     );
     mac[..8].try_into().unwrap()
 }

@@ -1,9 +1,9 @@
 // 一个会话的麦克风编码（在 Worker 里，见 console-worker.ts）：音频线程（mic-worklet.ts）经端口直接送来 48 kHz
 // 单声道 PCM，每 20 ms 一块；WebCodecs 编成 Opus，打成声音包（media.ts 的 audioPacket）交给 Worker 发出去。
-// 带上之前几包的副本、加密、走哪条路是控制端服务的事（见 crates/airhand-link/src/controller/mod.rs 的"麦克风"）。
+// 带上之前几包的副本、加密、走哪条路是控制端服务的事（见 crates/nife-remote-link/src/controller/mod.rs 的"麦克风"）。
 import { audioPacket } from "./media";
 
-/** 与 airhand_proto::media 的麦克风格式一致：48 kHz 单声道，每包 20 ms（960 个采样） */
+/** 与 nife_remote_proto::media 的麦克风格式一致：48 kHz 单声道，每包 20 ms（960 个采样） */
 export const MIC_RATE = 48000;
 export const MIC_FRAME = 960;
 
@@ -16,7 +16,7 @@ export const MIC_CONFIG: AudioEncoderConfig = {
   opus: { frameDuration: 20_000 },
 };
 
-/** 一个 Opus 包最多这么大（airhand_proto::media::MAX_OPUS_PACKET 的下限，32 kbps 的包只有一百来字节） */
+/** 一个 Opus 包最多这么大（nife_remote_proto::media::MAX_OPUS_PACKET 的下限，32 kbps 的包只有一百来字节） */
 const MAX_OPUS = 900;
 /** 编码跟不上（几乎不会发生）：排着这么多没编的就丢掉重来 */
 const MAX_QUEUE = 10;

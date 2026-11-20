@@ -11,12 +11,12 @@
 //!
 //! 这里只管得了还在队列里的输入：断网时往 QUIC 里写不会阻塞，写出去的输入进了 QUIC 的发送缓冲，
 //! 网络恢复后照样发出去。所以输入还带着排进队列的时刻（[`ControllerMsg::Input`] 的 `t`），
-//! 被控端丢掉晚到太久的（见 `airhand_proto::session` 的"过时的输入"）。
+//! 被控端丢掉晚到太久的（见 `nife_remote_proto::session` 的"过时的输入"）。
 use crate::Problem;
 use crate::clock::now_us;
 use crate::queue::{Item, Limit, Mail, Mailbox};
 use crate::transport::Frames;
-use airhand_proto::{
+use nife_remote_proto::{
     framing,
     session::{ControllerMsg, INPUT_MAX_AGE, InputEvent},
 };
@@ -84,10 +84,10 @@ pub(super) fn channel() -> (Sender, Receiver) {
 
 /// 编码（明文，带长度前缀）；写任务加密时在后面追加认证标签，这里先留好位置
 fn encode(msg: &ControllerMsg) -> Result<Bytes, Problem> {
-    let bytes = framing::encode_with_spare(msg, airhand_proto::handshake::SEAL_OVERHEAD);
-    if msg.lane() != airhand_proto::SessionLane::Control
-        || bytes.len() - framing::PREFIX + airhand_proto::handshake::SEAL_OVERHEAD
-            > airhand_proto::MAX_CONTROL_MSG
+    let bytes = framing::encode_with_spare(msg, nife_remote_proto::handshake::SEAL_OVERHEAD);
+    if msg.lane() != nife_remote_proto::SessionLane::Control
+        || bytes.len() - framing::PREFIX + nife_remote_proto::handshake::SEAL_OVERHEAD
+            > nife_remote_proto::MAX_CONTROL_MSG
     {
         return Err(Problem::failed(
             "controller message exceeds its lane budget",
@@ -139,7 +139,7 @@ fn drop_input(m: &mut Mail<Meta>) -> usize {
 }
 
 // CBOR 的固定开销按上限估计，给消息外层和 AEAD 标签留空间。
-const INPUT_BUDGET: usize = airhand_proto::MAX_CONTROL_MSG - 128;
+const INPUT_BUDGET: usize = nife_remote_proto::MAX_CONTROL_MSG - 128;
 fn input_cost(event: &InputEvent) -> usize {
     64 + match event {
         InputEvent::Text { text } => text.len(),
@@ -315,7 +315,7 @@ impl Drop for Receiver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use airhand_proto::session::{MouseButton, QualitySettings};
+    use nife_remote_proto::session::{MouseButton, QualitySettings};
     use std::time::Duration;
 
     fn decode(b: &Bytes) -> ControllerMsg {
@@ -370,8 +370,8 @@ mod tests {
         for m in messages {
             let wire = encode(&m).unwrap();
             assert!(
-                wire.len() - 4 + airhand_proto::handshake::SEAL_OVERHEAD
-                    <= airhand_proto::MAX_CONTROL_MSG
+                wire.len() - 4 + nife_remote_proto::handshake::SEAL_OVERHEAD
+                    <= nife_remote_proto::MAX_CONTROL_MSG
             );
             let ControllerMsg::Input { t, events } = m else {
                 panic!()

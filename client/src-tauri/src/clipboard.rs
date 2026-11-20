@@ -9,10 +9,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Duration;
 
-use airhand_proto::session::MAX_CLIPBOARD_TEXT;
+use nife_remote_proto::session::MAX_CLIPBOARD_TEXT;
 
 /// 轮询间隔（被控端与控制端相同）
-pub const POLL: Duration = airhand_link::controller::CLIPBOARD_POLL;
+pub const POLL: Duration = nife_remote_link::controller::CLIPBOARD_POLL;
 
 pub fn sequence() -> u32 {
     #[cfg(windows)]
@@ -268,8 +268,8 @@ impl ClipSync {
     }
 }
 
-/// 控制端会话用它同步本机剪贴板（见 `airhand_link::controller::Frontend::Desktop`）
-impl airhand_link::controller::ClipboardSync for ClipSync {
+/// 控制端会话用它同步本机剪贴板（见 `nife_remote_link::controller::Frontend::Desktop`）
+impl nife_remote_link::controller::ClipboardSync for ClipSync {
     fn poll(&mut self) -> Option<String> {
         ClipSync::poll(self)
     }
@@ -384,7 +384,7 @@ mod x11_watch {
     pub fn sequence() -> u32 {
         START.call_once(|| {
             let _ = std::thread::Builder::new()
-                .name("airhand-clipboard".into())
+                .name("nife-remote-clipboard".into())
                 .spawn(|| {
                     let mut failures = 0u32;
                     loop {

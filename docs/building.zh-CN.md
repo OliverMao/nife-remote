@@ -2,7 +2,7 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](building.md)
 
-客户端会把**中转服务器的地址和证书指纹**编译进去作为默认值，所以请先[部署中转服务器](deploy.zh-CN.md#中转服务器)，记下证书指纹。
+客户端会把**中转服务器的地址和证书指纹**编译进去作为默认值，所以请先[部署中转服务器](../README.md#快速开始)，记下证书指纹。
 
 ## 桌面客户端
 
@@ -25,14 +25,14 @@ sudo apt install build-essential cmake pkg-config libssl-dev libwebkit2gtk-4.1-d
 
 ### 服务器地址和证书指纹
 
-构建时用环境变量 `AIRHAND_SERVER` 和 `AIRHAND_SERVER_FP` 设置，也可以直接修改 `client/src-tauri/src/config.rs` 里的默认值：
+构建时用环境变量 `NIFE_REMOTE_SERVER` 和 `NIFE_REMOTE_SERVER_FP` 设置，也可以直接修改 `client/src-tauri/src/config.rs` 里的默认值：
 
-- 不设置 `AIRHAND_SERVER` 时连接 `127.0.0.1:4433`
+- 不设置 `NIFE_REMOTE_SERVER` 时连接 `127.0.0.1:4433`
 - 指纹的格式不对（不是 64 位十六进制，允许用 `:` 或空格分隔）时构建会直接报错
 - 它们只是默认值，装好之后 `config.toml` 里的 `server`、`server_fp` 优先（见[配置文件](usage.zh-CN.md#配置文件)）。那里的 `server_fp` 写错了会拒绝所有连接，而不是不校验
 
 > [!NOTE]
-> `AIRHAND_SERVER_FP` 留空时，客户端第一次连上服务器时记住它的证书（`config.toml` 里的 `[server_trust]`），之后证书变了就拒绝连接（首次连接时信任，控制台左上角显示“首次连接时信任”）。只有第一次连接防不了中间人，正式发布时请固定指纹。服务器有意换了证书时，删掉 `config.toml` 里的 `[server_trust]`。
+> `NIFE_REMOTE_SERVER_FP` 留空时，客户端第一次连上服务器时记住它的证书（`config.toml` 里的 `[server_trust]`），之后证书变了就拒绝连接（首次连接时信任，控制台左上角显示“首次连接时信任”）。只有第一次连接防不了中间人，正式发布时请固定指纹。服务器有意换了证书时，删掉 `config.toml` 里的 `[server_trust]`。
 
 ### 构建
 
@@ -41,8 +41,8 @@ Windows（PowerShell）：
 ```powershell
 cd client
 npm install
-$env:AIRHAND_SERVER    = "relay.example.com:4433"
-$env:AIRHAND_SERVER_FP = "<服务器证书指纹>"
+$env:NIFE_REMOTE_SERVER    = "relay.example.com:4433"
+$env:NIFE_REMOTE_SERVER_FP = "<服务器证书指纹>"
 npm run tauri build
 ```
 
@@ -51,8 +51,8 @@ macOS / Linux：
 ```bash
 cd client
 npm install
-export AIRHAND_SERVER=relay.example.com:4433
-export AIRHAND_SERVER_FP=<服务器证书指纹>
+export NIFE_REMOTE_SERVER=relay.example.com:4433
+export NIFE_REMOTE_SERVER_FP=<服务器证书指纹>
 npm run tauri build
 ```
 
@@ -60,19 +60,19 @@ npm run tauri build
 
 | 系统 | 文件 |
 |---|---|
-| Windows | `bundle/nsis/Airhand_<版本>_x64-setup.exe`：安装程序 |
-| macOS | `bundle/macos/Airhand.app`（约 8 MB）、`bundle/dmg/Airhand_<版本>_<架构>.dmg` |
-| Linux | `airhand`（单个文件，约 10 MB）、`bundle/deb/Airhand_<版本>_amd64.deb`（会自动装上托盘、声音、GStreamer 依赖） |
+| Windows | `bundle/nsis/Nife Remote_<版本>_x64-setup.exe`：安装程序 |
+| macOS | `bundle/macos/Nife Remote.app`（约 8 MB）、`bundle/dmg/Nife Remote_<版本>_<架构>.dmg` |
+| Linux | `nife-remote`（单个文件，约 10 MB）、`bundle/deb/Nife Remote_<版本>_amd64.deb`（会自动装上托盘、声音、GStreamer 依赖） |
 
 ### Windows 说明
 
 - 安装程序为所有用户安装并注册系统服务（见 [Windows 安装版](usage.zh-CN.md#windows-安装版)），附加步骤在 `client/src-tauri/windows/hooks.nsh`
-- `npm run tauri build -- --no-bundle` 只生成 `airhand.exe`，但发布版没有安装时不能运行
+- `npm run tauri build -- --no-bundle` 只生成 `nife-remote.exe`，但发布版没有安装时不能运行
 - C 运行时是静态链接的，不需要装 VC++ 运行库
 - Media Foundation 是延迟加载的，Windows N 版（没装媒体功能包）也能运行，会改用软件编码
 
 ### macOS 说明
 
 - 只要 .app 时用 `npm run tauri build -- --bundles app`；构建的是本机的架构（Apple 芯片是 arm64）
-- 程序只做了临时签名（ad-hoc），没有经过 Apple 公证：拷到别的 Mac 上第一次打开时，在访达里右键 → 打开（或者 `xattr -dr com.apple.quarantine Airhand.app`）
-- 系统按签名记住授予的权限，而临时签名每次构建都会变：重新构建后要在“系统设置 → 隐私与安全性”里把 Airhand 删掉再重新授权。长期使用的话，在 `client/src-tauri/tauri.macos.conf.json` 里把 `signingIdentity` 换成自己的开发者证书
+- 程序只做了临时签名（ad-hoc），没有经过 Apple 公证：拷到别的 Mac 上第一次打开时，在访达里右键 → 打开（或者 `xattr -dr com.apple.quarantine Nife Remote.app`）
+- 系统按签名记住授予的权限，而临时签名每次构建都会变：重新构建后要在“系统设置 → 隐私与安全性”里把 Nife Remote 删掉再重新授权。长期使用的话，在 `client/src-tauri/tauri.macos.conf.json` 里把 `signingIdentity` 换成自己的开发者证书

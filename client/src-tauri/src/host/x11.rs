@@ -5,7 +5,7 @@
 
 use std::sync::OnceLock;
 
-use airhand_proto::session::{DisplayInfo, Notice};
+use nife_remote_proto::session::{DisplayInfo, Notice};
 use anyhow::{Context, Result, anyhow, bail};
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::protocol::randr::{self, ConnectionExt as _};

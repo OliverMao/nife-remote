@@ -3,8 +3,8 @@
 //!
 //! 每帧都当作新画面（重新读回内存），和画面一直在变时一样。时间是交给编码器到拿到码流（同步的），
 //! 包括 CPU 路径上的读回、缩放、色彩转换。
-use airhand_lib::host::{capture, encoder::Encoder};
-use airhand_proto::session::{Codec, QualitySettings, VideoPriority};
+use nife_remote_lib::host::{capture, encoder::Encoder};
+use nife_remote_proto::session::{Codec, QualitySettings, VideoPriority};
 use std::time::{Duration, Instant};
 fn main() {
     let sub = capture::subscribe(0, 60, capture::Output::Native);

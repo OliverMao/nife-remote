@@ -7,7 +7,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use airhand_proto::media::AUDIO_SAMPLE_RATE;
+use nife_remote_proto::media::AUDIO_SAMPLE_RATE;
 use anyhow::{Result, anyhow, bail};
 use objc2_core_audio_types::{AudioBuffer, AudioBufferList};
 use objc2_core_foundation::CFRetained;
@@ -71,7 +71,7 @@ impl Loopback {
             &target,
             &config,
             &[SCStreamOutputType::Screen, SCStreamOutputType::Audio],
-            "app.airhand.audio",
+            "app.nife-remote.audio",
             move |sb, kind| {
                 if kind == SCStreamOutputType::Audio {
                     receive(sb, &rx);

@@ -1,4 +1,4 @@
-//! 可选的访问密码（`AIRHAND_WEB_PASSWORD`）。
+//! 可选的访问密码（`NIFE_REMOTE_WEB_PASSWORD`）。
 //!
 //! 用浏览器自带的 HTTP Basic 登录框（用户名随意），不需要单独的登录页。登录成功后再发一个 Cookie：
 //! 并不是所有浏览器都会在 WebSocket 握手时带上 Basic 凭据，Cookie 则一定会带。
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 use crate::http::{App, Conn};
 
-const COOKIE_NAME: &str = "airhand_auth";
+const COOKIE_NAME: &str = "nife_remote_auth";
 
 pub struct Auth {
     password: String,
@@ -27,7 +27,7 @@ pub struct Auth {
 impl Auth {
     pub fn new(password: String) -> Self {
         let token = hex(&Sha256::digest(
-            [b"airhand-web-session\0".as_slice(), password.as_bytes()].concat(),
+            [b"nife-remote-web-session\0".as_slice(), password.as_bytes()].concat(),
         ));
         Self { password, token }
     }
@@ -99,9 +99,9 @@ fn unauthorized() -> Response {
         StatusCode::UNAUTHORIZED,
         [(
             WWW_AUTHENTICATE,
-            HeaderValue::from_static(r#"Basic realm="Airhand", charset="UTF-8""#),
+            HeaderValue::from_static(r#"Basic realm="Nife Remote", charset="UTF-8""#),
         )],
-        "Airhand: password required",
+        "Nife Remote: password required",
     )
         .into_response()
 }
@@ -150,7 +150,7 @@ mod tests {
         assert!(cookie.ends_with("; Secure"), "{cookie}");
         let pair = cookie.split(';').next().unwrap();
         assert!(auth.cookie_ok(&headers(&[(COOKIE, &format!("a=b; {pair}; c=d"))])));
-        assert!(!auth.cookie_ok(&headers(&[(COOKIE, "airhand_auth=nope")])));
+        assert!(!auth.cookie_ok(&headers(&[(COOKIE, "nife_remote_auth=nope")])));
         assert!(!auth.cookie_ok(&HeaderMap::new()));
         // 换了密码，旧 Cookie 失效
         assert!(!Auth::new("other".into()).cookie_ok(&headers(&[(COOKIE, pair)])));

@@ -11,9 +11,9 @@ use crate::audio::Bundler;
 use crate::paths::{DatagramSender, Paths};
 use crate::secure::{Negotiated, Sealer};
 use crate::transport::write_lane;
-use airhand_proto::datagram;
-use airhand_proto::media::{self, VideoHeader};
-use airhand_proto::session::{
+use nife_remote_proto::datagram;
+use nife_remote_proto::media::{self, VideoHeader};
+use nife_remote_proto::session::{
     ByeReason, Codec, ControllerDatagram, ControllerMsg, DirectOffer, DisplayInfo, HostMsg,
     MicState, Notice, Platform, SystemAction,
 };
@@ -159,7 +159,7 @@ impl Keyframes {
 ///
 /// 返回 `Err` 表示界面已经不在了（窗口关了、浏览器断开了），会话随之结束。
 pub trait SessionUi: Send + Sync + 'static {
-    /// 画面 / 光标 / 声音包（[`airhand_proto::media`] 的格式：头 + 数据）。
+    /// 画面 / 光标 / 声音包（[`nife_remote_proto::media`] 的格式：头 + 数据）。
     /// 界面收到画面包后确认（[`super::Command::Ack`]），被控端的在途帧控制因此把界面这一段也算进去
     fn packet(&self, packet: Vec<u8>) -> Result<(), UiClosed>;
     /// 会话事件（控制台那边是 JSON）
@@ -794,7 +794,7 @@ mod tests {
             json!({ "type": "notice", "notice": { "kind": "audioRecovered" } })
         );
         let c = SessionEvent::Closed {
-            reason: Problem::from(airhand_proto::session::ByeReason::Kicked),
+            reason: Problem::from(nife_remote_proto::session::ByeReason::Kicked),
             retry: false,
         };
         assert_eq!(
@@ -865,7 +865,7 @@ mod tests {
         assert_eq!(serde_json::to_value(&s).unwrap()["rttMs"], json!(null));
         assert_eq!(serde_json::to_value(&s).unwrap()["direct"], json!(true));
         let c = SessionEvent::Closed {
-            reason: Problem::from(airhand_proto::session::ByeReason::Declined),
+            reason: Problem::from(nife_remote_proto::session::ByeReason::Declined),
             retry: false,
         };
         assert_eq!(

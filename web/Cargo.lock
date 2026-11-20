@@ -47,66 +47,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "airhand-link"
-version = "0.2.3"
-dependencies = [
- "airhand-proto",
- "anyhow",
- "bytes",
- "curve25519-dalek",
- "futures-util",
- "quinn",
- "rand 0.9.5",
- "rcgen",
- "ring",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "snow",
- "socket2",
- "spake2",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "airhand-proto"
-version = "0.2.3"
-dependencies = [
- "minicbor",
- "serde",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "airhand-web"
-version = "0.2.3"
-dependencies = [
- "airhand-link",
- "airhand-proto",
- "anyhow",
- "axum",
- "base64 0.22.1",
- "futures-util",
- "hyper",
- "hyper-util",
- "rcgen",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-rustls",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "anyhow"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -786,6 +726,66 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "nife-remote-link"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "curve25519-dalek",
+ "futures-util",
+ "nife-remote-proto",
+ "quinn",
+ "rand 0.9.5",
+ "rcgen",
+ "ring",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "snow",
+ "socket2",
+ "spake2",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "nife-remote-proto"
+version = "0.0.1"
+dependencies = [
+ "minicbor",
+ "serde",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "nife-remote-web"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "futures-util",
+ "hyper",
+ "hyper-util",
+ "nife-remote-link",
+ "nife-remote-proto",
+ "rcgen",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-rustls",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

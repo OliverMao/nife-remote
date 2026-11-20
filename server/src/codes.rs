@@ -93,7 +93,7 @@ fn now() -> i64 {
 
 fn secret_hash(secret: &[u8; 16]) -> Vec<u8> {
     let mut h = Sha256::new();
-    h.update(b"airhand code binding v1\0");
+    h.update(b"nife-remote code binding v1\0");
     h.update(secret);
     h.finalize().to_vec()
 }
@@ -249,7 +249,7 @@ impl Bindings {
         });
         let worker = store.clone();
         std::thread::Builder::new()
-            .name("airhand-codes".into())
+            .name("nife-remote-codes".into())
             .spawn(move || writer(db, worker))
             .context("can't start the code persistence worker")?;
         Ok(Self {
@@ -372,8 +372,8 @@ mod tests {
 
     fn temp() -> std::path::PathBuf {
         std::env::temp_dir()
-            .join(format!("airhand-codes-test-{:016x}", rand::random::<u64>()))
-            .join("airhand.db")
+            .join(format!("nife-remote-codes-test-{:016x}", rand::random::<u64>()))
+            .join("nife-remote.db")
     }
 
     #[tokio::test]

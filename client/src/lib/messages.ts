@@ -11,7 +11,7 @@ export type LocalNotice =
   | { kind: "h264Undecodable" }
   | { kind: "codecFallback"; codec: string; to: string }
   | { kind: "noOpus" }
-  /** 对方是 Android 手机，没有开启 Airhand 的"远程操作"（被控端发来的 missingPermissions） */
+  /** 对方是 Android 手机，没有开启 Nife Remote 的"远程操作"（被控端发来的 missingPermissions） */
   | { kind: "androidNoInput" };
 
 /** 被控端发来的"已恢复"：只用来撤下之前的提示，本身不显示 */

@@ -4,18 +4,18 @@
 //! 1. 为被控端分配 6 位控制码（断线重连可取回原控制码；保存了控制码的被控端一直为它保留，见 [`crate::codes`]）；
 //! 2. 控制端按控制码发起会话时通知被控端；
 //! 3. 把一端开过来的通道（单向流）转给另一端，以 `Bytes` 块为单位零拷贝透传；会话的数据报（声音、探测，见
-//!    `airhand_proto::datagram`）按开头的会话 ID 在两端之间原样转发（见 [`relay`]）。
+//!    `nife_remote_proto::datagram`）按开头的会话 ID 在两端之间原样转发（见 [`relay`]）。
 //!
-//! 服务器从不解析会话内容：会话是端到端加密的（见 `airhand_proto::handshake`），服务器只看会话头里的会话 ID、
+//! 服务器从不解析会话内容：会话是端到端加密的（见 `nife_remote_proto::handshake`），服务器只看会话头里的会话 ID、
 //! 通道编号和优先级，发起会话时控制端带来的握手消息也原样交给被控端。会话有几条通道、每条是什么，服务器都不管
-//! （只限制数量，`airhand_proto::MAX_LANES`）；任何一端的控制通道（0 号）结束了，整个会话结束。所以会话层加通道、
+//! （只限制数量，`nife_remote_proto::MAX_LANES`）；任何一端的控制通道（0 号）结束了，整个会话结束。所以会话层加通道、
 //! 改格式都不用升级服务器。
 //!
-//! 版本握手见 `airhand_proto::signal` 的"版本握手"：服务器接受一个区间的信令版本，不要求相等。
+//! 版本握手见 `nife_remote_proto::signal` 的"版本握手"：服务器接受一个区间的信令版本，不要求相等。
 //!
 //! 防暴力猜码：控制码不存在算一次猜错（[`FAIL_LIMIT`]），并且晚 400 ms 回答。控制码存在、但被控端还没准备好
 //! （正在注册、正在断开）时回答得一模一样（也算猜错、也晚回答），不能靠回答的快慢看出控制码存在。
-//! 之前连上过的控制端带着重连凭证重连（见 `airhand_proto::signal` 模块说明的"重连凭证"）：凭证证明它本来就知道这个
+//! 之前连上过的控制端带着重连凭证重连（见 `nife_remote_proto::signal` 模块说明的"重连凭证"）：凭证证明它本来就知道这个
 //! 控制码，这些请求不算猜错、不受猜码限速的影响，被控端不在线时服务器记下它们（[`Waiter`]），被控端重新上线时通知它们重连。
 //!
 //! 控制码对了的请求也限速：每批准一个，被控端就要开一个会话（先请本机用户同意的被控端还要问一次），并且占着它的
@@ -60,10 +60,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use airhand_link::wire::{read_frame, write_frame, write_msg};
-use airhand_proto::framing;
-use airhand_proto::signal::{ClientHello, ServerHello, ServerMsg, Versions};
-use airhand_proto::{MAX_SIGNAL_MSG, Role, features};
+use nife_remote_link::wire::{read_frame, write_frame, write_msg};
+use nife_remote_proto::framing;
+use nife_remote_proto::signal::{ClientHello, ServerHello, ServerMsg, Versions};
+use nife_remote_proto::{MAX_SIGNAL_MSG, Role, features};
 use anyhow::{Context, Result, bail};
 use quinn::{SendStream, VarInt};
 use tokio::sync::mpsc;
@@ -281,7 +281,7 @@ impl Broker {
         if !got {
             bail!("peer closed the stream");
         }
-        // 版本握手（见 airhand_proto::signal 的"版本握手"）：先只读版本区间，任何版本的客户端都能听懂回答
+        // 版本握手（见 nife_remote_proto::signal 的"版本握手"）：先只读版本区间，任何版本的客户端都能听懂回答
         let versions: Versions =
             framing::decode_known(&buf).context("the first message must be Hello")?;
         let answer = ServerHello::answer(versions, features::signal::SUPPORTED);

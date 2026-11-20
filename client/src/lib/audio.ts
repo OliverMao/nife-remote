@@ -80,7 +80,7 @@ export class AudioOutput {
         return;
       }
       if (gen !== this.gen) return;
-      const node = new AudioWorkletNode(ctx, "airhand-audio", {
+      const node = new AudioWorkletNode(ctx, "nife-remote-audio", {
         numberOfInputs: 0,
         numberOfOutputs: 1,
         outputChannelCount: [CHANNELS],

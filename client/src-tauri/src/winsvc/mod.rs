@@ -1,7 +1,7 @@
 //! Windows 安装版：被控端作为系统服务运行。
 //!
-//! 安装包（NSIS，钩子见 `windows/hooks.nsh`）把 airhand.exe 装进 Program Files，然后运行 `airhand.exe --install`
-//! 注册系统服务 `Airhand`。同一个 airhand.exe 按命令行参数扮演不同的角色：
+//! 安装包（NSIS，钩子见 `windows/hooks.nsh`）把 nife-remote.exe 装进 Program Files，然后运行 `nife-remote.exe --install`
+//! 注册系统服务 `Nife Remote`。同一个 nife-remote.exe 按命令行参数扮演不同的角色：
 //!
 //! | 参数 | 角色 | 身份 / 会话 |
 //! |---|---|---|
@@ -13,13 +13,13 @@
 //! * 被控端以 SYSTEM 身份运行在用户的会话里，才能采集和操作 UAC 确认框、锁屏和登录界面（它们在安全桌面上，
 //!   见 `host::desktop`）。服务跟着"控制台会话"走：切换用户、注销时把被控端挪到新的控制台会话里；
 //! * 托盘经命名管道（[`ipc`]）显示被控端的状态、发送命令（断开控制端、更换控制码、开机自动启动）；
-//! * 托盘和服务同进同退：打开 Airhand 时启动服务，托盘"退出"时停止服务；服务停止（或者被卸载）时托盘也退出；
+//! * 托盘和服务同进同退：打开 Nife Remote 时启动服务，托盘"退出"时停止服务；服务停止（或者被卸载）时托盘也退出；
 //! * 开机自动启动（`config.toml` 的 `autostart`，托盘里可以切换）= 服务的启动类型为"自动" + 登录时启动托盘
-//!   （`HKLM\...\Run` 里的 `Airhand`）；
+//!   （`HKLM\...\Run` 里的 `Nife Remote`）；
 //! * 卸载（`--uninstall`）删除服务和这个启动项，安装目录里的文件（包括 config.toml）由卸载程序删除。
 //!
 //! 服务和被控端没有控制台，日志写到 Windows 调试输出（`OutputDebugString`），用 Sysinternals 的 DebugView
-//! （勾选 Capture Global Win32）查看；日志级别同样由 `AIRHAND_LOG` 控制。
+//! （勾选 Capture Global Win32）查看；日志级别同样由 `NIFE_REMOTE_LOG` 控制。
 
 mod agent;
 pub mod ipc;
@@ -64,11 +64,11 @@ use windows::Win32::System::Threading::{
 use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
 /// 系统服务的名称
-pub const SERVICE_NAME: &str = "Airhand";
+pub const SERVICE_NAME: &str = "Nife Remote";
 /// 开机启动托盘的注册表位置（所有用户）
 const RUN_KEY: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 /// 服务的访问权限：在系统默认的基础上，允许交互登录的用户（IU）启动（RP）和停止（WP）服务——
-/// 打开 Airhand 时启动被控端、在托盘里"退出"时停止它，都不需要管理员权限
+/// 打开 Nife Remote 时启动被控端、在托盘里"退出"时停止它，都不需要管理员权限
 const SERVICE_SDDL: &str = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRPWPLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
 /// `DELETE` 访问权限（删除服务）
 const DELETE: u32 = 0x0001_0000;
@@ -131,13 +131,13 @@ fn init_debug_logging() {
             if self.0.is_empty() {
                 return;
             }
-            let text = format!("Airhand: {}", String::from_utf8_lossy(&self.0));
+            let text = format!("Nife Remote: {}", String::from_utf8_lossy(&self.0));
             unsafe {
                 windows::Win32::System::Diagnostics::Debug::OutputDebugStringW(&HSTRING::from(text))
             };
         }
     }
-    let filter = tracing_subscriber::EnvFilter::try_from_env("AIRHAND_LOG")
+    let filter = tracing_subscriber::EnvFilter::try_from_env("NIFE_REMOTE_LOG")
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,quinn=warn,quinn_proto=warn"));
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
@@ -167,7 +167,7 @@ fn open_scm(access: u32) -> Result<Sc> {
     .context("OpenSCManager")?))
 }
 
-/// 打开 Airhand 服务；不存在时返回 `Ok(None)`
+/// 打开 Nife Remote 服务；不存在时返回 `Ok(None)`
 fn open_service(access: u32) -> Result<Option<Sc>> {
     let scm = open_scm(SC_MANAGER_CONNECT)?;
     match unsafe { OpenServiceW(scm.0, &HSTRING::from(SERVICE_NAME), access) } {
@@ -230,7 +230,7 @@ fn service_exe(svc: &Sc) -> Result<PathBuf> {
     }
 }
 
-/// 从命令行里取出程序路径：`"C:\Program Files\Airhand\airhand.exe" --service` → `C:\Program Files\Airhand\airhand.exe`
+/// 从命令行里取出程序路径：`"C:\Program Files\Nife Remote\nife-remote.exe" --service` → `C:\Program Files\Nife Remote\nife-remote.exe`
 fn command_exe(cmd: &str) -> &str {
     let cmd = cmd.trim();
     match cmd.strip_prefix('"') {
@@ -246,7 +246,7 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// 这个 airhand.exe 是不是已经安装好了（Airhand 服务运行的就是它）。
+/// 这个 nife-remote.exe 是不是已经安装好了（Nife Remote 服务运行的就是它）。
 /// 是的话被控端在服务里运行；不是的话（例如开发时直接运行的调试构建）被控端在本进程里运行。
 pub fn installed_here() -> bool {
     let check = || -> Result<bool> {
@@ -256,14 +256,14 @@ pub fn installed_here() -> bool {
         Ok(same_file(&service_exe(&svc)?, &std::env::current_exe()?))
     };
     check().unwrap_or_else(|e| {
-        warn!("can't check the Airhand service: {e:#}");
+        warn!("can't check the Nife Remote service: {e:#}");
         false
     })
 }
 
 /// 启动服务（已经在运行时什么也不做）
 pub fn start() -> Result<()> {
-    let svc = open_service(SERVICE_START)?.context("the Airhand service isn't installed")?;
+    let svc = open_service(SERVICE_START)?.context("the Nife Remote service isn't installed")?;
     match unsafe { StartServiceW(svc.0, None) } {
         Err(e) if e.code() == ERROR_SERVICE_ALREADY_RUNNING.to_hresult() => Ok(()),
         r => r.context("StartService"),
@@ -303,7 +303,7 @@ fn stop_and_wait(svc: &Sc, timeout: Duration) -> Result<()> {
 /// 开机自动启动：服务的启动类型（自动 / 手动）+ 登录时启动托盘。需要管理员或 SYSTEM 权限
 pub fn apply_autostart(on: bool) -> Result<()> {
     let svc =
-        open_service(SERVICE_CHANGE_CONFIG)?.context("the Airhand service isn't installed")?;
+        open_service(SERVICE_CHANGE_CONFIG)?.context("the Nife Remote service isn't installed")?;
     let start_type = if on {
         SERVICE_AUTO_START
     } else {
@@ -365,7 +365,7 @@ fn set_run_key(on: bool) -> Result<()> {
 fn install() -> Result<()> {
     let exe = std::env::current_exe()?;
     let bin = HSTRING::from(format!("\"{}\" --service", exe.display()));
-    let display = HSTRING::from("Airhand");
+    let display = HSTRING::from("Nife Remote");
     crate::config::ensure_file().context("can't create config.toml")?;
     let autostart = crate::config::settings().autostart;
     let start_type: SERVICE_START_TYPE = if autostart {
@@ -418,7 +418,7 @@ fn install() -> Result<()> {
     };
 
     unsafe {
-        let mut desc: Vec<u16> = "Airhand remote desktop host: lets this computer be controlled remotely, including the sign-in screen and UAC prompts."
+        let mut desc: Vec<u16> = "Nife Remote remote desktop host: lets this computer be controlled remotely, including the sign-in screen and UAC prompts."
             .encode_utf16()
             .chain([0])
             .collect();
@@ -466,7 +466,7 @@ fn install() -> Result<()> {
         r => r.context("StartService")?,
     }
     info!(
-        "the Airhand service is installed and running ({}, autostart {})",
+        "the Nife Remote service is installed and running ({}, autostart {})",
         exe.display(),
         if autostart { "on" } else { "off" }
     );
@@ -483,14 +483,14 @@ fn uninstall() -> Result<()> {
             Err(e) if e.code() == ERROR_SERVICE_MARKED_FOR_DELETE.to_hresult() => {}
             r => r.context("DeleteService")?,
         }
-        info!("the Airhand service is removed");
+        info!("the Nife Remote service is removed");
     }
     set_run_key(false)?;
     wait_for_other_instances(Duration::from_secs(8));
     Ok(())
 }
 
-/// `--stop-service`：升级前停止服务（并等托盘退出），否则 airhand.exe 正在使用，无法覆盖
+/// `--stop-service`：升级前停止服务（并等托盘退出），否则 nife-remote.exe 正在使用，无法覆盖
 fn stop_for_upgrade() -> Result<()> {
     if let Some(svc) = open_service(SERVICE_STOP | SERVICE_QUERY_STATUS)? {
         stop_and_wait(&svc, Duration::from_secs(20))?;
@@ -499,7 +499,7 @@ fn stop_for_upgrade() -> Result<()> {
     Ok(())
 }
 
-/// 等同一个 airhand.exe 的其它进程（各个会话里的托盘、被控端）退出：服务停止后它们会自己退出
+/// 等同一个 nife-remote.exe 的其它进程（各个会话里的托盘、被控端）退出：服务停止后它们会自己退出
 fn wait_for_other_instances(timeout: Duration) {
     let deadline = Instant::now() + timeout;
     loop {
@@ -508,7 +508,7 @@ fn wait_for_other_instances(timeout: Duration) {
             return;
         }
         if Instant::now() >= deadline {
-            warn!("{n} other Airhand process(es) are still running");
+            warn!("{n} other Nife Remote process(es) are still running");
             return;
         }
         std::thread::sleep(Duration::from_millis(200));
@@ -571,11 +571,11 @@ fn process_path(pid: u32) -> Option<PathBuf> {
 pub fn show_not_installed() {
     use windows::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_OK, MessageBoxW};
     let text = HSTRING::from(tr!(
-        "Airhand 需要安装后才能使用：请运行 Airhand 安装程序。\n\n安装后 Airhand 作为系统服务运行，锁屏、登录界面和 UAC 确认框也能被远程控制。",
-        "Airhand needs to be installed: please run the Airhand installer.\n\nOnce installed, Airhand runs as a system service, so the lock screen, the sign-in screen and UAC prompts can be controlled remotely too."
+        "Nife Remote 需要安装后才能使用：请运行 Nife Remote 安装程序。\n\n安装后 Nife Remote 作为系统服务运行，锁屏、登录界面和 UAC 确认框也能被远程控制。",
+        "Nife Remote needs to be installed: please run the Nife Remote installer.\n\nOnce installed, Nife Remote runs as a system service, so the lock screen, the sign-in screen and UAC prompts can be controlled remotely too."
     ));
     unsafe {
-        MessageBoxW(None, &text, w!("Airhand"), MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(None, &text, w!("Nife Remote"), MB_OK | MB_ICONINFORMATION);
     }
 }
 
@@ -584,16 +584,16 @@ mod tests {
     #[test]
     fn command_exe() {
         assert_eq!(
-            super::command_exe(r#""C:\Program Files\Airhand\airhand.exe" --service"#),
-            r"C:\Program Files\Airhand\airhand.exe"
+            super::command_exe(r#""C:\Program Files\Nife Remote\nife-remote.exe" --service"#),
+            r"C:\Program Files\Nife Remote\nife-remote.exe"
         );
         assert_eq!(
-            super::command_exe(r"C:\Airhand\airhand.exe --service"),
-            r"C:\Airhand\airhand.exe"
+            super::command_exe(r"C:\Nife Remote\nife-remote.exe --service"),
+            r"C:\Nife Remote\nife-remote.exe"
         );
         assert_eq!(
-            super::command_exe(r"C:\Airhand\airhand.exe"),
-            r"C:\Airhand\airhand.exe"
+            super::command_exe(r"C:\Nife Remote\nife-remote.exe"),
+            r"C:\Nife Remote\nife-remote.exe"
         );
     }
 }

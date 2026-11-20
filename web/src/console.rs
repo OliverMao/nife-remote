@@ -1,13 +1,13 @@
 //! 浏览器控制台的 WebSocket（`/ws`）。每个连接就是一个控制台（一个浏览器标签页），
 //! 有自己的控制端服务和到中转服务器的连接，标签页关掉时它的会话全部断开。
 //!
-//! 协议和桌面版一样，见 `airhand_link::console`；这里只管接受连接（检查 Origin）、把 axum 的 WebSocket 接上去。
-//! 剪贴板由浏览器自己同步（`airhand_link::controller::Frontend::Browser`）。
+//! 协议和桌面版一样，见 `nife_remote_link::console`；这里只管接受连接（检查 Origin）、把 axum 的 WebSocket 接上去。
+//! 剪贴板由浏览器自己同步（`nife_remote_link::controller::Frontend::Browser`）。
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use airhand_link::console::{self, MAX_MESSAGE, Setup, WsMessage};
+use nife_remote_link::console::{self, MAX_MESSAGE, Setup, WsMessage};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, State};
 use axum::http::header::{HOST, ORIGIN};
@@ -139,8 +139,8 @@ mod tests {
         // 反向代理改了 Host，但带了 X-Forwarded-Host
         assert!(same_origin(&h(&[
             ("host", "127.0.0.1:8080"),
-            ("x-forwarded-host", "airhand.example.com"),
-            ("origin", "https://airhand.example.com")
+            ("x-forwarded-host", "nife-remote.example.com"),
+            ("origin", "https://nife-remote.example.com")
         ])));
     }
 

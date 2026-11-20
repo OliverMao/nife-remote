@@ -1,10 +1,10 @@
 //! 被控端一个会话的链路：回答端到端握手、开本端的通道、读写任务、直连任务、结束。会话里收发什么、什么时候发，
 //! 见 [`super::session`]。
 //!
-//! 发出握手的决定就开通道、交给会话，不等控制端的确认（见 `airhand_proto::handshake` 的"确认"）：确认是控制端
+//! 发出握手的决定就开通道、交给会话，不等控制端的确认（见 `nife_remote_proto::handshake` 的"确认"）：确认是控制端
 //! 在控制通道上发的第一帧，读任务解开它时告诉会话（[`ControllerReceiver::confirmation`]），解不开就结束。
 //!
-//! Ping 和画面确认是控制数据报（`airhand_proto::session::ControllerDatagram`），在读任务里就处理掉（[`Express`]），
+//! Ping 和画面确认是控制数据报（`nife_remote_proto::session::ControllerDatagram`），在读任务里就处理掉（[`Express`]），
 //! 控制端麦克风的声音数据报也在这里解开、交给平台的 [`MicSink`]。它们都不排进会话的主循环：主循环可能正等着平台做一件慢事（换显示器时要等编码线程退出、建硬件编码器），这期间 Pong
 //! 和确认都晚了，控制端测到的往返时延、被控端的码率控制都会把它当成网络变慢。控制端的其它消息在读任务里就换成了
 //! [`Request`]。
@@ -17,11 +17,11 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use airhand_proto::SessionLane;
-use airhand_proto::datagram;
-use airhand_proto::framing;
-use airhand_proto::handshake::{Confirm, Negotiated, PublicKey};
-use airhand_proto::session::{
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::datagram;
+use nife_remote_proto::framing;
+use nife_remote_proto::handshake::{Confirm, Negotiated, PublicKey};
+use nife_remote_proto::session::{
     ControllerDatagram, ControllerMsg, DirectOffer, HostDatagram, InputEvent, MAX_CLIPBOARD_TEXT,
     QualitySettings,
 };
@@ -55,7 +55,7 @@ use crate::transport::{next_msg, open_datagram};
 pub struct HostStreams {
     /// 控制消息（控制通道、大块通道）
     pub out: Outbox,
-    /// 画面包（[`airhand_proto::media::frame`] 编好的）
+    /// 画面包（[`nife_remote_proto::media::frame`] 编好的）
     pub video: mpsc::Sender<Bytes>,
     /// 声音包（同上）
     pub audio: mpsc::Sender<Bytes>,
@@ -110,7 +110,7 @@ impl ControllerReceiver {
         }
     }
 
-    /// 控制端的确认（控制通道上的第一帧，见 `airhand_proto::handshake` 的"确认"）：解开了就到，这时才算它真的在连；
+    /// 控制端的确认（控制通道上的第一帧，见 `nife_remote_proto::handshake` 的"确认"）：解开了就到，这时才算它真的在连；
     /// 读任务没等到确认就结束了（解不开：多半是重放的握手消息）就是 `Err`。只能取一次（再取的马上是 `Err`）
     pub fn confirmation(&mut self) -> oneshot::Receiver<()> {
         std::mem::replace(&mut self.confirm, oneshot::channel().1)
@@ -233,7 +233,7 @@ pub struct Admitted {
     /// 控制端自己报的名称（空字符串表示不知道）和系统：在加密的握手里，服务器改不了
     pub name: String,
     pub os: String,
-    /// 安全码：控制端显示的是同一个，两边的人可以对一下（见 `airhand_proto::handshake`）
+    /// 安全码：控制端显示的是同一个，两边的人可以对一下（见 `nife_remote_proto::handshake`）
     pub safety: String,
     /// 为什么让它进来；[`Admission::NeedsApproval`] 时会话要先请本机用户同意
     pub admission: Admission,
@@ -515,7 +515,7 @@ async fn read_all(r: Readers) -> Result<()> {
         std::future::pending::<Result<()>>().await
     };
     let control = async {
-        // 第一帧是控制端的确认（见 airhand_proto::handshake 的"确认"）：解得开它，这个控制端才是真的在连
+        // 第一帧是控制端的确认（见 nife_remote_proto::handshake 的"确认"）：解得开它，这个控制端才是真的在连
         let Some(first) = control.next().await? else {
             return Ok(());
         };
@@ -603,7 +603,7 @@ mod tests {
     /// 控制端的消息变成什么请求：不认识的输入事件去掉，空了就不交；太大的剪贴板不交；要关键帧带着序号
     #[test]
     fn controller_messages_become_requests() {
-        use airhand_proto::session::{MouseButton, QualitySettings};
+        use nife_remote_proto::session::{MouseButton, QualitySettings};
         let unknown = InputEvent::MouseButton {
             button: MouseButton::Unknown(9),
             down: true,
@@ -693,7 +693,7 @@ mod tests {
     async fn mic_datagrams_reach_the_platform_once_each() {
         use crate::audio::Bundler;
         use crate::secure::test_lane;
-        use airhand_proto::media::{self, AudioHeader};
+        use nife_remote_proto::media::{self, AudioHeader};
 
         struct Sink(Arc<Mutex<Vec<u32>>>);
         impl MicSink for Sink {

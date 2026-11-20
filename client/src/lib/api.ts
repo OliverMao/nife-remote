@@ -1,12 +1,12 @@
 // 与 Rust 端的命令 / 数据结构一一对应。
 //
 // 控制台有两种运行方式，界面完全相同（见 Backend）。会话都走同一种 WebSocket（console.ts，协议见
-// crates/airhand-link/src/console.rs），只是连的地方不同：
+// crates/nife-remote-link/src/console.rs），只是连的地方不同：
 // * 桌面版：Tauri 窗口，连本程序只监听 127.0.0.1 的服务；窗口、我的设备这些走 invoke（backend/tauri.ts）；
-// * 网页版：浏览器打开 airhand-web（web/）的端口，连它的 `/ws`（backend/web.ts）。
+// * 网页版：浏览器打开 nife-remote-web（web/）的端口，连它的 `/ws`（backend/web.ts）。
 //
-// 对会话的操作是 Command（与 Rust 的 airhand_link::controller::Command 相同，Android 也一样），
-// 画面 / 光标 / 声音是媒体包（见 media.ts）。样例见 crates/airhand-link/tests/protocol.json。
+// 对会话的操作是 Command（与 Rust 的 nife_remote_link::controller::Command 相同，Android 也一样），
+// 画面 / 光标 / 声音是媒体包（见 media.ts）。样例见 crates/nife-remote-link/tests/protocol.json。
 //
 // 和 Rust 之间的 JSON 全都是 camelCase：字段名、枚举值（"h264"、"android"、"quickSettings"），
 // 带字段的联合类型用一个字段标明是哪一种（命令 cmd、事件和输入 type、问题和提示 kind）。
@@ -19,12 +19,12 @@ import type { Lang } from "./i18n";
 export type Codec = "h264" | "h265" | "av1";
 
 /**
- * 被控端缩放画面时优先什么（airhand_proto::session::VideoPriority）：
+ * 被控端缩放画面时优先什么（nife_remote_proto::session::VideoPriority）：
  * latency：在显卡上缩放，画面不经过 CPU；clarity：在 CPU 上用更锐利的算法缩放。不需要缩放时一样
  */
 export type VideoPriority = "latency" | "clarity";
 
-/** 与 airhand_proto::session::QualitySettings 对应 */
+/** 与 nife_remote_proto::session::QualitySettings 对应 */
 export interface QualitySettings {
   fps: number;
   bitrateKbps: number;
@@ -52,7 +52,7 @@ export type ServerState =
   | { state: "disconnected"; reason: Problem };
 
 /**
- * 显示给用户的问题，与 Rust 端 airhand_link::Problem 一一对应（JSON 以 kind 区分）。
+ * 显示给用户的问题，与 Rust 端 nife_remote_link::Problem 一一对应（JSON 以 kind 区分）。
  *
  * Rust 端只传类型，界面显示时才按当前语言变成文字（见 messages.ts 的 problemText），
  * 所以不会出现别的电脑或服务器的语言，切换语言时已显示的问题也会跟着变。
@@ -73,7 +73,7 @@ export type Problem =
   | { kind: "serverTimeout" }
   /** 重连时对方不在线（服务器确认过是之前连上的那台）：对方重新上线时会收到 onHostOnline */
   | { kind: "hostOffline" }
-  // 端到端加密（见 Rust 的 airhand_proto::handshake）
+  // 端到端加密（见 Rust 的 nife_remote_proto::handshake）
   /** 对方的身份（公钥）和记下的不一样：不自动重连，用户确认是对方重装之后输入配对码重新配对 */
   | { kind: "hostKeyChanged" }
   /** 对方要求配对码（第一次连这台电脑） */
@@ -98,12 +98,12 @@ export type Problem =
   | { kind: "noClipboardText" }
   | { kind: "failed"; detail: string }
   // 只在控制台里产生（Rust 端没有）
-  /** 与控制端服务（桌面版：本程序；网页版：airhand-web）的连接断了 */
+  /** 与控制端服务（桌面版：本程序；网页版：nife-remote-web）的连接断了 */
   | { kind: "consoleLost" }
   /** 浏览器不允许读取剪贴板 */
   | { kind: "clipboardBlocked" };
 
-/** 被控端发来的提示，与 Rust 端 airhand_link::controller::NoticeView 对应 */
+/** 被控端发来的提示，与 Rust 端 nife_remote_link::controller::NoticeView 对应 */
 export type RemoteNotice =
   | { kind: "noDisplays" }
   | { kind: "wayland" }
@@ -149,7 +149,7 @@ export interface SavedDevice {
 }
 
 /**
- * 重连凭证（与 airhand_proto::signal::ResumeToken 对应，16 个字节）：连上时得到，会话断了之后重连时原样带上。
+ * 重连凭证（与 nife_remote_proto::signal::ResumeToken 对应，16 个字节）：连上时得到，会话断了之后重连时原样带上。
  * 带凭证的重连不会被服务器当成猜控制码而限速；对方不在线时回答 hostOffline，对方回来时通知 onHostOnline
  */
 export type ResumeToken = number[];
@@ -167,7 +167,7 @@ export interface SessionInfo {
 }
 
 /**
- * 怎样连这台电脑（除了控制码），开始时的画质和声音。与 Rust 的 airhand_link::controller::ConnectOptions 对应，
+ * 怎样连这台电脑（除了控制码），开始时的画质和声音。与 Rust 的 nife_remote_link::controller::ConnectOptions 对应，
  * 三种界面的 connect 都是这些字段加上控制码
  */
 export interface ConnectOptions {
@@ -183,16 +183,16 @@ export interface ConnectOptions {
   audio: boolean;
 }
 
-/** 被控端的平台，与 airhand_proto::session::Platform 对应（对方的版本更新、报了这边不认识的平台时是 linux） */
+/** 被控端的平台，与 nife_remote_proto::session::Platform 对应（对方的版本更新、报了这边不认识的平台时是 linux） */
 export type Platform = "windows" | "mac" | "linux" | "android";
 
 /**
- * 被控端能不能接本机的麦克风（airhand_proto::session::MicState）：unsupported = 那个平台还不支持；
+ * 被控端能不能接本机的麦克风（nife_remote_proto::session::MicState）：unsupported = 那个平台还不支持；
  * noDevice = 没有虚拟麦克风（Windows：Steam Streaming Microphone）；busy = 别的控制端在用；failed = 打不开、在重试
  */
 export type MicState = "unsupported" | "noDevice" | "ready" | "busy" | "failed";
 
-/** 系统操作（手机的导航键等），与 airhand_proto::session::SystemAction 对应 */
+/** 系统操作（手机的导航键等），与 nife_remote_proto::session::SystemAction 对应 */
 export type SystemAction =
   | "back"
   | "home"
@@ -246,7 +246,7 @@ export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 
 export type TouchPhase = "down" | "move" | "up" | "cancel";
 
-/** 与 airhand_proto::session::InputEvent 对应（以 type 区分） */
+/** 与 nife_remote_proto::session::InputEvent 对应（以 type 区分） */
 export type InputEvent =
   /** 移到这个位置（0..1，相对当前显示器的画面） */
   | { type: "mouseMove"; x: number; y: number }
@@ -261,7 +261,7 @@ export type InputEvent =
   | { type: "system"; action: SystemAction }
   | { type: "releaseAll" };
 
-/** 对会话的操作，与 airhand_link::controller::Command 对应（JSON 以 cmd 区分） */
+/** 对会话的操作，与 nife_remote_link::controller::Command 对应（JSON 以 cmd 区分） */
 export type Command =
   | { cmd: "input"; sid: number; events: InputEvent[] }
   | { cmd: "settings"; sid: number; settings: QualitySettings }

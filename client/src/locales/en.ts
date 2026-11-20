@@ -4,7 +4,7 @@ import type { Msg, MsgKey, Params } from "../lib/i18n.ts";
 const plural = (n: Params[string], one: string, many: string) => (Number(n) === 1 ? one : many);
 
 const en: Record<MsgKey, Msg> = {
-  "app.title": "Airhand Console",
+  "app.title": "Nife Remote Console",
 
   "common.connecting": "Connecting…",
   "common.disconnected": "Disconnected",
@@ -30,7 +30,7 @@ const en: Record<MsgKey, Msg> = {
   "server.short.connected": "Online",
   "server.short.connecting": "Connecting",
   "server.short.offline": "Offline",
-  "server.hint": "Airhand finds remote computers and sets up connections through this server. When the two computers can reach each other directly, the screen doesn't pass through it",
+  "server.hint": "Nife Remote finds remote computers and sets up connections through this server. When the two computers can reach each other directly, the screen doesn't pass through it",
   "server.address": "Server address",
   "server.retrying": "Retrying automatically…",
   "server.retryLater": "Will retry automatically",
@@ -41,7 +41,7 @@ const en: Record<MsgKey, Msg> = {
   "menu.version": "v{version} · Controller mode",
   "menu.versionWeb": "v{version} · Web console",
   "menu.name": "This computer",
-  "menu.nameHintWeb": "The name remote computers see for this console (AIRHAND_NAME)",
+  "menu.nameHintWeb": "The name remote computers see for this console (NIFE_REMOTE_NAME)",
   "menu.language": "Language",
   "menu.config": "Config file",
   "menu.configHint": "Settings and My devices are saved in this file",
@@ -68,7 +68,7 @@ const en: Record<MsgKey, Msg> = {
   "confirm.cancel": "Cancel",
 
   "connect.title": "Connect to a remote computer",
-  "connect.hint": "Open the menu of the Airhand icon on the remote computer (right-click it in the Windows system tray, or click it in the macOS menu bar) to see its 6-digit control code",
+  "connect.hint": "Open the menu of the Nife Remote icon on the remote computer (right-click it in the Windows system tray, or click it in the macOS menu bar) to see its 6-digit control code",
   "connect.prefer": "Prefers {codec}",
   "connect.busy": "Connecting…",
   "connect.waitServer": "Waiting for the server…",
@@ -258,15 +258,15 @@ const en: Record<MsgKey, Msg> = {
   "notice.audioFailed": "The remote computer can't capture sound, retrying: {detail}",
   "notice.missingPermissions": (p) =>
     p.screen && p.input
-      ? "The remote Mac hasn't allowed Airhand Screen & System Audio Recording and Accessibility, so there's no picture or sound and it can't be controlled. Someone at that Mac needs to allow both in System Settings → Privacy & Security, then reopen Airhand"
+      ? "The remote Mac hasn't allowed Nife Remote Screen & System Audio Recording and Accessibility, so there's no picture or sound and it can't be controlled. Someone at that Mac needs to allow both in System Settings → Privacy & Security, then reopen Nife Remote"
       : p.input
-        ? "The remote Mac hasn't allowed Airhand Accessibility, so its keyboard and mouse can't be controlled. Someone at that Mac needs to allow Airhand in System Settings → Privacy & Security → Accessibility"
-        : "The remote Mac hasn't allowed Airhand Screen & System Audio Recording, so there's no picture or sound. Someone at that Mac needs to allow Airhand in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen Airhand",
+        ? "The remote Mac hasn't allowed Nife Remote Accessibility, so its keyboard and mouse can't be controlled. Someone at that Mac needs to allow Nife Remote in System Settings → Privacy & Security → Accessibility"
+        : "The remote Mac hasn't allowed Nife Remote Screen & System Audio Recording, so there's no picture or sound. Someone at that Mac needs to allow Nife Remote in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen Nife Remote",
   "notice.h264Undecodable": "This computer can't decode the H.264 video",
   "notice.codecFallback": "This computer can't decode {codec} video. Switched to {to}",
   "notice.noOpus": "This computer can't decode Opus, so remote sound can't be played",
   "notice.androidNoInput":
-    "Remote control (Airhand's accessibility service) is off on the remote phone, so you can watch but not control it. The phone's owner can turn it on in Airhand → Share screen",
+    "Remote control (Nife Remote's accessibility service) is off on the remote phone, so you can watch but not control it. The phone's owner can turn it on in Nife Remote → Share screen",
 
   "web.insecure.title": "Open this page over HTTPS",
   "web.insecure.body":
@@ -278,10 +278,10 @@ const en: Record<MsgKey, Msg> = {
     "The console needs WebCodecs video decoding. Please use a recent version of Chrome, Edge, Safari or Firefox.",
 
   "problem.serverUnreachable": "Can't connect to the server: {detail}",
-  "problem.certMismatch": "The server certificate doesn't match the pinned fingerprint (or the one remembered on the first connection). Someone may be intercepting the connection. If the server really got a new certificate, update the fingerprint or forget the remembered one (server_fp / [server_trust] in config.toml; AIRHAND_SERVER_FP / server-trust.txt for the web console)",
+  "problem.certMismatch": "The server certificate doesn't match the pinned fingerprint (or the one remembered on the first connection). Someone may be intercepting the connection. If the server really got a new certificate, update the fingerprint or forget the remembered one (server_fp / [server_trust] in config.toml; NIFE_REMOTE_SERVER_FP / server-trust.txt for the web console)",
   "problem.incompatible": (p) =>
     Number(p.server) > Number(p.client)
-      ? "Incompatible with the server: the server is newer, please update Airhand"
+      ? "Incompatible with the server: the server is newer, please update Nife Remote"
       : "Incompatible with the server: the server is older, please update the server",
   "problem.serverLost": "Lost connection to the server: {detail}",
   "problem.notConnected": "Not connected to the server yet, please try again shortly",
@@ -292,14 +292,14 @@ const en: Record<MsgKey, Msg> = {
   "problem.serverTimeout": "The server didn't respond in time",
   "problem.hostOffline": "The remote computer is offline",
   "problem.hostKeyChanged":
-    "The remote computer's identity differs from the last connection: it may have reinstalled Airhand, or someone may be impersonating it. Once you've confirmed it was reinstalled, enter its current pairing code to pair again (a phone has no pairing code: remove it from My devices and connect again)",
-  "problem.pairingRequired": "First connection to this computer: enter its pairing code, shown in the Airhand tray menu on that computer",
+    "The remote computer's identity differs from the last connection: it may have reinstalled Nife Remote, or someone may be impersonating it. Once you've confirmed it was reinstalled, enter its current pairing code to pair again (a phone has no pairing code: remove it from My devices and connect again)",
+  "problem.pairingRequired": "First connection to this computer: enter its pairing code, shown in the Nife Remote tray menu on that computer",
   "problem.pairingFailed": "Wrong pairing code, check the one in the remote computer's tray menu",
   "problem.pairingUnavailable": "The remote computer paused pairing (too many wrong codes): ask its user to pick a new pairing code in the tray menu",
   "problem.peerIncompatible": (p) =>
     Number(p.peer) > Number(p.ours)
-      ? "Incompatible with the remote computer: it's newer, please update Airhand on this computer"
-      : "Incompatible with the remote computer: it's older, ask its user to update Airhand",
+      ? "Incompatible with the remote computer: it's newer, please update Nife Remote on this computer"
+      : "Incompatible with the remote computer: it's older, ask its user to update Nife Remote",
   "problem.hostEnded": "The remote computer ended the session",
   "problem.hostUnresponsive": "The remote computer stopped responding",
   "problem.kicked": "The remote user disconnected you",
@@ -310,7 +310,7 @@ const en: Record<MsgKey, Msg> = {
   "problem.noSession": "Session not found",
   "problem.noClipboardText": "No text on the local clipboard",
   "problem.failed": "Error: {detail}",
-  "problem.consoleLost": "Lost connection to the Airhand controller service",
+  "problem.consoleLost": "Lost connection to the Nife Remote controller service",
   "problem.clipboardBlocked":
     "The browser didn't allow reading the clipboard. Allow clipboard access in the site settings (address bar)",
 };

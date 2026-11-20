@@ -4,7 +4,7 @@
 import type { Msg } from "../lib/i18n.ts";
 
 export default {
-  "app.title": "Airhand 控制台",
+  "app.title": "Nife Remote 控制台",
 
   // 通用
   "common.connecting": "连接中…",
@@ -45,7 +45,7 @@ export default {
   "menu.version": "v{version} · 控制端模式",
   "menu.versionWeb": "v{version} · 网页控制台",
   "menu.name": "本机名称",
-  "menu.nameHintWeb": "对方电脑上显示的控制端名称（AIRHAND_NAME）",
+  "menu.nameHintWeb": "对方电脑上显示的控制端名称（NIFE_REMOTE_NAME）",
   "menu.language": "语言",
   "menu.config": "配置文件",
   "menu.configHint": "设置和我的设备都保存在这个文件里",
@@ -72,7 +72,7 @@ export default {
 
   // 新建连接
   "connect.title": "连接到远程电脑",
-  "connect.hint": "打开对方电脑上 Airhand 托盘图标的菜单（Windows 在右下角点右键，macOS 在屏幕顶部的菜单栏），即可看到 6 位控制码",
+  "connect.hint": "打开对方电脑上 Nife Remote 托盘图标的菜单（Windows 在右下角点右键，macOS 在屏幕顶部的菜单栏），即可看到 6 位控制码",
   "connect.prefer": "优先使用 {codec}",
   "connect.busy": "正在连接…",
   "connect.waitServer": "等待服务器连接…",
@@ -270,15 +270,15 @@ export default {
   // 对方是 Mac 且缺少系统权限（两项都已授予时控制台直接撤下提示，不会显示）
   "notice.missingPermissions": (p) =>
     p.screen && p.input
-      ? "对方 Mac 没有允许 Airhand 使用“屏幕与系统录音”和“辅助功能”：看不到画面、听不到声音，也不能操作。需要那台电脑的用户在“系统设置 → 隐私与安全性”里允许这两项，然后重新打开 Airhand"
+      ? "对方 Mac 没有允许 Nife Remote 使用“屏幕与系统录音”和“辅助功能”：看不到画面、听不到声音，也不能操作。需要那台电脑的用户在“系统设置 → 隐私与安全性”里允许这两项，然后重新打开 Nife Remote"
       : p.input
-        ? "对方 Mac 没有允许 Airhand 使用“辅助功能”，不能操作键盘和鼠标。需要那台电脑的用户在“系统设置 → 隐私与安全性 → 辅助功能”里允许 Airhand"
-        : "对方 Mac 没有允许 Airhand 使用“屏幕与系统录音”，看不到画面，也听不到声音。需要那台电脑的用户在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里允许 Airhand，然后重新打开 Airhand",
+        ? "对方 Mac 没有允许 Nife Remote 使用“辅助功能”，不能操作键盘和鼠标。需要那台电脑的用户在“系统设置 → 隐私与安全性 → 辅助功能”里允许 Nife Remote"
+        : "对方 Mac 没有允许 Nife Remote 使用“屏幕与系统录音”，看不到画面，也听不到声音。需要那台电脑的用户在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里允许 Nife Remote，然后重新打开 Nife Remote",
   // 本机产生的提示
   "notice.h264Undecodable": "本机无法解码 H.264 画面",
   "notice.codecFallback": "本机无法解码 {codec} 画面，已改用 {to}",
   "notice.noOpus": "本机不支持 Opus 解码，无法播放远程声音",
-  "notice.androidNoInput": "对方手机没有开启 Airhand 的“远程操作”（无障碍服务），只能看不能操作。需要手机的主人在 Airhand 的“共享本机”页里开启",
+  "notice.androidNoInput": "对方手机没有开启 Nife Remote 的“远程操作”（无障碍服务），只能看不能操作。需要手机的主人在 Nife Remote 的“共享本机”页里开启",
 
   // 网页版用不了时的说明
   "web.insecure.title": "请通过 HTTPS 打开",
@@ -289,9 +289,9 @@ export default {
 
   // 问题（类型，见 Rust 的 problem.rs）：与中转服务器的连接
   "problem.serverUnreachable": "无法连接服务器：{detail}",
-  "problem.certMismatch": "服务器证书与固定的指纹（或第一次连接时记住的证书）不一致，连接可能被人拦截。服务器确实换了证书的话，更新指纹或删掉记住的证书（config.toml 里的 server_fp / [server_trust]；网页控制台是 AIRHAND_SERVER_FP / server-trust.txt）",
+  "problem.certMismatch": "服务器证书与固定的指纹（或第一次连接时记住的证书）不一致，连接可能被人拦截。服务器确实换了证书的话，更新指纹或删掉记住的证书（config.toml 里的 server_fp / [server_trust]；网页控制台是 NIFE_REMOTE_SERVER_FP / server-trust.txt）",
   "problem.incompatible": (p) =>
-    Number(p.server) > Number(p.client) ? "与服务器版本不兼容：服务器较新，请更新 Airhand" : "与服务器版本不兼容：服务器较旧，请更新服务器",
+    Number(p.server) > Number(p.client) ? "与服务器版本不兼容：服务器较新，请更新 Nife Remote" : "与服务器版本不兼容：服务器较旧，请更新服务器",
   "problem.serverLost": "与服务器的连接已断开：{detail}",
   // 连接被控端
   "problem.notConnected": "尚未连接到服务器，请稍候重试",
@@ -301,14 +301,14 @@ export default {
   "problem.hostBusy": "对方当前会话数已满",
   "problem.serverTimeout": "服务器响应超时",
   "problem.hostOffline": "对方已离线",
-  // 端到端加密（见 Rust 的 airhand_proto::handshake）
+  // 端到端加密（见 Rust 的 nife_remote_proto::handshake）
   "problem.hostKeyChanged":
-    "对方电脑的身份和上次连接时不一样：可能是对方重装了 Airhand，也可能有人在冒充它。确认是对方重装之后，输入对方现在的配对码重新配对（手机没有配对码：在我的设备里删掉它再连）",
-  "problem.pairingRequired": "第一次连接这台电脑，需要配对码：在对方电脑的 Airhand 托盘菜单里可以看到",
+    "对方电脑的身份和上次连接时不一样：可能是对方重装了 Nife Remote，也可能有人在冒充它。确认是对方重装之后，输入对方现在的配对码重新配对（手机没有配对码：在我的设备里删掉它再连）",
+  "problem.pairingRequired": "第一次连接这台电脑，需要配对码：在对方电脑的 Nife Remote 托盘菜单里可以看到",
   "problem.pairingFailed": "配对码不对，请核对对方托盘菜单里的配对码",
   "problem.pairingUnavailable": "对方暂停了配对（有人多次输错配对码）：请对方在托盘菜单里换一个配对码",
   "problem.peerIncompatible": (p) =>
-    Number(p.peer) > Number(p.ours) ? "与对方电脑的版本不兼容：对方较新，请更新本机的 Airhand" : "与对方电脑的版本不兼容：对方较旧，请对方更新 Airhand",
+    Number(p.peer) > Number(p.ours) ? "与对方电脑的版本不兼容：对方较新，请更新本机的 Nife Remote" : "与对方电脑的版本不兼容：对方较旧，请对方更新 Nife Remote",
   // 会话
   "problem.hostEnded": "对方结束了会话",
   "problem.hostUnresponsive": "对方电脑无响应",
@@ -321,6 +321,6 @@ export default {
   "problem.noSession": "会话不存在",
   "problem.noClipboardText": "本机剪贴板没有文本",
   "problem.failed": "出错了：{detail}",
-  "problem.consoleLost": "与 Airhand 控制端服务的连接断开了",
+  "problem.consoleLost": "与 Nife Remote 控制端服务的连接断开了",
   "problem.clipboardBlocked": "浏览器不允许读取剪贴板，请在地址栏的网站设置里允许访问剪贴板",
 } satisfies Record<string, Msg>;

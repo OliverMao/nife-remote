@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
-use airhand_proto::session::{DisplayInfo, InputEvent};
+use nife_remote_proto::session::{DisplayInfo, InputEvent};
 use tracing::warn;
 
 use super::Injector;
@@ -86,7 +86,7 @@ impl InjectorThread {
         });
         let sh = shared.clone();
         let spawned = std::thread::Builder::new()
-            .name("airhand-inject".into())
+            .name("nife-remote-inject".into())
             .spawn(move || run(make(), rx, &sh));
         if let Err(e) = &spawned {
             warn!("can't start the input thread, this controller's input will be ignored: {e}");

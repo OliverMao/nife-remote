@@ -1,4 +1,4 @@
-//! 一个会话的两条路（两端共用，见 `airhand_proto` 的"直连"）：中转一直在，直连通了才有。
+//! 一个会话的两条路（两端共用，见 `nife_remote_proto` 的"直连"）：中转一直在，直连通了才有。
 //!
 //! * 控制通道的每一帧（[`Paths::mirror`]）、Ping / Pong / 画面确认（[`DatagramSender::send`]）两条路都发：
 //!   中转上是完整的一份，直连上的那份先到就用它（接收端按计数合并、去重，见 `crate::merge`）；
@@ -11,9 +11,9 @@
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use airhand_proto::datagram;
-use airhand_proto::framing;
-use airhand_proto::minicbor::Encode;
+use nife_remote_proto::datagram;
+use nife_remote_proto::framing;
+use nife_remote_proto::minicbor::Encode;
 use bytes::Bytes;
 use quinn::{Connection, SendStream};
 use tokio::sync::{mpsc, watch};
@@ -146,7 +146,7 @@ impl Paths {
     }
 }
 
-/// 发控制数据报（`airhand_proto::datagram::CONTROL`）：加密之后从两条路或者指定的一条路发出去。丢了就丢了
+/// 发控制数据报（`nife_remote_proto::datagram::CONTROL`）：加密之后从两条路或者指定的一条路发出去。丢了就丢了
 #[derive(Clone)]
 pub struct DatagramSender(Arc<Datagrams>);
 

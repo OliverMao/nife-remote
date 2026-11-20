@@ -1,11 +1,11 @@
-//! macOS：菜单里的"卸载 Airhand…"。
+//! macOS：菜单里的"卸载 Nife Remote…"。
 //!
 //! macOS 的 App 没有卸载程序，拖进废纸篓只删掉了程序本身。这里按使用指南里"卸载"一节的步骤一次做完，
 //! 顺序有讲究（都是在真机上试出来的）：
 //! 1. 注销登录项：要由 App 自己做；先删 App 的话，系统设置的"登录时打开"和"后台 App 活动"里都会留下失效的条目；
 //! 2. 清除权限记录（`tccutil reset All <bundle ID>`）：要在 App 还在的时候做，App 删掉之后系统就找不到这个 bundle ID 了；
 //! 3. 删除配置文件所在的目录、WebKit / Metal 以 bundle ID 在系统临时 / 缓存目录里建的目录（受系统保护的跳过，
-//!    见 [`is_protected`]）、Airhand 的崩溃报告、
+//!    见 [`is_protected`]）、Nife Remote 的崩溃报告、
 //!    AppKit 记下的菜单栏图标位置 / 是否显示（App 自己的偏好设置，见 [`remove_preferences`]）；
 //! 4. 把 App 移到废纸篓（放错了还能放回来，清空废纸篓就彻底删掉了）。
 //!
@@ -25,7 +25,7 @@ use tracing::{info, warn};
 pub struct Plan {
     /// 程序所在的 App 包（移到废纸篓）
     pub bundle: Option<PathBuf>,
-    /// 清除权限记录、找系统为它建的目录用（`app.airhand.client`）
+    /// 清除权限记录、找系统为它建的目录用（`app.nife-remote.client`）
     pub bundle_id: String,
     /// 可执行文件名：崩溃报告以它开头
     pub exe_name: String,
@@ -38,12 +38,12 @@ pub fn confirm(mtm: MainThreadMarker) -> bool {
     let alert = NSAlert::new(mtm);
     alert.setAlertStyle(NSAlertStyle::Warning);
     alert.setMessageText(&NSString::from_str(&tr!(
-        "卸载 Airhand？",
-        "Uninstall Airhand?"
+        "卸载 Nife Remote？",
+        "Uninstall Nife Remote?"
     )));
     alert.setInformativeText(&NSString::from_str(&tr!(
-        "会关掉登录时自动启动，清除 Airhand 的“屏幕与系统录音”“辅助功能”等权限，删除配置文件（本机的控制码、“我的设备”里保存的电脑）和系统为它生成的缓存、记下的菜单栏图标设置，然后把 Airhand 移到废纸篓并退出。\n\n正在控制本机的连接会断开。",
-        "This turns off open at login, clears Airhand's permissions (Screen & System Audio Recording, Accessibility and so on), deletes the configuration file (this computer's control code and the computers saved in My devices) and the caches and menu bar icon settings macOS keeps for it, then moves Airhand to the Trash and quits.\n\nAnyone controlling this computer will be disconnected."
+        "会关掉登录时自动启动，清除 Nife Remote 的“屏幕与系统录音”“辅助功能”等权限，删除配置文件（本机的控制码、“我的设备”里保存的电脑）和系统为它生成的缓存、记下的菜单栏图标设置，然后把 Nife Remote 移到废纸篓并退出。\n\n正在控制本机的连接会断开。",
+        "This turns off open at login, clears Nife Remote's permissions (Screen & System Audio Recording, Accessibility and so on), deletes the configuration file (this computer's control code and the computers saved in My devices) and the caches and menu bar icon settings macOS keeps for it, then moves Nife Remote to the Trash and quits.\n\nAnyone controlling this computer will be disconnected."
     )));
     // 第一个按钮是默认按钮（回车）：默认是"取消"，不会一按回车就卸载了
     alert.addButtonWithTitle(&NSString::from_str(&tr!("取消", "Cancel")));
@@ -57,18 +57,18 @@ pub fn done(mtm: MainThreadMarker, problems: &[String]) {
     let alert = NSAlert::new(mtm);
     let text = if problems.is_empty() {
         alert.setMessageText(&NSString::from_str(&tr!(
-            "Airhand 已卸载",
-            "Airhand has been uninstalled"
+            "Nife Remote 已卸载",
+            "Nife Remote has been uninstalled"
         )));
         tr!(
-            "Airhand 已经移到废纸篓，清空废纸篓就彻底删掉了。",
-            "Airhand is in the Trash now; empty the Trash to delete it for good."
+            "Nife Remote 已经移到废纸篓，清空废纸篓就彻底删掉了。",
+            "Nife Remote is in the Trash now; empty the Trash to delete it for good."
         )
     } else {
         alert.setAlertStyle(NSAlertStyle::Warning);
         alert.setMessageText(&NSString::from_str(&tr!(
-            "Airhand 没有完全卸载",
-            "Airhand wasn't completely uninstalled"
+            "Nife Remote 没有完全卸载",
+            "Nife Remote wasn't completely uninstalled"
         )));
         let list = problems
             .iter()
@@ -150,8 +150,8 @@ pub fn run(plan: &Plan) -> Vec<String> {
         let shown = bundle.display();
         step(
             tr!(
-                "把 Airhand 移到废纸篓（{shown}）",
-                "Move Airhand to the Trash ({shown})"
+                "把 Nife Remote 移到废纸篓（{shown}）",
+                "Move Nife Remote to the Trash ({shown})"
             ),
             trash(bundle),
         );
@@ -233,7 +233,7 @@ fn is_protected(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok_and(|m| m.st_flags() & (SF_RESTRICTED | SF_NOUNLINK) != 0)
 }
 
-/// `app.airhand.client`（Metal）、`com.apple.WebKit.GPU+app.airhand.client`（WebKit 的各个进程）
+/// `app.nife-remote.client`（Metal）、`com.apple.WebKit.GPU+app.nife-remote.client`（WebKit 的各个进程）
 fn is_cache_of(name: &str, bundle_id: &str) -> bool {
     name == bundle_id
         || name
@@ -241,8 +241,8 @@ fn is_cache_of(name: &str, bundle_id: &str) -> bool {
             .is_some_and(|rest| rest.ends_with('+'))
 }
 
-/// macOS 记下的崩溃报告：`~/Library/Logs/DiagnosticReports/airhand-<时间>.ips`、
-/// `~/Library/Application Support/CrashReporter/airhand_<UUID>.plist`
+/// macOS 记下的崩溃报告：`~/Library/Logs/DiagnosticReports/nife-remote-<时间>.ips`、
+/// `~/Library/Application Support/CrashReporter/nife_remote_<UUID>.plist`
 fn remove_crash_reports(exe_name: &str) -> Result<(), String> {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
         return Ok(());
@@ -273,10 +273,10 @@ fn remove_crash_reports(exe_name: &str) -> Result<(), String> {
     }
 }
 
-/// App 自己的偏好设置（`~/Library/Preferences/<bundle ID>.plist`）。Airhand 不用它，平时也没有这个文件；
+/// App 自己的偏好设置（`~/Library/Preferences/<bundle ID>.plist`）。Nife Remote 不用它，平时也没有这个文件；
 /// 用户按住 ⌘ 拖动过菜单栏图标（`NSStatusItem Preferred Position Item-0`）、或者在“系统设置 → 菜单栏”里
 /// 关掉过它（macOS 26 起，`NSStatusItem VisibleCC Item-0`）时，AppKit 把这些记在这里。不删的话，重新安装后
-/// 菜单栏图标还是藏着的，而菜单栏图标是 Airhand 唯一的界面。
+/// 菜单栏图标还是藏着的，而菜单栏图标是 Nife Remote 唯一的界面。
 /// 先经过 cfprefsd 删（`defaults delete`，不靠 cfprefsd 自己发现文件没了、清掉缓存），它会留下一个空文件，再把文件删掉。
 /// 调用之前菜单栏图标要已经拿掉：AppKit 移除图标时会改写偏好设置，删完之后再移除会重新生成一个空文件
 fn remove_preferences(bundle_id: &str) -> Result<(), String> {
@@ -349,21 +349,21 @@ mod tests {
 
     #[test]
     fn finds_its_own_caches_only() {
-        let id = "app.airhand.client";
+        let id = "app.nife-remote.client";
         for ours in [
-            "app.airhand.client",
-            "com.apple.WebKit.GPU+app.airhand.client",
-            "com.apple.WebKit.Networking+app.airhand.client",
-            "com.apple.WebKit.WebContent+app.airhand.client",
+            "app.nife-remote.client",
+            "com.apple.WebKit.GPU+app.nife-remote.client",
+            "com.apple.WebKit.Networking+app.nife-remote.client",
+            "com.apple.WebKit.WebContent+app.nife-remote.client",
         ] {
             assert!(is_cache_of(ours, id), "{ours}");
         }
         for theirs in [
             "com.apple.WebKit.GPU+com.example.app",
             "com.apple.WebKit.GPU.Sandbox",
-            "myapp.airhand.client",
-            "app.airhand.client.other",
-            "app.airhand.android",
+            "myapp.nife-remote.client",
+            "app.nife-remote.client.other",
+            "app.nife-remote.android",
             "com.apple.metal",
         ] {
             assert!(!is_cache_of(theirs, id), "{theirs}");
@@ -373,19 +373,19 @@ mod tests {
     #[test]
     fn finds_its_own_crash_reports_only() {
         for ours in [
-            "airhand-2026-11-08-231352.ips",
-            "airhand_CB7C7C2B-7CB9-5D42-99A3-7CE19346F1B6.plist",
+            "nife-remote-2026-11-08-231352.ips",
+            "nife_remote_CB7C7C2B-7CB9-5D42-99A3-7CE19346F1B6.plist",
         ] {
-            assert!(is_crash_report_of(ours, "airhand"), "{ours}");
+            assert!(is_crash_report_of(ours, "nife-remote"), "{ours}");
         }
         for theirs in [
-            "airhandx-2026-11-08-231352.ips",
-            "airhand-2026-11-08.txt",
+            "nife-remotex-2026-11-08-231352.ips",
+            "nife-remote-2026-11-08.txt",
             "Safari-2026-11-08-231352.ips",
-            "airhand_x.ips",
-            "airhand.ips",
+            "nife_remote_x.ips",
+            "nife-remote.ips",
         ] {
-            assert!(!is_crash_report_of(theirs, "airhand"), "{theirs}");
+            assert!(!is_crash_report_of(theirs, "nife-remote"), "{theirs}");
         }
     }
 
@@ -393,9 +393,9 @@ mod tests {
     #[test]
     fn refuses_an_unexpected_config_dir() {
         let dir =
-            std::env::temp_dir().join(format!("airhand-uninstall-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nife-remote-uninstall-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        assert!(remove_config(&dir, "app.airhand.client").is_err());
+        assert!(remove_config(&dir, "app.nife-remote.client").is_err());
         assert!(dir.exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
@@ -403,7 +403,7 @@ mod tests {
     /// 偏好设置：有就删干净（`defaults delete` 留下的空文件也删掉），没有（平时就是这样）不算错
     #[test]
     fn removes_preferences() {
-        let id = format!("app.airhand.uninstall-test-{}", std::process::id());
+        let id = format!("app.nife-remote.uninstall-test-{}", std::process::id());
         let file = PathBuf::from(std::env::var_os("HOME").unwrap())
             .join(format!("Library/Preferences/{id}.plist"));
         let written = std::process::Command::new("/usr/bin/defaults")
@@ -428,7 +428,7 @@ mod tests {
     #[test]
     fn ordinary_dirs_are_not_protected() {
         let dir =
-            std::env::temp_dir().join(format!("airhand-protected-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("nife-remote-protected-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         assert!(!is_protected(&dir));
         std::fs::remove_dir_all(&dir).unwrap();

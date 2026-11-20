@@ -10,7 +10,7 @@
 //! ```
 //!
 //! * 不用同意的会话不等控制端的确认就开始（省一个往返，编码器的初始化也和它重叠），确认了才显示它
-//!   （[`Platform::confirmed`]）；[`CONFIRM_TIMEOUT`] 等不到确认就结束（见 `airhand_proto::handshake` 的"确认"）；
+//!   （[`Platform::confirmed`]）；[`CONFIRM_TIMEOUT`] 等不到确认就结束（见 `nife_remote_proto::handshake` 的"确认"）；
 //! * 要同意的会话确认了才问本机用户：重放的握手消息不能弹出请求。同时最多有 [`MAX_PENDING_APPROVALS`] 个请求
 //!   在等本机用户回答，再来的不问、直接回绝（[`ApprovalSlots`]）；
 //! * 同意之前只回应 Ping、记下画质和声音设置（同意之后随 [`Start`] 一起生效），不发画面、不执行任何输入；
@@ -29,7 +29,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use airhand_proto::session::{ByeReason, HostMsg, InputEvent, QualitySettings};
+use nife_remote_proto::session::{ByeReason, HostMsg, InputEvent, QualitySettings};
 use anyhow::{Result, bail};
 use bytes::Bytes;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch};
@@ -52,9 +52,9 @@ pub trait Acks: Send + Sync + 'static {
     }
 }
 
-/// 控制端麦克风的声音交给谁（[`Platform::mic`]，见 `airhand_proto::session` 的"麦克风"）。在读任务里调用：要快，不能等什么
+/// 控制端麦克风的声音交给谁（[`Platform::mic`]，见 `nife_remote_proto::session` 的"麦克风"）。在读任务里调用：要快，不能等什么
 pub trait MicSink: Send + Sync + 'static {
-    /// 一个声音包（`airhand_proto::media` 格式：头 + Opus 包）。数据报里的副本已经去掉了、丢了的补上了，
+    /// 一个声音包（`nife_remote_proto::media` 格式：头 + Opus 包）。数据报里的副本已经去掉了、丢了的补上了，
     /// 按采集先后一个一个来（见 `crate::audio`）
     fn packet(&self, packet: Vec<u8>);
 }
@@ -72,7 +72,7 @@ use super::{Admission, Gate, Incoming};
 
 /// 控制端每秒都会发 Ping，这么久没有任何消息说明对方已失联
 pub const PEER_TIMEOUT: Duration = Duration::from_secs(30);
-/// 这么久等不到控制端的确认（见 `airhand_proto::handshake` 的"确认"）就结束会话
+/// 这么久等不到控制端的确认（见 `nife_remote_proto::handshake` 的"确认"）就结束会话
 pub const CONFIRM_TIMEOUT: Duration = crate::secure::STEP_TIMEOUT;
 /// 本机用户这么久没有回应连接请求就当作没人理会（[`ByeReason::Unanswered`]）
 pub const APPROVAL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -111,11 +111,11 @@ pub enum Request {
     /// 画质设置变了（做过范围校验）
     Settings(QualitySettings),
     /// 要一个关键帧：控制端要的（例如解码器重置了）带着它收到的最后一帧的序号，在那之后发过关键帧就不用再编了
-    /// （见 `airhand_proto::session` 的"关键帧"）；`None`：被控端自己要的（直连断了，断在上面的帧接收端等不到了），一定要编
+    /// （见 `nife_remote_proto::session` 的"关键帧"）；`None`：被控端自己要的（直连断了，断在上面的帧接收端等不到了），一定要编
     Keyframe(Option<u32>),
     /// 改看另一个显示器（序号没检查过）
     SelectDisplay(u8),
-    /// 控制端复制了文本（不会超过 [`airhand_proto::session::MAX_CLIPBOARD_TEXT`]）
+    /// 控制端复制了文本（不会超过 [`nife_remote_proto::session::MAX_CLIPBOARD_TEXT`]）
     Clipboard(String),
     /// 打开 / 关闭声音
     Audio(bool),
@@ -164,7 +164,7 @@ pub trait Platform: Send {
         let _ = allowed;
     }
 
-    /// 控制端确认了握手（见 `airhand_proto::handshake` 的"确认"）：是真的在连，这时才在托盘、列表里显示它。
+    /// 控制端确认了握手（见 `nife_remote_proto::handshake` 的"确认"）：是真的在连，这时才在托盘、列表里显示它。
     /// 不用同意的会话这时已经开始了（[`Platform::start`] 在确认之前：重放的握手消息看不到画面，只是让本机白编码一会儿）；
     /// 要同意的会话接着就是 [`Platform::ask`]
     fn confirmed(&mut self) {}
@@ -443,9 +443,9 @@ mod tests {
     use crate::host::queue::{self, LaneReceiver};
     use crate::host::streams::{Express, request};
     use crate::tasks::OwnedTask;
-    use airhand_proto::framing;
-    use airhand_proto::handshake::Negotiated;
-    use airhand_proto::session::{
+    use nife_remote_proto::framing;
+    use nife_remote_proto::handshake::Negotiated;
+    use nife_remote_proto::session::{
         Codec, ControllerDatagram, ControllerMsg, MAX_CLIPBOARD_TEXT, MouseButton,
     };
     use std::sync::{Arc, Mutex};

@@ -12,8 +12,8 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-use airhand_proto::SessionLane;
-use airhand_proto::session::{DirectOffer, HostDatagram, HostMsg};
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::session::{DirectOffer, HostDatagram, HostMsg};
 use anyhow::{Context, Result};
 use quinn::{Connection, Endpoint, RecvStream};
 use tokio::sync::{Notify, Semaphore, mpsc};
@@ -174,7 +174,7 @@ pub(crate) struct Session {
     pub feed: Feed,
     /// 发 [`HostMsg::Direct`]
     pub out: Outbox,
-    /// 控制端的回答（[`airhand_proto::session::ControllerMsg::Direct`]，读任务转过来的）
+    /// 控制端的回答（[`nife_remote_proto::session::ControllerMsg::Direct`]，读任务转过来的）
     pub answers: mpsc::Receiver<DirectOffer>,
     /// 画面的确认交给谁（平台的，会话开始时才有）：换路时告诉它
     pub acks: Arc<OnceLock<Arc<dyn Acks>>>,

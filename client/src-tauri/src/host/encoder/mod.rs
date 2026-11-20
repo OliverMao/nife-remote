@@ -24,7 +24,7 @@ mod vt;
 
 use std::sync::OnceLock;
 
-use airhand_proto::session::{Codec, EncoderInfo, QualitySettings, VideoPriority};
+use nife_remote_proto::session::{Codec, EncoderInfo, QualitySettings, VideoPriority};
 use anyhow::{Context, Result, anyhow, bail};
 use fast_image_resize as fir;
 use tracing::info;

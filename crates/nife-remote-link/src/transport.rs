@@ -9,12 +9,12 @@
 //! 在 QUIC 包里排在所有流的前面。
 use crate::merge::{Frame, Merge};
 use crate::paths::Paths;
-use airhand_proto::SessionLane;
-use airhand_proto::datagram;
-use airhand_proto::framing::{self, Decoded};
-use airhand_proto::handshake::SEAL_OVERHEAD;
-use airhand_proto::minicbor::Decode;
-use airhand_proto::session::{ControllerMsg, HostMsg};
+use nife_remote_proto::SessionLane;
+use nife_remote_proto::datagram;
+use nife_remote_proto::framing::{self, Decoded};
+use nife_remote_proto::handshake::SEAL_OVERHEAD;
+use nife_remote_proto::minicbor::Decode;
+use nife_remote_proto::session::{ControllerMsg, HostMsg};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use quinn::SendStream;
@@ -26,7 +26,7 @@ use tracing::debug;
 use crate::secure::{Opener, Sealer};
 
 /// 加密一帧（`u32 长度 | 明文`）。编码时多留了加密开销的位置，通常不用重新分配（[`framing::encode_with_spare`]、
-/// `airhand_proto::media::frame`）；同一份数据发给几个会话时（例如 Android 的广播）这里拷贝一次，每个会话的密钥不一样
+/// `nife_remote_proto::media::frame`）；同一份数据发给几个会话时（例如 Android 的广播）这里拷贝一次，每个会话的密钥不一样
 pub fn seal(frame: Bytes, sealer: &mut Sealer) -> Result<Bytes> {
     let mut v = Vec::from(frame);
     v.reserve(SEAL_OVERHEAD);

@@ -1,7 +1,7 @@
 // 控制台的 Worker：和控制端服务之间的 WebSocket，画面的解码（WebCodecs）和绘制（OffscreenCanvas），声音的解码。
 // 主线程（console.ts）只处理 JSON 和界面，它忙的时候画面、确认和声音照样走。
 //
-// 协议见 crates/airhand-link/src/console.rs。文本消息原样交给主线程；二进制是 `ch u32 LE | 媒体包`（media.ts），
+// 协议见 crates/nife-remote-link/src/console.rs。文本消息原样交给主线程；二进制是 `ch u32 LE | 媒体包`（media.ts），
 // 按 ch 交给会话的画面（View）：画面一到就确认（ack.ts）再解码，声音解码后直接交给音频线程，光标交给主线程（它要改 CSS）。
 // 本机麦克风的声音从音频线程直接送到这里（mic-encoder.ts），编码之后发给控制端服务（二进制，见 media.ts 的 micMessage）。
 import { AckCoalescer, ackMessage } from "./ack";
@@ -133,8 +133,8 @@ let ws: WebSocket | null = null;
 const views = new Map<number, View>();
 const chans = new Map<number, Chan>();
 
-// 仅开发模式：方便用 DevTools / 自动化脚本查看画面的状态（例如 scripts/measure-avsync.mjs），和页面的 __airhand 一样
-if (import.meta.env.DEV) Object.assign(self, { __airhand: { views } });
+// 仅开发模式：方便用 DevTools / 自动化脚本查看画面的状态（例如 scripts/measure-avsync.mjs），和页面的 __nife_remote 一样
+if (import.meta.env.DEV) Object.assign(self, { __nife_remote: { views } });
 
 function post(m: FromWorker, transfer: Transferable[] = []) {
   self.postMessage(m, { transfer });
