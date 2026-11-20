@@ -7,6 +7,11 @@ export default {
   "app.title": "Nife Remote 控制台",
 
   // 通用
+  "login.subtitle": "登录后使用远程控制",
+  "login.authHint": "账号服务地址由管理员提供；保存后窗口会重启",
+  "login.authSave": "保存并继续",
+  "login.changeAuth": "切换账号服务",
+  "common.cancel": "取消",
   "common.connecting": "连接中…",
   "common.disconnected": "已断开",
   "common.disconnect": "断开",
@@ -128,7 +133,7 @@ export default {
   "account.register": "注册",
   "account.name": "账号名",
   "account.password": "密码（至少 6 位）",
-  "account.hint": "账号保存在这台电脑上（accounts.json），密码只存盐和摘要",
+  "account.hint": "账号保存在服务器上；本机只记登录凭证",
   "account.logout": "退出登录",
   "account.local": "本机账号",
   "assist.title": "远程协助",

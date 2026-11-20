@@ -81,6 +81,11 @@ struct ErrorDetail {
 
 /// 账号服务的地址（末尾不带 `/`）
 pub fn base_url() -> String {
+    // 界面里填的（config.toml 的 auth）优先：登录页 / 设置面板里改的就是它
+    let saved = crate::config::settings().auth.clone();
+    if !saved.trim().is_empty() {
+        return trim(saved);
+    }
     if let Some(url) = std::env::var("NIFE_REMOTE_AUTH").ok().filter(|s| !s.trim().is_empty()) {
         return trim(url);
     }

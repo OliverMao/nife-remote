@@ -1,12 +1,10 @@
-// 账号菜单（标题栏右上角那个人像）：登录 / 注册 / 退出。
+// 账号菜单（标题栏右上角那个人像）：已登录之后才有——改密码 / 退出登录。
 //
-// 账号是本机的（accounts.json，见 Rust 的 accounts 模块）：还没有服务器侧账号服务，
-// 所以这里登录的是这台电脑上的账号，密码只存盐 + 摘要。
+// 登录 / 注册是整页的（见 LoginView）：没登录时整个窗口只有登录页，进不来主界面。
 import { useState, type FormEvent } from "react";
 import { api, toProblem, type AccountInfo, type Problem } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { problemText } from "../lib/messages";
-import { syncDevicesFromAccount } from "../lib/actions";
 import { store, useStore } from "../lib/store";
 import { IconUser } from "./Icons";
 import { Popover } from "./Popover";
@@ -38,33 +36,12 @@ export function AccountButton() {
 function AccountMenu({ onClose }: { onClose: () => void }) {
   const t = useT();
   const account = useStore((s) => s.account);
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem | null>(null);
   const [changing, setChanging] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [changed, setChanged] = useState(false);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const info =
-        mode === "login" ? await api.accountLogin(name, password) : await api.accountRegister(name, password);
-      store.setAccount(info);
-      // 登录后把账号里的设备拉回来（换机器登录也能看到自己的设备）
-      void syncDevicesFromAccount();
-      onClose();
-    } catch (err) {
-      setError(toProblem(err));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const changePassword = async (e: FormEvent) => {
     e.preventDefault();
@@ -148,43 +125,7 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
     );
   }
 
-  return (
-    <Popover className="account-menu" onClose={onClose}>
-      <div className="acc-tabs">
-        <button className={mode === "login" ? "on" : ""} onClick={() => (setMode("login"), setError(null))}>
-          {t("account.login")}
-        </button>
-        <button className={mode === "register" ? "on" : ""} onClick={() => (setMode("register"), setError(null))}>
-          {t("account.register")}
-        </button>
-      </div>
-      <form className="acc-form" onSubmit={submit}>
-        <input
-          className="acc-input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("account.name")}
-          autoFocus
-          aria-label={t("account.name")}
-          disabled={busy}
-        />
-        <input
-          className="acc-input"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={t("account.password")}
-          aria-label={t("account.password")}
-          disabled={busy}
-        />
-        <button className="primary-btn" type="submit" disabled={busy || !name.trim() || password.length < 6}>
-          {t(mode === "login" ? "account.login" : "account.register")}
-        </button>
-        <div className="muted small">{t("account.hint")}</div>
-        {error && <div className="error-box left">{problemText(error)}</div>}
-      </form>
-    </Popover>
-  );
+  return null;
 }
 
 export type { AccountInfo };

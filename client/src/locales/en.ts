@@ -6,6 +6,11 @@ const plural = (n: Params[string], one: string, many: string) => (Number(n) === 
 const en: Record<MsgKey, Msg> = {
   "app.title": "Nife Remote Console",
 
+  "login.subtitle": "Sign in to use remote control",
+  "login.authHint": "Ask your administrator for the account service address; the window restarts after saving",
+  "login.authSave": "Save and continue",
+  "login.changeAuth": "Change account service",
+  "common.cancel": "Cancel",
   "common.connecting": "Connecting…",
   "common.disconnected": "Disconnected",
   "common.disconnect": "Disconnect",
@@ -123,7 +128,7 @@ const en: Record<MsgKey, Msg> = {
   "account.register": "Sign up",
   "account.name": "Account name",
   "account.password": "Password (6+ characters)",
-  "account.hint": "The account lives on this computer (accounts.json); only a salted hash is stored",
+  "account.hint": "The account lives on the server; only a login token is kept here",
   "account.logout": "Sign out",
   "account.local": "Local account",
   "assist.title": "Remote assistance",

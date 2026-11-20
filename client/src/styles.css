@@ -3575,3 +3575,130 @@ button.hv-item:hover {
 .sp-relay-label {
   margin-top: 10px;
 }
+
+/* ───────── 登录页（没登录时整页就是它） ───────── */
+.login-shell {
+  background: var(--gutter);
+}
+.login-shell .workspace {
+  background: #fff;
+}
+/* 没登录时标题栏只留拖动区和窗口按钮：账号 / 菜单都不可用 */
+.login-shell .title-actions {
+  display: none;
+}
+.login-page {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+.login-card {
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 26px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--edge);
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(17, 20, 32, 0.06);
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.login-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.login-sub {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.login-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--glass-2);
+}
+.login-tabs button {
+  flex: 1;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.login-tabs button.on {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(17, 20, 32, 0.08);
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-label {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.login-input {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid var(--edge-2);
+  background: #fff;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+}
+.login-input:focus {
+  border-color: var(--brand);
+}
+.login-btn {
+  height: 38px;
+  border-radius: 7px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+.login-btn:disabled {
+  background: var(--edge-2);
+}
+.login-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.login-link {
+  align-self: center;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.login-link:hover {
+  color: var(--brand);
+}
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.login-foot .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

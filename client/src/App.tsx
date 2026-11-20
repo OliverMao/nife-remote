@@ -14,6 +14,7 @@ import { Sidebar } from "./components/Sidebar";
 import { DeviceView } from "./components/DeviceView";
 import { AssistView } from "./components/AssistView";
 import { HostView } from "./components/HostView";
+import { LoginView } from "./components/LoginView";
 
 markPlatform();
 
@@ -53,6 +54,8 @@ function Console() {
   const view = useStore((s) => s.view);
   const sessions = useStore((s) => s.sessions);
   const immersive = useStore((s) => s.immersive);
+  const account = useStore((s) => s.account);
+  const accountLoaded = useStore((s) => s.accountLoaded);
 
   useEffect(() => {
     const unLang = api.onLangChanged(setLang);
@@ -148,6 +151,19 @@ function Console() {
   }, [immersive]);
 
   const active = sessions.find((s) => s.id === view);
+
+  // 没登录：整个窗口就是登录页（标题栏留着，窗口还要能拖动 / 关闭）；账号状态还没读出来时什么都不画
+  if (!accountLoaded) return <div className="app login-shell" />;
+  if (!account) {
+    return (
+      <div className="app login-shell">
+        <div className="workspace">
+          <TitleBar />
+          <LoginView />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app ${immersive ? "immersive" : ""}`}>

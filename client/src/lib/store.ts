@@ -43,8 +43,10 @@ interface State {
   recent: Recent[];
   /** 本机偏好和记录（profile.json，见 Rust 的 profile 模块） */
   profile: Profile;
-  /** 现在登录的本机账号（accounts.json，没登录是 null） */
+  /** 现在登录的账号（账号服务里，没登录是 null） */
   account: AccountInfo | null;
+  /** 账号状态读出来了没有（没读出来之前不画界面，避免闪一下登录页） */
+  accountLoaded: boolean;
   /** 我的设备：连接过的电脑，最近连过的在前面 */
   devices: SavedDevice[];
   /** 我的设备能不能保存（桌面版：config.toml）；网页版只在本页面的内存里 */
@@ -118,6 +120,7 @@ let state: State = {
   recent: [],
   profile: { allowAssist: true, verify: "pairing", favorites: [], recent: [] },
   account: null,
+  accountLoaded: false,
   devices: [],
   devicesSaved: false,
   confirm: null,
@@ -278,7 +281,7 @@ export const store = {
   setRecent: (recent: Recent[]) => set({ recent }),
   /** 桌面端从 profile.json 读到的偏好（网页版是内存里的默认值） */
   setProfile: (profile: Profile) => set({ profile }),
-  setAccount: (account: AccountInfo | null) => set({ account }),
+  setAccount: (account: AccountInfo | null) => set({ account, accountLoaded: true }),
 
   setConfirm: (confirm: Confirm) => set({ confirm }),
 };
