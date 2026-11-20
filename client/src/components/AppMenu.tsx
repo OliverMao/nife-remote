@@ -5,11 +5,11 @@
 // 以前主菜单在最左边的 Logo 上：macOS 上和系统的红绿灯按钮挤在一起，点服务器状态也会在最左边弹出菜单。
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, toProblem, type Problem } from "../lib/api";
-import { focusActive } from "../lib/actions";
+import { focusActive, loadDevices } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
-import { serverStatus, useStore } from "../lib/store";
-import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconMenuLines, IconServer, IconSettings, IconWarn } from "./Icons";
+import { serverStatus, store, useStore } from "../lib/store";
+import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconMenuLines, IconRefresh, IconServer, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { Popover } from "./Popover";
 
@@ -90,6 +90,15 @@ function AppMenu({ onClose }: { onClose: () => void }) {
             <div className="am-path">{breakablePath(app.configPath)}</div>
           </div>
         )}
+      </div>
+
+      <div className="am-actions">
+        <button className="am-item" onClick={() => void loadDevices()}>
+          <span className="am-item-icon">
+            <IconRefresh size={16} />
+          </span>
+          <span className="am-item-text">{t("menu.refreshDevices")}</span>
+        </button>
       </div>
 
       {/* 网页版没有被控端，浏览器也会拦下这些快捷键 */}
@@ -271,8 +280,11 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setSaveError(null);
     try {
-      await api.saveAuth(auth);
-      await api.restartApp();
+      const saved = await api.saveAuth(auth);
+      // 账号服务地址立刻生效；中转服务器地址下次启动才用于连接
+      if (app) store.setApp({ ...app, auth: saved });
+      setEditing(false);
+      setBusy(false);
     } catch (err) {
       setSaveError(toProblem(err));
       setBusy(false);

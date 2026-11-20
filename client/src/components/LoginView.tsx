@@ -44,9 +44,12 @@ export function LoginView() {
     setBusy(true);
     setError(null);
     try {
-      await api.saveAuth(auth);
-      // 地址在启动时读一次，保存后重启让登录页按新地址工作
-      await api.restartApp();
+      // 保存后当前进程立刻用新地址（不重启、不关窗口），直接换成登录表单
+      const saved = await api.saveAuth(auth);
+      if (app) store.setApp({ ...app, auth: saved });
+      setAuth(saved);
+      setEditingAuth(false);
+      setBusy(false);
     } catch (err) {
       setError(toProblem(err));
       setBusy(false);
@@ -148,7 +151,7 @@ export function LoginView() {
 
         <div className="login-foot">
           <span className="mono">{shown || t("server.authNotSet")}</span>
-          {!editingAuth && (
+          {!editingAuth && !needsAuth && (
             <button className="login-link" onClick={() => (setAuth(shown), setEditingAuth(true))}>
               {t("login.changeAuth")}
             </button>

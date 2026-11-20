@@ -8,7 +8,7 @@ export default {
 
   // 通用
   "login.subtitle": "登录后使用远程控制",
-  "login.authHint": "账号服务地址由管理员提供；保存后窗口会重启",
+  "login.authHint": "账号服务地址由管理员提供，保存后立即生效",
   "login.authSave": "保存并继续",
   "login.changeAuth": "切换账号服务",
   "common.cancel": "取消",
@@ -61,6 +61,7 @@ export default {
   "menu.title": "设置",
   "menu.version": "v{version}",
   "menu.versionWeb": "v{version} · 网页控制台",
+  "menu.refreshDevices": "刷新我的设备",
   "menu.name": "本机名称",
   "menu.nameHintWeb": "对方电脑上显示的控制端名称（NIFE_REMOTE_NAME）",
   "menu.language": "语言",

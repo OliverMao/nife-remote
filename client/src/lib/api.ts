@@ -367,8 +367,8 @@ export interface Backend {
   command(c: Command): Promise<void>;
   /** 保存中转服务器地址和证书指纹（只有桌面版；网页版由 `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` 决定）。
    * `fp` 为空 = 首次连接时信任 */
-  /** 保存账号服务地址（中转服务器由它分配，用户不用填） */
-  saveAuth(auth: string): Promise<void>;
+  /** 保存账号服务地址（中转服务器由它分配，用户不用填）；返回最终生效的地址，不用重启 */
+  saveAuth(auth: string): Promise<string>;
   /** 重新问一次中转服务器（连接失败时自动调用）；分配变了返回 true */
   relayRefresh(): Promise<boolean>;
   /** 重启程序，让新的服务器设置生效（只有桌面版） */

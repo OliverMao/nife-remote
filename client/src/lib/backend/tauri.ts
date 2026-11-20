@@ -65,7 +65,7 @@ class DesktopConsole extends ConsoleLink implements Backend {
   }
 
   saveAuth(auth: string) {
-    return invoke<void>("auth_save", { auth });
+    return invoke<string>("auth_save", { auth });
   }
 
   relayRefresh() {

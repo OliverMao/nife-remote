@@ -7,7 +7,7 @@ const en: Record<MsgKey, Msg> = {
   "app.title": "Nife Remote Console",
 
   "login.subtitle": "Sign in to use remote control",
-  "login.authHint": "Ask your administrator for the account service address; the window restarts after saving",
+  "login.authHint": "Ask your administrator for the account service address; it takes effect right away",
   "login.authSave": "Save and continue",
   "login.changeAuth": "Change account service",
   "common.cancel": "Cancel",
@@ -57,6 +57,7 @@ const en: Record<MsgKey, Msg> = {
   "menu.title": "Settings",
   "menu.version": "v{version}",
   "menu.versionWeb": "v{version} · Web console",
+  "menu.refreshDevices": "Refresh my devices",
   "menu.name": "This computer",
   "menu.nameHintWeb": "The name remote computers see for this console (NIFE_REMOTE_NAME)",
   "menu.language": "Language",

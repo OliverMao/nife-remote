@@ -792,6 +792,25 @@ fn put_server(doc: &mut DocumentMut, server: &str, fp: &str) {
     doc.remove("server_trust");
 }
 
+/// 运行时改过的账号服务地址（界面里换了地址，马上生效，不用重启）
+static AUTH_NOW: std::sync::LazyLock<std::sync::RwLock<Option<String>>> =
+    std::sync::LazyLock::new(|| std::sync::RwLock::new(None));
+
+/// 现在的账号服务地址：界面里刚改过的优先，其次是启动时读到的配置
+pub fn auth() -> String {
+    if let Some(url) = AUTH_NOW.read().ok().and_then(|g| g.clone()) {
+        return url;
+    }
+    settings().auth.clone()
+}
+
+/// 记下界面里刚填的账号服务地址（配合 [`save_auth`]：写文件之后调一次，当前进程立刻用新的）
+pub fn set_auth_now(auth: &str) {
+    if let Ok(mut g) = AUTH_NOW.write() {
+        *g = Some(auth.trim().to_string());
+    }
+}
+
 /// 检查账号服务地址：`http(s)://host[:port]`，末尾斜杠去掉
 pub fn check_auth(auth: &str) -> Result<String> {
     let mut auth = auth.trim().to_string();

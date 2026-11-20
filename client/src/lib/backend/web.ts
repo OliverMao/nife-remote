@@ -272,10 +272,16 @@ class WebConsole extends ConsoleLink implements Backend {
 
   // 网页版没有本地文件：这份偏好放在内存里（刷新就回到默认值）
   async accountGet(): Promise<AccountInfo | null> {
+    // 开发预览（?preview=host）：假装已登录，方便看主界面。__NIFE_DEV__ 只在 dev 里由 main.tsx 设上
+    // （不能用 import.meta.env：这个文件也会被 node 的测试加载）
+    if (!webAccount && (globalThis as { __NIFE_DEV__?: boolean }).__NIFE_DEV__ && new URLSearchParams(location.search).has("preview")) {
+      return { id: "udev", name: "niferemote", createdAt: 0 };
+    }
     return webAccount?.info ?? null;
   }
   async accountRefresh(): Promise<AccountInfo | null> {
-    return webAccount?.info ?? null;
+    // 和 accountGet 一致（开发预览里也是那个假账号）
+    return this.accountGet();
   }
   async accountServer(): Promise<string> {
     return "（网页版没有账号服务）";
@@ -335,7 +341,7 @@ class WebConsole extends ConsoleLink implements Backend {
   async relayRefresh(): Promise<boolean> {
     return false;
   }
-  async saveAuth(): Promise<void> {
+  async saveAuth(): Promise<string> {
     throw new Error(
       "the web console's server is set with NIFE_REMOTE_SERVER / NIFE_REMOTE_SERVER_FP when the container starts",
     );

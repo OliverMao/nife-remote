@@ -435,7 +435,7 @@ struct AppInfo {
 fn app_info() -> AppInfo {
     AppInfo {
         version: config::VERSION,
-        auth: config::settings().auth.clone(),
+        auth: config::auth(),
         server: config::settings().server.clone(),
         configured: config::server_configured(),
         pinned: config::pinned(),
@@ -672,7 +672,7 @@ fn recent_drop(code: Option<String>) -> Result<profile::Profile, Problem> {
 /// 账号服务地址（界面里唯一要填的地址；中转服务器由它分配）
 #[tauri::command]
 fn auth_get() -> String {
-    config::settings().auth.clone()
+    config::auth()
 }
 
 /// 重新问账号服务要一次中转服务器（连接失败时界面会自动调；分配变了返回 true，界面再重启生效）
@@ -689,14 +689,16 @@ async fn relay_refresh() -> Result<bool, Problem> {
     Ok(before != (relay.address(), relay.fingerprint))
 }
 
-/// 保存账号服务地址：马上问一次中转服务器，写进 config.toml，然后重启让连接用上新的
+/// 保存账号服务地址：马上问一次中转服务器，写进 config.toml。
+/// 当前进程里的账号服务地址**立刻生效**（不用重启）；中转服务器地址要下次启动才用于连接。
 #[tauri::command]
-async fn auth_save(auth: String) -> Result<(), Problem> {
+async fn auth_save(auth: String) -> Result<String, Problem> {
     let auth = config::check_auth(&auth).map_err(|e| Problem::failed(format!("{e:#}")))?;
     // 先确认这个地址能用（拿得到中转服务器），再落盘：填错了能当场看到错误
     let relay = relay::fetch(&auth).await.map_err(|e| Problem::failed(format!("{e:#}")))?;
     let address = relay.address();
     config::check_server(&address, &relay.fingerprint).map_err(|e| Problem::failed(format!("{e:#}")))?;
+    let saved = auth.clone();
     tauri::async_runtime::spawn_blocking(move || -> anyhow::Result<()> {
         config::save_auth(&auth)?;
         config::save_server(&address, &relay.fingerprint)?;
@@ -705,7 +707,8 @@ async fn auth_save(auth: String) -> Result<(), Problem> {
     .await
     .map_err(Problem::failed)?
     .map_err(|e| Problem::failed(format!("{e:#}")))?;
-    Ok(())
+    config::set_auth_now(&saved);
+    Ok(saved)
 }
 
 /// 断开所有正在控制本机的控制端（左栏被控卡点开放大后那一页的按钮）

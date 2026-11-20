@@ -79,6 +79,10 @@ function Console() {
         void syncDevicesFromAccount();
       }
     }, () => {});
+    // 我的设备：每 30 秒自动刷新一次，窗口切回前台也刷新（别的地方改了配置能跟上）
+    const devicesTimer = window.setInterval(() => void loadDevices(), 30_000);
+    const onFocus = () => void loadDevices();
+    window.addEventListener("focus", onFocus);
     void supportedDecoders().then(store.setDecoders);
     // 连不上中转服务器时自动再问一次账号服务：分配变了（换了地址 / 线路）就重启用新的
     let asking = false;
@@ -131,6 +135,8 @@ function Console() {
     const unWinFs = api.onWindowFullscreenExit(exitImmersive);
     return () => {
       unStatus();
+      window.clearInterval(devicesTimer);
+      window.removeEventListener("focus", onFocus);
       unHost();
       unOnline();
       unLang();

@@ -2524,7 +2524,7 @@ kbd {
   align-items: center;
   gap: 10px;
   padding: 0 8px;
-  background: rgba(12, 14, 22, 0.55);
+  background: #fff;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   position: relative;
