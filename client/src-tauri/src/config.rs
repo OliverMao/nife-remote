@@ -53,6 +53,13 @@ pub const DEFAULT_SERVER_FP: &str = match option_env!("NIFE_REMOTE_SERVER_FP") {
     None => "",
 };
 
+/// 编译进程序的账号服务地址（`https://relay.example.com`）。配了它，客户端只要这一个地址：
+/// 中转服务器的地址和指纹由账号服务的 `GET /relay` 分配（见 [`crate::relay`]）。
+pub const DEFAULT_AUTH: &str = match option_env!("NIFE_REMOTE_AUTH") {
+    Some(v) => v,
+    None => "",
+};
+
 // 指纹写错了在编译时就报错，而不是等到运行时连不上服务器（规则与 nife_remote_link::net::parse_fingerprint 相同）
 const _: () = assert!(
     fingerprint_is_valid(DEFAULT_SERVER_FP),
@@ -97,6 +104,8 @@ const KEEP_CHECK: Duration = if cfg!(test) {
 /// 进程启动时读到的配置。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
+    /// 账号服务地址（`auth`）：填了就从中转服务器的 `GET /relay` 拿地址和指纹，用户不用自己填
+    pub auth: String,
     /// 中转服务器地址（`server`）
     pub server: String,
     /// 中转服务器证书指纹（`server_fp`），空字符串表示第一次连接时记下（见 [`FileTrust`]）
@@ -112,6 +121,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            auth: DEFAULT_AUTH.to_string(),
             server: DEFAULT_SERVER.to_string(),
             server_fp: DEFAULT_SERVER_FP.to_string(),
             autostart: true,
@@ -214,6 +224,9 @@ fn parse(text: &str) -> Result<Settings> {
     {
         s.server = v.trim().to_string();
     }
+    if let Some(v) = doc.get("auth").and_then(|v| v.as_str()) {
+        s.auth = v.trim().to_string();
+    }
     if let Some(v) = doc.get("server_fp").and_then(|v| v.as_str()) {
         s.server_fp = v.to_string();
     }
@@ -282,9 +295,17 @@ pub fn server_configured() -> bool {
         text.parse::<DocumentMut>()
             .ok()
             .and_then(|doc| {
-                doc.get("server")
+                let server = doc
+                    .get("server")
                     .and_then(|v| v.as_str())
                     .map(|v| !v.trim().is_empty())
+                    .unwrap_or(false);
+                let auth = doc
+                    .get("auth")
+                    .and_then(|v| v.as_str())
+                    .map(|v| !v.trim().is_empty())
+                    .unwrap_or(false);
+                Some(server || auth)
             })
             .unwrap_or(false)
     });
@@ -769,6 +790,32 @@ fn put_server(doc: &mut DocumentMut, server: &str, fp: &str) {
     doc["server"] = value(server);
     doc["server_fp"] = value(fp);
     doc.remove("server_trust");
+}
+
+/// 检查账号服务地址：`http(s)://host[:port]`，末尾斜杠去掉
+pub fn check_auth(auth: &str) -> Result<String> {
+    let mut auth = auth.trim().to_string();
+    anyhow::ensure!(!auth.is_empty(), "the account service address is empty");
+    let lower = auth.to_ascii_lowercase();
+    anyhow::ensure!(
+        lower.starts_with("http://") || lower.starts_with("https://"),
+        "the account service address must start with http:// or https://"
+    );
+    while auth.ends_with('/') {
+        auth.pop();
+    }
+    let rest = auth.splitn(2, "://").nth(1).unwrap_or("");
+    anyhow::ensure!(!rest.is_empty(), "the account service address is missing the host");
+    Ok(auth)
+}
+
+/// 保存控制台里填的账号服务地址（`auth`）。中转服务器的地址和指纹由账号服务分配，不在这里填
+pub fn save_auth(auth: &str) -> Result<()> {
+    let auth = check_auth(auth)?;
+    edit(move |doc| {
+        doc["auth"] = value(&auth);
+        Ok(())
+    })
 }
 
 /// 保存控制台里填的中转服务器地址和证书指纹（`fp` 为空表示首次连接时信任）。

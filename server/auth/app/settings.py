@@ -10,6 +10,9 @@
 | `NIFE_REMOTE_AUTH_ROUNDS` | `200000` | 密码摘要（PBKDF2-HMAC-SHA256）的迭代次数 |
 | `NIFE_REMOTE_AUTH_DEFAULT_USER` | `niferemote` | 服务器上**一个账号都没有**时自动建的账号名（设成空就不建） |
 | `NIFE_REMOTE_AUTH_DEFAULT_PASSWORD` | `niferemote` | 上面那个账号的初始密码（第一次登录后请改掉） |
+| `NIFE_REMOTE_AUTH_RELAY_HOST` | 空 | 中转服务器的地址（客户端从 `GET /relay` 拿到它，不用自己填） |
+| `NIFE_REMOTE_AUTH_RELAY_PORT` | `4433` | 中转服务器的端口（QUIC/UDP） |
+| `NIFE_REMOTE_AUTH_RELAY_FP` | 空 | 中转服务器的证书指纹（空 = 客户端首次连接时信任，会记在客户端本地） |
 """
 
 from __future__ import annotations
@@ -28,6 +31,9 @@ class Settings:
     rounds: int
     default_user: str = "niferemote"
     default_password: str = "niferemote"
+    relay_host: str = ""
+    relay_port: int = 4433
+    relay_fingerprint: str = ""
 
     @property
     def registration_open(self) -> bool:
@@ -61,4 +67,7 @@ def load() -> Settings:
             else (os.environ.get("NIFE_REMOTE_AUTH_DEFAULT_USER") or "").strip()
         ),
         default_password=os.environ.get("NIFE_REMOTE_AUTH_DEFAULT_PASSWORD") or "niferemote",
+        relay_host=(os.environ.get("NIFE_REMOTE_AUTH_RELAY_HOST") or "").strip(),
+        relay_port=_int("NIFE_REMOTE_AUTH_RELAY_PORT", 4433),
+        relay_fingerprint=(os.environ.get("NIFE_REMOTE_AUTH_RELAY_FP") or "").strip(),
     )

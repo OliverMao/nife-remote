@@ -26,6 +26,11 @@ export default {
   "window.restore": "向下还原",
   "window.close": "关闭控制台",
   // 服务器状态（标签栏右侧）
+  "server.auth": "账号服务地址",
+  "server.authHint": "https://relay.example.com",
+  "server.authNotSet": "还没填",
+  "server.authAssigned": "中转服务器的地址由账号服务分配，填完保存即可",
+  "server.relay": "中转服务器（自动分配）",
   "server.title": "中转服务器",
   "server.connected": "服务器已连接",
   "server.connecting": "正在连接服务器…",

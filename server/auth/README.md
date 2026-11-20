@@ -23,13 +23,15 @@ server/
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/health` | `{ok, version, users, registration}` |
+| `GET` | `/relay` | `{relay: {host, port, fingerprint}}`：**中转服务器由这里分配**，客户端只填账号服务地址 |
+| `GET` | `/health` | `{ok, version, users, registration, relay}` |
 | `POST` | `/auth/register` | `{name, password}` → `{token, user}` |
 | `POST` | `/auth/login` | `{name, password}` → `{token, user}` |
 | `POST` | `/auth/logout` | `Bearer <token>` → `{ok:true}` |
 | `GET` | `/auth/me` | `Bearer <token>` → `{user}` |
 | `GET` | `/auth/devices` | `Bearer <token>` → `{devices:["260778"]}` |
 | `PUT` | `/auth/devices` | `Bearer <token>` `{devices}` → `{devices}` |
+| `POST` | `/auth/password` | `Bearer <token>` `{oldPassword, newPassword}` → `{ok, token}` |
 
 错误统一是 `{"error": {"code": "...", "message": "..."}}`：
 

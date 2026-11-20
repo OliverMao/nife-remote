@@ -64,8 +64,8 @@ class DesktopConsole extends ConsoleLink implements Backend {
     return invoke<void>("devices_save", { devices });
   }
 
-  saveServer(server: string, fp: string) {
-    return invoke<void>("server_save", { server, fp });
+  saveAuth(auth: string) {
+    return invoke<void>("auth_save", { auth });
   }
 
   restartApp() {

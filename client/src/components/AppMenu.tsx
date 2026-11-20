@@ -248,21 +248,19 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
   // 服务器地址和指纹可以装机后再填（桌面版）；网页版是容器启动时的环境变量，改不了。
   // 还没填过（`app.configured` 为 false）时直接进入编辑：不填就没法用
   const [editing, setEditing] = useState(false);
-  const [addr, setAddr] = useState("");
-  const [fp, setFp] = useState("");
+  const [auth, setAuth] = useState("");
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<Problem | null>(null);
   const autoEdit = useRef(false);
 
   const startEdit = () => {
-    setAddr(app?.server ?? "");
-    setFp("");
+    setAuth(app?.auth ?? "");
     setSaveError(null);
     setEditing(true);
   };
 
   useEffect(() => {
-    if (autoEdit.current || api.kind !== "desktop" || !app || app.configured) return;
+    if (autoEdit.current || api.kind !== "desktop" || !app || app.auth) return;
     autoEdit.current = true;
     startEdit();
   }, [app]);
@@ -273,7 +271,7 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setSaveError(null);
     try {
-      await api.saveServer(addr, fp);
+      await api.saveAuth(auth);
       await api.restartApp();
     } catch (err) {
       setSaveError(toProblem(err));
@@ -315,47 +313,38 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
       {app && !editing && (
         <div className="sp-field">
           <div className="am-row-line">
-            <span className="am-label">{t("server.address")}</span>
-            {!app.pinned && (
-              <span className="badge warn" title={t("server.unpinnedHint")}>
-                {t("server.unpinned")}
-              </span>
-            )}
+            <span className="am-label">{t("server.auth")}</span>
             {api.kind === "desktop" && (
               <button className="sp-edit" onClick={startEdit}>
                 {t("server.edit")}
               </button>
             )}
           </div>
-          <div className="sp-addr mono">{app.server}</div>
+          <div className="sp-addr mono">{app.auth || t("server.authNotSet")}</div>
+          {app.configured && (
+            <>
+              <span className="am-label sp-relay-label">{t("server.relay")}</span>
+              <div className="sp-addr mono">{app.server}</div>
+            </>
+          )}
         </div>
       )}
 
       {app && editing && (
         <form className="sp-field" onSubmit={save}>
-          <label className="am-label" htmlFor="sp-server">
-            {t("server.address")}
+          <label className="am-label" htmlFor="sp-auth">
+            {t("server.auth")}
           </label>
           <input
-            id="sp-server"
+            id="sp-auth"
             className="sp-input mono"
-            value={addr}
-            onChange={(e) => setAddr(e.target.value)}
-            placeholder={t("server.addressHint")}
+            value={auth}
+            onChange={(e) => setAuth(e.target.value)}
+            placeholder={t("server.authHint")}
             autoFocus
             spellCheck={false}
           />
-          <label className="am-label" htmlFor="sp-fp">
-            {t("server.fp")}
-          </label>
-          <input
-            id="sp-fp"
-            className="sp-input mono"
-            value={fp}
-            onChange={(e) => setFp(e.target.value)}
-            placeholder={t("server.fpHint")}
-            spellCheck={false}
-          />
+          <p className="sp-hint">{t("server.authAssigned")}</p>
           {saveError && (
             <div className="error-box left" role="alert">
               <IconWarn size={15} />

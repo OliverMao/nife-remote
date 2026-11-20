@@ -26,6 +26,7 @@ pub mod host;
 #[cfg(target_os = "macos")]
 mod login_item;
 mod profile;
+mod relay;
 mod single_instance;
 pub mod status;
 mod sysinfo;
@@ -419,6 +420,8 @@ pub(crate) fn on_tray_left_click(app: &AppHandle) {
 #[serde(rename_all = "camelCase")]
 struct AppInfo {
     version: &'static str,
+    /// 账号服务地址（用户唯一要填的；中转服务器由它分配）
+    auth: String,
     server: String,
     /// 配置过中转服务器没有（没有的话 `server` 只是占位的 127.0.0.1:4433，不连接也不重试）
     configured: bool,
@@ -432,6 +435,7 @@ struct AppInfo {
 fn app_info() -> AppInfo {
     AppInfo {
         version: config::VERSION,
+        auth: config::settings().auth.clone(),
         server: config::settings().server.clone(),
         configured: config::server_configured(),
         pinned: config::pinned(),
@@ -665,6 +669,31 @@ fn recent_drop(code: Option<String>) -> Result<profile::Profile, Problem> {
     Ok(p)
 }
 
+/// 账号服务地址（界面里唯一要填的地址；中转服务器由它分配）
+#[tauri::command]
+fn auth_get() -> String {
+    config::settings().auth.clone()
+}
+
+/// 保存账号服务地址：马上问一次中转服务器，写进 config.toml，然后重启让连接用上新的
+#[tauri::command]
+async fn auth_save(auth: String) -> Result<(), Problem> {
+    let auth = config::check_auth(&auth).map_err(|e| Problem::failed(format!("{e:#}")))?;
+    // 先确认这个地址能用（拿得到中转服务器），再落盘：填错了能当场看到错误
+    let relay = relay::fetch(&auth).await.map_err(|e| Problem::failed(format!("{e:#}")))?;
+    let address = relay.address();
+    config::check_server(&address, &relay.fingerprint).map_err(|e| Problem::failed(format!("{e:#}")))?;
+    tauri::async_runtime::spawn_blocking(move || -> anyhow::Result<()> {
+        config::save_auth(&auth)?;
+        config::save_server(&address, &relay.fingerprint)?;
+        Ok(())
+    })
+    .await
+    .map_err(Problem::failed)?
+    .map_err(|e| Problem::failed(format!("{e:#}")))?;
+    Ok(())
+}
+
 /// 断开所有正在控制本机的控制端（左栏被控卡点开放大后那一页的按钮）
 #[tauri::command]
 fn kick_all(state: tauri::State<'_, AppState>) -> Result<(), Problem> {
@@ -773,6 +802,12 @@ pub fn run() {
         }
         config::keep_file();
     }
+    // 配了账号服务的话：启动时先问它"中转服务器在哪"，写进 config.toml 再启动各种服务。
+    // 拉不到就保留上一次的值（离线也能连已经配好的服务器）。
+    let auth = config::settings().auth.clone();
+    if !auth.is_empty() && !service_mode {
+        let _ = tauri::async_runtime::block_on(async { relay::resolve(&auth).await });
+    }
     enable_dpi_awareness();
     // 先清理上次残留的目录，再创建本次的（同一个前缀）
     ephemeral::sweep_stale();
@@ -805,6 +840,8 @@ pub fn run() {
             devices_save,
             server_save,
             pairing_save,
+            auth_get,
+            auth_save,
             kick_all,
             kick_session,
             account_get,

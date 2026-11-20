@@ -121,7 +121,9 @@ export type RemoteNotice =
 
 export interface AppInfo {
   version: string;
-  /** 中转服务器地址 */
+  /** 账号服务地址（用户唯一要填的地址；中转服务器由它分配） */
+  auth: string;
+  /** 中转服务器地址（由账号服务分配，界面上只显示） */
   server: string;
   /** 配置过中转服务器没有：false 时 `server` 只是占位的 127.0.0.1:4433，不连接也不重试 */
   configured: boolean;
@@ -365,7 +367,8 @@ export interface Backend {
   command(c: Command): Promise<void>;
   /** 保存中转服务器地址和证书指纹（只有桌面版；网页版由 `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` 决定）。
    * `fp` 为空 = 首次连接时信任 */
-  saveServer(server: string, fp: string): Promise<void>;
+  /** 保存账号服务地址（中转服务器由它分配，用户不用填） */
+  saveAuth(auth: string): Promise<void>;
   /** 重启程序，让新的服务器设置生效（只有桌面版） */
   restartApp(): Promise<void>;
   /** 改本机的配对码（6 位数字，本机生成的；马上生效，写进 config.toml）。只有桌面版 */

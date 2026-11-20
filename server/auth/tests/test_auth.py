@@ -34,7 +34,14 @@ def client(tmp_path, monkeypatch):
     from app import main as main_mod  # 同一个模块：StoreError 等类型只有一份
 
     main_mod.settings = settings_mod.Settings(
-        db_path=db, token_ttl=3600, max_users=5, registration="open", rounds=1000
+        db_path=db,
+        token_ttl=3600,
+        max_users=5,
+        registration="open",
+        rounds=1000,
+        relay_host="relay.test",
+        relay_port=4433,
+        relay_fingerprint="ab:cd",
     )
     main_mod.store = main_mod.AccountStore(db, rounds=1000, token_ttl=3600, max_users=5)
     main_mod._failures.clear()
@@ -199,3 +206,25 @@ def test_default_account_is_seeded(client):
     assert r.status_code == 200
     assert r.json()["user"]["name"] == "niferemote"
     assert r.json()["user"]["devices"] == []
+
+
+def test_relay_is_assigned_by_the_service(client):
+    c, _ = client
+    r = c.get("/relay")
+    assert r.status_code == 200
+    relay = r.json()["relay"]
+    assert relay == {"host": "relay.test", "port": 4433, "fingerprint": "ab:cd"}
+    # 没配中转服务器时是空字符串（客户端据此提示"账号服务还没分配中转服务器"）
+    body = c.get("/health").json()
+    assert body["relay"] == "relay.test"
+
+
+def test_relay_without_configuration(client):
+    c, _ = client
+    from app import main as main_mod
+
+    main_mod.settings = settings_mod.Settings(
+        db_path=Path("/tmp/x.json"), token_ttl=60, max_users=5, registration="open", rounds=1000
+    )
+    assert c.get("/relay").json()["relay"] == {"host": "", "port": 4433, "fingerprint": ""}
+    assert c.get("/health").json()["relay"] is None

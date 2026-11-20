@@ -332,7 +332,7 @@ class WebConsole extends ConsoleLink implements Backend {
     return { ...defaultProfile };
   }
   // 网页版的服务器地址和指纹是启动容器时的环境变量，界面里改不了（见 web/.env.example）
-  async saveServer(): Promise<void> {
+  async saveAuth(): Promise<void> {
     throw new Error(
       "the web console's server is set with NIFE_REMOTE_SERVER / NIFE_REMOTE_SERVER_FP when the container starts",
     );

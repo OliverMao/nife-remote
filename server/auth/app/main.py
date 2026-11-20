@@ -7,6 +7,7 @@ POST /auth/logout     Bearer <token>            → {ok: true}
 GET  /auth/me         Bearer <token>            → {user}
 GET  /auth/devices    Bearer <token>            → {devices: ["260778"]}
 PUT  /auth/devices    Bearer <token> {devices}  → {devices: [...]}
+GET  /relay                                     → {relay: {host, port, fingerprint}}
 GET  /health                                    → {ok: true, users: n, version}
 ```
 
@@ -153,9 +154,30 @@ async def store_error_handler(request: Request, exc: StoreError) -> JSONResponse
     return error(status, exc.code, exc.message)
 
 
+@app.get("/relay")
+def relay() -> dict[str, Any]:
+    """中转服务器在哪：客户端只需要填账号服务地址，中转服务器的地址和指纹由这里分配。
+
+    以后要做"不同账号走不同路径 / 多线路 / 灰度"，改这里和 `settings` 就够了，客户端不用改。
+    """
+    return {
+        "relay": {
+            "host": settings.relay_host,
+            "port": settings.relay_port,
+            "fingerprint": settings.relay_fingerprint,
+        }
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "version": VERSION, "users": store.user_count, "registration": settings.registration}
+    return {
+        "ok": True,
+        "version": VERSION,
+        "users": store.user_count,
+        "registration": settings.registration,
+        "relay": settings.relay_host or None,
+    }
 
 
 @app.post("/auth/register")
