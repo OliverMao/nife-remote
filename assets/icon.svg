@@ -1,6 +1,6 @@
 <svg width="1000" height="1000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clip-path="url(#clip0_6_20)">
-<rect width="1000" height="1000" fill="#232325"/>
+
 <path d="M800 0H200C89.5431 0 0 89.543 0 200V800C0 910.457 89.5431 1000 200 1000H800C910.457 1000 1000 910.457 1000 800V200C1000 89.543 910.457 0 800 0Z" fill="white"/>
 <foreignObject x="0" y="0" width="1000" height="1000" overflow="visible" data-figma-3d="true">
 <div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:1000px;height:1000px">
