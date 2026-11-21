@@ -7,7 +7,7 @@ POST /auth/logout     Bearer <token>            → {ok: true}
 GET  /auth/me         Bearer <token>            → {user}
 GET  /auth/devices    Bearer <token>            → {devices: ["260778"]}
 PUT  /auth/devices    Bearer <token> {devices}  → {devices: [...]}
-GET  /relay                                     → {relay: {host, port, fingerprint}}
+GET  /relay                                     → {relay: {address, fingerprint}}
 GET  /health                                    → {ok: true, users: n, version}
 ```
 
@@ -158,12 +158,14 @@ async def store_error_handler(request: Request, exc: StoreError) -> JSONResponse
 def relay() -> dict[str, Any]:
     """中转服务器在哪：客户端只需要填账号服务地址，中转服务器的地址和指纹由这里分配。
 
+    `address` 就是 `NIFE_REMOTE_AUTH_RELAY_HOST` 的原样内容（`auth.naig.us`、
+    `192.11.11.11:4433` 都行），服务不拆分、不补端口，客户端照着连。
+
     以后要做"不同账号走不同路径 / 多线路 / 灰度"，改这里和 `settings` 就够了，客户端不用改。
     """
     return {
         "relay": {
-            "host": settings.relay_host,
-            "port": settings.relay_port,
+            "address": settings.relay_address,
             "fingerprint": settings.relay_fingerprint,
         }
     }
@@ -176,7 +178,7 @@ def health() -> dict[str, Any]:
         "version": VERSION,
         "users": store.user_count,
         "registration": settings.registration,
-        "relay": settings.relay_host or None,
+        "relay": settings.relay_address or None,
     }
 
 

@@ -18,5 +18,6 @@ server/auth/.env
 # Python（server/auth）
 __pycache__/
 *.pyc
+.venv/
 .pytest_cache/
 server/auth/data/

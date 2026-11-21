@@ -39,8 +39,7 @@ def client(tmp_path, monkeypatch):
         max_users=5,
         registration="open",
         rounds=1000,
-        relay_host="relay.test",
-        relay_port=4433,
+        relay_address="relay.test:4433",
         relay_fingerprint="ab:cd",
     )
     main_mod.store = main_mod.AccountStore(db, rounds=1000, token_ttl=3600, max_users=5)
@@ -213,10 +212,10 @@ def test_relay_is_assigned_by_the_service(client):
     r = c.get("/relay")
     assert r.status_code == 200
     relay = r.json()["relay"]
-    assert relay == {"host": "relay.test", "port": 4433, "fingerprint": "ab:cd"}
+    assert relay == {"address": "relay.test:4433", "fingerprint": "ab:cd"}
     # 没配中转服务器时是空字符串（客户端据此提示"账号服务还没分配中转服务器"）
     body = c.get("/health").json()
-    assert body["relay"] == "relay.test"
+    assert body["relay"] == "relay.test:4433"
 
 
 def test_relay_without_configuration(client):
@@ -226,5 +225,5 @@ def test_relay_without_configuration(client):
     main_mod.settings = settings_mod.Settings(
         db_path=Path("/tmp/x.json"), token_ttl=60, max_users=5, registration="open", rounds=1000
     )
-    assert c.get("/relay").json()["relay"] == {"host": "", "port": 4433, "fingerprint": ""}
+    assert c.get("/relay").json()["relay"] == {"address": "", "fingerprint": ""}
     assert c.get("/health").json()["relay"] is None

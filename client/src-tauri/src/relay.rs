@@ -1,7 +1,7 @@
 //! 中转服务器的地址和证书指纹：**由账号服务分配**，用户不用填。
 //!
 //! ```text
-//! GET {auth}/relay → {"relay": {"host": "relay.example.com", "port": 4433, "fingerprint": "<hex 或空>"}}
+//! GET {auth}/relay → {"relay": {"address": "relay.example.com:4433", "fingerprint": "<hex 或空>"}}
 //! ```
 //!
 //! 启动时（以及改了账号服务地址之后）用这个结果写进 `config.toml` 的 `server` / `server_fp`，
@@ -24,16 +24,11 @@ const TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Relay {
-    pub host: String,
-    #[serde(default = "default_port")]
-    pub port: u16,
+    /// `NIFE_REMOTE_AUTH_RELAY_HOST` 的原样内容：`host:port`，账号服务不拆、不补端口
+    pub address: String,
     /// 中转服务器的证书指纹（空 = 首次连接时信任并记下）
     #[serde(default)]
     pub fingerprint: String,
-}
-
-fn default_port() -> u16 {
-    4433
 }
 
 #[derive(Deserialize)]
@@ -42,9 +37,9 @@ struct Envelope {
 }
 
 impl Relay {
-    /// `host:port`，写进 `config.toml` 的 `server`
+    /// 写进 `config.toml` 的 `server`：账号服务给什么就用什么
     pub fn address(&self) -> String {
-        format!("{}:{}", self.host.trim(), self.port)
+        self.address.trim().to_string()
     }
 }
 
@@ -72,7 +67,7 @@ pub async fn fetch(auth: &str) -> Result<Relay> {
     let Some(relay) = body.relay else {
         bail!("the account service hasn't assigned a relay server yet");
     };
-    if relay.host.trim().is_empty() {
+    if relay.address.trim().is_empty() {
         bail!("the account service hasn't assigned a relay server yet");
     }
     Ok(relay)
@@ -106,16 +101,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn address_joins_host_and_port() {
-        let relay = Relay { host: " relay.example.com ".into(), port: 4433, fingerprint: String::new() };
-        assert_eq!(relay.address(), "relay.example.com:4433");
-    }
-
-    #[test]
-    fn defaults_when_the_service_sends_only_a_host() {
-        let relay: Relay = serde_json::from_str(r#"{"host":"relay.example.com"}"#).unwrap();
-        assert_eq!(relay.port, 4433);
-        assert!(relay.fingerprint.is_empty());
+    fn the_address_is_used_as_given() {
+        // 账号服务给的是完整地址：不补端口、不改大小写、不拆 host:port
+        for address in ["relay.example.com:4433", "192.11.11.11:8443", "relay.example.com"] {
+            let relay = Relay { address: address.into(), fingerprint: String::new() };
+            assert_eq!(relay.address(), address);
+        }
+        let relay = Relay { address: " relay.example.com:4433 ".into(), fingerprint: String::new() };
         assert_eq!(relay.address(), "relay.example.com:4433");
     }
 
@@ -123,7 +115,7 @@ mod tests {
     fn envelope_without_a_relay_is_empty() {
         let env: Envelope = serde_json::from_str(r#"{"relay":null}"#).unwrap();
         assert!(env.relay.is_none());
-        let env: Envelope = serde_json::from_str(r#"{"relay":{"host":"h","port":4433,"fingerprint":"ab"}}"#).unwrap();
+        let env: Envelope = serde_json::from_str(r#"{"relay":{"address":"h:4433","fingerprint":"ab"}}"#).unwrap();
         assert_eq!(env.relay.unwrap().address(), "h:4433");
     }
 

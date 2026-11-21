@@ -67,7 +67,6 @@ services:
       NIFE_REMOTE_AUTH_DEFAULT_PASSWORD: ${NIFE_REMOTE_AUTH_DEFAULT_PASSWORD:-niferemote}
       # 分配给客户端的中转服务器（客户端只填账号服务地址，地址和指纹都从这里来）
       NIFE_REMOTE_AUTH_RELAY_HOST: ${NIFE_REMOTE_AUTH_RELAY_HOST:-}
-      NIFE_REMOTE_AUTH_RELAY_PORT: ${NIFE_REMOTE_AUTH_RELAY_PORT:-4433}
       NIFE_REMOTE_AUTH_RELAY_FP: ${NIFE_REMOTE_AUTH_RELAY_FP:-}
     logging:
       driver: json-file
