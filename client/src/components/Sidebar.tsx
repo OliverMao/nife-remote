@@ -4,7 +4,6 @@
 import type { SavedDevice } from "../lib/api";
 import { fmtCode } from "../lib/actions";
 import { useT } from "../lib/i18n";
-import { problemText } from "../lib/messages";
 import { store, useStore } from "../lib/store";
 import { MyDevices } from "./ConnectView";
 import { Logo } from "./Logo";
@@ -43,32 +42,25 @@ export function Sidebar() {
   );
 }
 
-/** 左栏顶部（照 UU）：被控状态卡片——只有一句状态 + 一句说明，右上角箭头去远程协助页看/改码 */
+/** 左栏顶部（照 UU）：被控状态卡片——只有一句状态 + 一句说明，右上角按钮进去看/踢掉控制端。
+ *
+ * **只有真的有人在控制本机时才出现**：没人连的时候这张卡整块不显示（包括正在连服务器、
+ * 服务器离线这些情况），左栏直接从"我的设备"开始。状态/码都在"远程协助"页里能看到。 */
 function HostCard() {
   const t = useT();
   const host = useStore((s) => s.host);
 
   // 网页版没有被控端（host 一直是 null），桌面版才有这张卡片
-  if (!host) return null;
-  const code = host.code === null ? null : fmtCode(String(host.code).padStart(6, "0"));
-  const online = host.server.state === "connected" && code !== null;
-  const controllers = host.controllers.length;
+  const controllers = host?.controllers.length ?? 0;
+  if (!host || controllers === 0) return null;
 
   return (
-    <div className={`host-card ${online ? "online" : ""}`}>
+    <div className="host-card online">
       <button className="hc-open" title={t("host.expand")} aria-label={t("host.expand")} onClick={() => store.showHost()}>
         <IconExpand size={15} />
       </button>
-      <div className="hc-title">{online ? t("host.controlling") : t("host.title")}</div>
-      <div className="hc-line">
-        {!online
-          ? host.server.state === "disconnected"
-            ? problemText(host.server.reason)
-            : t("host.connecting")
-          : controllers > 0
-            ? t("host.controllersLine", { n: controllers })
-            : t("host.waiting")}
-      </div>
+      <div className="hc-title">{t("host.controlling")}</div>
+      <div className="hc-line">{t("host.controllersLine", { n: controllers })}</div>
     </div>
   );
 }
