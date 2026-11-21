@@ -59,7 +59,6 @@ export default {
   "menu.title": "设置",
   "menu.version": "v{version}",
   "menu.versionWeb": "v{version} · 网页控制台",
-  "menu.refreshDevices": "刷新我的设备",
   "menu.name": "本机名称",
   "menu.nameHintWeb": "对方电脑上显示的控制端名称（NIFE_REMOTE_NAME）",
   "menu.language": "语言",
@@ -196,6 +195,7 @@ export default {
   // 我的设备（新建连接页）
   "sidebar.sessions": "会话中",
   "devices.title": "我的设备",
+  "devices.refresh": "刷新我的设备",
   "devices.hint": "连接过的电脑自动保存在这里，点一下就连",
   "devices.hintWeb": "网页版不保存，刷新页面后清空",
   "devices.empty": "连接过的电脑会自动保存在这里，下次点一下就能连上",

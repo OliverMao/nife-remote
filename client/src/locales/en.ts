@@ -55,7 +55,6 @@ const en: Record<MsgKey, Msg> = {
   "menu.title": "Settings",
   "menu.version": "v{version}",
   "menu.versionWeb": "v{version} · Web console",
-  "menu.refreshDevices": "Refresh my devices",
   "menu.name": "This computer",
   "menu.nameHintWeb": "The name remote computers see for this console (NIFE_REMOTE_NAME)",
   "menu.language": "Language",
@@ -188,6 +187,7 @@ const en: Record<MsgKey, Msg> = {
 
   "sidebar.sessions": "Sessions",
   "devices.title": "My devices",
+  "devices.refresh": "Refresh my devices",
   "devices.hint": "Computers you connect to are saved here. Click one to connect",
   "devices.hintWeb": "Not saved in the web console: cleared when the page reloads",
   "devices.empty": "Computers you connect to are saved here, so next time it's just one click",

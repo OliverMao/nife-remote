@@ -3,11 +3,11 @@
 // 弹层挂在按钮下面（以前挂在最左边的 Logo 上，和窗口按钮挤在一起）。
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, toProblem, type Problem } from "../lib/api";
-import { focusActive, loadDevices } from "../lib/actions";
+import { focusActive } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { serverStatus, store, useStore } from "../lib/store";
-import { IconChevron, IconKeyboard, IconMenuLines, IconRefresh, IconSettings, IconWarn } from "./Icons";
+import { IconChevron, IconKeyboard, IconMenuLines, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { PRESETS, presetDesc, presetName } from "../lib/presets";
 import { Popover } from "./Popover";
@@ -81,15 +81,6 @@ function AppMenu({ onClose }: { onClose: () => void }) {
         </div>
         {/* 画质：新连接用它，正在连的会话在会话工具栏 / 设备页里单独改 */}
         <QualitySwitch />
-      </div>
-
-      <div className="am-actions">
-        <button className="am-item" onClick={() => void loadDevices()}>
-          <span className="am-item-icon">
-            <IconRefresh size={16} />
-          </span>
-          <span className="am-item-text">{t("menu.refreshDevices")}</span>
-        </button>
       </div>
 
       {/* 网页版没有被控端，浏览器也会拦下这些快捷键 */}

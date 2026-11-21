@@ -2,12 +2,12 @@
 //
 // 以后这里还要放登录注册和"绑定自己的设备"，所以账号相关的区域留在最上面（现在先放本机被控卡）。
 import type { SavedDevice } from "../lib/api";
-import { fmtCode } from "../lib/actions";
+import { fmtCode, loadDevices } from "../lib/actions";
 import { useT } from "../lib/i18n";
 import { store, useStore } from "../lib/store";
 import { MyDevices } from "./MyDevices";
 import { Logo } from "./Logo";
-import { IconExpand, IconMonitor, IconSwap } from "./Icons";
+import { IconExpand, IconMonitor, IconRefresh, IconSwap } from "./Icons";
 
 export function Sidebar() {
   const t = useT();
@@ -20,9 +20,20 @@ export function Sidebar() {
       <HostCard />
       <nav className="sb-nav">
         <div className="sb-section">
-          <div className="sb-title">
-            <IconMonitor size={16} />
-            {t("devices.title")}
+          {/* 标题在左、刷新在右（刷新原来在设置菜单里，离"我的设备"太远） */}
+          <div className="sb-title between">
+            <span className="sb-title-text">
+              <IconMonitor size={16} />
+              {t("devices.title")}
+            </span>
+            <button
+              className="sb-act"
+              title={t("devices.refresh")}
+              aria-label={t("devices.refresh")}
+              onClick={() => void loadDevices()}
+            >
+              <IconRefresh size={14} />
+            </button>
           </div>
           <DeviceList />
         </div>

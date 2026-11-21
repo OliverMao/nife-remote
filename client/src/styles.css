@@ -335,6 +335,31 @@ h3 {
   width: 14px;
   height: 14px;
 }
+/* 标题一行两端对齐：左边是名字（图标 + 文字），右边是小按钮（例如刷新） */
+.sb-title.between {
+  justify-content: space-between;
+}
+.sb-title-text {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.sb-act {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--text-3);
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.sb-act:hover {
+  color: var(--text);
+  background: var(--hover);
+}
 .sb-item {
   display: flex;
   align-items: center;
