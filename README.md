@@ -79,7 +79,7 @@ git clone https://github.com/OliverMao/nife-remote.git
 cd nife-remote
 # the image is built on a machine with spare CPU / in CI and pushed to a registry; the host only pulls it
 # (see .env.example, and docker-compose.build.yml for the build side)
-cp .env.example .env          # already points at mirror.naig.us/docker/nife-remote-server:0.0.1
+cp .env.example .env          # already points at mirror.naig.us/nife-remote-server:0.0.1
 docker compose pull
 docker compose up -d
 docker compose logs nife-remote | grep fingerprint   # note the certificate's SHA-256 fingerprint
