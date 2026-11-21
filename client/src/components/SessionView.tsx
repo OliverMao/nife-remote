@@ -9,7 +9,6 @@ import { store, useSession, useSessionTitle, useStore } from "../lib/store";
 import {
   IconChevron,
   IconClipboard,
-  IconCpu,
   IconExpand,
   IconFit,
   IconKeyboard,
@@ -230,19 +229,17 @@ export function SessionView({ s }: { s: RemoteSession }) {
                     {st.width}×{st.height}
                   </span>
                 )}
+                {s.encoder && (
+                  <span className="muted stat-codec" title={s.encoder.name}>
+                    {CODEC_LABEL[s.encoder.codec]} ·{" "}
+                    {s.encoder.hardware ? t("session.hwEncoding") : t("session.swEncoding")}
+                  </span>
+                )}
               </>
             ) : (
               <span className="muted">{sessionStateText(s)}</span>
             )}
           </div>
-          {s.encoder && live && (
-            <span className={`tag ${s.encoder.hardware ? "hw" : ""}`} title={s.encoder.name}>
-              <IconCpu size={13} />
-              <span className="tag-text">
-                {CODEC_LABEL[s.encoder.codec]} · {s.encoder.hardware ? t("session.hwEncoding") : t("session.swEncoding")}
-              </span>
-            </span>
-          )}
         </div>
 
         <div className="tb-right">

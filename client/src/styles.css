@@ -2487,9 +2487,9 @@ kbd {
   font-size: 12.5px;
   container-type: inline-size;
 }
-/* 地址栏窄了：先藏编码标签（画质面板里也有），再藏分辨率 */
+/* 地址栏窄了：先藏编码方式（画质面板里也有），再藏分辨率 */
 @container (max-width: 560px) {
-  .addr .tag {
+  .addr .stat-codec {
     display: none;
   }
 }
@@ -2558,34 +2558,6 @@ kbd {
 }
 .rtt.bad {
   color: var(--bad);
-}
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 9px;
-  border-radius: 11px;
-  font-size: 11.5px;
-  color: var(--text-2);
-  background: var(--glass-2);
-  white-space: nowrap;
-}
-.addr .tag {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-.tag svg {
-  flex-shrink: 0;
-}
-.tag-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tag.hw {
-  color: #9fd9ff;
-  background: rgba(18, 211, 238, 0.1);
 }
 .tb-right {
   flex: none;
