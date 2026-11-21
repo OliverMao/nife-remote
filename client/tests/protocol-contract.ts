@@ -68,6 +68,11 @@ export const contract = {
   ],
   "connectOptions": {
     "audio": true,
+    "codecs": [
+      "av1",
+      "h265",
+      "h264"
+    ],
     "hostKey": "abababababababababababababababababababababababababababababababab",
     "pairing": "482913",
     "resume": [

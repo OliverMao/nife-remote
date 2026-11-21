@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use crate::wire::{read_frame, write_frame};
 use nife_remote_proto::framing::{self, PREFIX};
+use nife_remote_proto::session::Codec;
 use nife_remote_proto::handshake::{
     self, Confirm, ControllerIntro, HandshakeError, HandshakeFinish, HandshakeInit, HandshakeReply,
     HostVerdict, MAX_MSG, NONCE_LEN, PAKE_CONTROLLER, PAKE_HOST, Pattern, PublicKey, Refusal,
@@ -934,12 +935,14 @@ async fn fail<W: AsyncWrite + Unpin>(send: &mut W, e: HandshakeError) {
     .await;
 }
 
-/// 本端的介绍（控制端）：名称、系统，开始时的画质和要不要声音
+/// 本端的介绍（控制端）：名称、系统，开始时的画质、要不要声音，以及本机能解码的格式
+/// （`codecs`：被控端据此在"双方都支持"的格式里挑、回退，见 [`ControllerIntro::codecs`]）
 pub fn controller_intro(
     name: &str,
     os: &str,
     settings: QualitySettings,
     audio: bool,
+    codecs: Vec<Codec>,
 ) -> ControllerIntro {
     ControllerIntro {
         min: SESSION_MIN,
@@ -949,6 +952,7 @@ pub fn controller_intro(
         os: os.to_string(),
         settings: settings.sanitized(),
         audio,
+        codecs,
     }
 }
 
@@ -1088,7 +1092,7 @@ mod tests {
             fps: 60,
             ..QualitySettings::default()
         };
-        controller_intro("ctl", "test", settings, true)
+        controller_intro("ctl", "test", settings, true, vec![Codec::H264])
     }
 
     #[tokio::test]

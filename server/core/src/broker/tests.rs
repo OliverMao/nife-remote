@@ -11,7 +11,7 @@ use nife_remote_link::net::{LinkConfig, Signal, connect_signal};
 use nife_remote_link::secure::{self, Identity, Initiator, InitiatorParams};
 use nife_remote_link::wire::{read_msg, write_msg};
 use nife_remote_proto::handshake::PublicKey;
-use nife_remote_proto::session::{ByeReason, QualitySettings};
+use nife_remote_proto::session::{ByeReason, Codec, QualitySettings};
 use nife_remote_proto::signal::{
     ClientMsg, ConnectError, Reclaim, ResumeToken, SessionGrant, connect_outcome,
 };
@@ -75,7 +75,13 @@ fn incoming(
 /// 控制端握手的第一条消息（第一次连这个控制码，不配对）
 fn initiate(code: u32) -> (Initiator, Vec<u8>) {
     let me = Identity::generate();
-    let intro = secure::controller_intro("ctl", "test", QualitySettings::default(), false);
+    let intro = secure::controller_intro(
+        "ctl",
+        "test",
+        QualitySettings::default(),
+        false,
+        vec![Codec::H264],
+    );
     secure::initiate(InitiatorParams {
         code,
         me: &me,

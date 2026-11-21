@@ -105,7 +105,7 @@ use minicbor::{Decode, Encode};
 
 use crate::Features;
 use crate::cbor::open_enum;
-use crate::session::QualitySettings;
+use crate::session::{Codec, QualitySettings};
 
 /// AEAD 认证标签的长度
 pub const TAG_LEN: usize = 16;
@@ -238,6 +238,12 @@ pub struct ControllerIntro {
     /// 开始时要不要声音（之后的变化是 `ControllerMsg::Audio`）
     #[n(6)]
     pub audio: bool,
+    /// 控制端能解码的格式（降序：AV1 > H.265 > H.264）。被控端按"双方都支持"的顺序挑选、回退编码器，
+    /// 例如 AV1 硬件编码器建不起来时退 H.265 而不是直接退 H.264。
+    ///
+    /// 旧版控制端不发这一项（解码成空列表）：被控端只把 H.264 当成一定能用的格式，和以前一样
+    #[cbor(n(7), default)]
+    pub codecs: Vec<Codec>,
 }
 
 /// 被控端的决定（加密，见 [`HandshakeReply::verdict`]）
@@ -328,6 +334,41 @@ pub fn safety_code(seed: &[u8; 32]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 介绍里新加的 `codecs`：旧版控制端不发，解码成空列表（被控端只当 H.264 能用）
+    #[test]
+    fn intro_without_codecs_still_decodes() {
+        let intro = ControllerIntro {
+            min: 1,
+            max: 1,
+            features: Features::default(),
+            name: "ctl".into(),
+            os: "test".into(),
+            settings: QualitySettings::default(),
+            audio: true,
+            codecs: vec![Codec::H264, Codec::H265],
+        };
+        let full = minicbor::to_vec(&intro).unwrap();
+        let back: ControllerIntro = minicbor::decode(&full).unwrap();
+        assert_eq!(back, intro);
+
+        // 删掉最后一项（7 号键）再解：等于旧版控制端发的
+        let mut d = minicbor::Decoder::new(&full);
+        let n = d.map().unwrap().unwrap();
+        assert_eq!(n, 8);
+        let mut short = Vec::new();
+        let mut e = minicbor::Encoder::new(&mut short);
+        e.map(n - 1).unwrap();
+        for _ in 0..(n - 1) {
+            let start = d.position();
+            d.skip().unwrap(); // 键
+            d.skip().unwrap(); // 值
+            e.writer_mut().extend_from_slice(&full[start..d.position()]);
+        }
+        let old: ControllerIntro = minicbor::decode(&short).unwrap();
+        assert!(old.codecs.is_empty());
+        assert!(old.audio);
+    }
 
     #[test]
     fn prologue_binds_everything_but_the_noise_message() {

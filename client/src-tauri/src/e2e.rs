@@ -103,7 +103,7 @@ async fn open_session(
     req_id: u32,
 ) -> Established {
     let me = Identity::generate();
-    let intro = secure::controller_intro("e2e", "test", settings, audio);
+    let intro = secure::controller_intro("e2e", "test", settings, audio, vec![Codec::H264]);
     let (initiator, init) = secure::initiate(InitiatorParams {
         code,
         me: &me,

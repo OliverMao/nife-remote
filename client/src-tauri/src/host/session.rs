@@ -10,7 +10,7 @@ use nife_remote_link::host::{
     Acks, Admission, CursorCache, Incoming, MicSink, Outbox, Platform, Request, Senders, Start,
     serve,
 };
-use nife_remote_proto::session::{DisplayInfo, HostHello, HostMsg, MicState, Notice, QualitySettings};
+use nife_remote_proto::session::{Codec, DisplayInfo, HostHello, HostMsg, MicState, Notice, QualitySettings};
 use anyhow::Result;
 use bytes::Bytes;
 use tokio::sync::{mpsc, watch};
@@ -131,6 +131,8 @@ struct Desktop {
     /// 正在看的显示器（`displays` 里的序号）
     current: u8,
     settings: QualitySettings,
+    /// 控制端能解码的格式（握手时报过来的；编码器建不起来时按它降级）
+    peers: Vec<Codec>,
     flow: Arc<Flow>,
     /// 控制端缓存了哪些光标形状：整个会话一份，换显示器（重建管线）时接着用
     cursors: Arc<Mutex<CursorCache>>,
@@ -201,6 +203,7 @@ impl Desktop {
             displays: Vec::new(),
             current: 0,
             settings: QualitySettings::default(),
+            peers: Vec::new(),
             flow: Arc::new(Flow::default()),
             cursors: Arc::default(),
             pipeline: None,
@@ -258,6 +261,7 @@ impl Desktop {
         self.pipeline = Some(Pipeline::start(
             self.current,
             self.settings,
+            self.peers.clone(),
             self.video.clone(),
             self.out.clone(),
             self.flow.clone(),
@@ -332,6 +336,7 @@ impl Platform for Desktop {
         }
         // 开始时的画质在握手里：编码器一开始就按它建，不用先建一个默认的、等设置到了再重建
         self.settings = start.settings;
+        self.peers = start.codecs;
         if !self.displays.is_empty() {
             self.restart_pipeline().await;
         }

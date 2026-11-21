@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use nife_remote_link::flow::Flow;
 use nife_remote_link::host::{CursorCache, Outbox, SendError};
 use nife_remote_proto::media::{self, VideoHeader};
-use nife_remote_proto::session::{HostMsg, Notice, QualitySettings};
+use nife_remote_proto::session::{Codec, HostMsg, Notice, QualitySettings};
 use bytes::Bytes;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -42,6 +42,8 @@ pub struct Pipeline {
 struct Ctrl {
     settings: Mutex<QualitySettings>,
     settings_ver: AtomicU64,
+    /// 控制端能解码的格式（握手时报过来的）：编码器建不起来时按它降级，见 [`Encoder::new`]
+    peers: Vec<Codec>,
     force_key: AtomicBool,
     /// 最近发出去的关键帧的序号（0：还没有）：控制端要的关键帧已经在路上了就不再编（见 [`Pipeline::request_keyframe`]）
     last_key: AtomicU32,
@@ -54,9 +56,11 @@ struct Ctrl {
 impl Pipeline {
     /// `video`：画面流的发送队列；`out`：控制消息（编码器、采集失败和光标状态走控制通道，光标图像走大块通道：
     /// 形状图像有几十 KB，不能挡控制消息）；`cursors`：控制端缓存了哪些光标形状（动画光标的每一帧只发一次图像）
+    #[allow(clippy::too_many_arguments)]
     pub fn start(
         display: u8,
         settings: QualitySettings,
+        peers: Vec<Codec>,
         video: mpsc::Sender<Bytes>,
         out: Outbox,
         flow: Arc<Flow>,
@@ -65,6 +69,7 @@ impl Pipeline {
         let ctrl = Arc::new(Ctrl {
             settings: Mutex::new(settings),
             settings_ver: AtomicU64::new(0),
+            peers,
             force_key: AtomicBool::new(true),
             last_key: AtomicU32::new(0),
             stop: AtomicBool::new(false),
@@ -311,6 +316,7 @@ fn run(ctrl: Arc<Ctrl>, screen: u8, video: mpsc::Sender<Bytes>, out: Outbox) {
                 &frame,
                 &settings,
                 ctrl.flow.bitrate_kbps(),
+                &ctrl.peers,
                 hw_failures < 3,
                 gpu_failures < 2,
             ) {

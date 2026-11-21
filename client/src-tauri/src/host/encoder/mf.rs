@@ -9,7 +9,7 @@
 //!   * **内存**：BGRA 直接转换进 MF 缓冲区（NV12），编码器自己再传到显卡上。
 
 use std::mem::ManuallyDrop;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use nife_remote_proto::session::{Codec, EncoderInfo};
@@ -98,8 +98,30 @@ fn enum_hardware(codec: Codec) -> Vec<IMFActivate> {
     }
 }
 
+/// 这个格式的硬件编码器**真的能用**：不只是枚举到，还要能 `ActivateObject` 成功。
+///
+/// 只靠枚举会通告假的"支持"：例如 NVIDIA 的 AV1 MFT 枚举得到，激活时却是
+/// `ActivateObject: 灾难性故障 (0x8000FFFF)`（驱动/显卡不支持这个格式，但 MFT 注册了）。
+/// 那样控制端会选 AV1，被控端建不起来，只能掉到 H.264。结果按格式缓存，只探一次
 pub fn has_hardware(codec: Codec) -> bool {
-    !enum_hardware(codec).is_empty()
+    static CACHE: Mutex<Vec<(Codec, bool)>> = Mutex::new(Vec::new());
+    if let Some((_, ok)) = CACHE.lock().unwrap().iter().find(|(c, _)| *c == codec) {
+        return *ok;
+    }
+    let ok = enum_hardware(codec).into_iter().any(|a| {
+        let name = friendly_name(&a);
+        // 只激活、不建编码器：要的就是"能不能激活"这个答案
+        let activated: windows::core::Result<IMFTransform> = unsafe { a.ActivateObject() };
+        if let Err(e) = &activated {
+            tracing::info!(?codec, mft = %name, "hardware encoder can't be activated: {e}");
+        }
+        unsafe {
+            let _ = a.ShutdownObject();
+        }
+        activated.is_ok()
+    });
+    CACHE.lock().unwrap().push((codec, ok));
+    ok
 }
 
 fn friendly_name(a: &IMFActivate) -> String {

@@ -175,6 +175,25 @@ fn has_hardware(codec: Codec) -> bool {
     mf::has_hardware(codec)
 }
 
+/// 建编码器时按什么顺序试：请求的格式在前，然后是被控端也能提供、控制端也能解码的其它格式
+/// （AV1 > HEVC 的顺序），H.264 永远最后兜底（它双方都一定支持）。
+fn fallback_order(requested: Codec, peers: &[Codec]) -> Vec<Codec> {
+    let mut order = vec![requested];
+    if requested != Codec::H264 {
+        for c in [Codec::AV1, Codec::H265] {
+            if c == requested || !peers.contains(&c) {
+                continue;
+            }
+            // 被控端这边没有这个格式的（可用的）硬件编码器就不用试了
+            if available_codecs().contains(&c) {
+                order.push(c);
+            }
+        }
+        order.push(Codec::H264);
+    }
+    order
+}
+
 
 fn hardware_encoder(
     codec: Codec,
@@ -207,15 +226,18 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    /// 为 `frame` 这样的画面创建编码器：按"请求的格式硬件 → H.264 硬件 → OpenH264"顺序尝试。
+    /// 为 `frame` 这样的画面创建编码器。格式按"请求的格式 → 控制端也能解码的其它高效格式（AV1 > HEVC）
+    /// → H.264"的顺序试，每个格式内部是"硬件 → （只有 H.264）OpenH264"。
     /// 画面在 GPU 上、`allow_gpu` 而且不是"清楚优先并且要缩小"时，硬件编码器先试 GPU 零拷贝（见模块说明）。
     ///
-    /// 格式的优先级（AV1 > HEVC > H.264）由控制端按双方都支持的格式来选（见 [`available_codecs`]），
-    /// 这里不自作主张改用别的高效格式：控制端不一定能解码，只有 H.264 是双方都一定支持的。
+    /// `peers`：控制端能解码的格式（握手时它报过来的）。请求的格式建不起来时（例如 AV1 的硬件编码器
+    /// 激活失败）退到控制端也支持的次优格式，而不是直接退 H.264；`peers` 为空（旧版控制端）时只有
+    /// H.264 当作一定能用，和以前一样。
     pub fn new(
         frame: &Frame,
         s: &QualitySettings,
         kbps: u32,
+        peers: &[Codec],
         allow_hw: bool,
         allow_gpu: bool,
     ) -> Result<Self> {
@@ -231,10 +253,7 @@ impl Encoder {
         let mut inner: Option<Box<dyn VideoEncoder>> = None;
 
         if allow_hw {
-            let mut order = vec![s.codec];
-            if s.codec != Codec::H264 {
-                order.push(Codec::H264);
-            }
+            let order = fallback_order(s.codec, peers);
             for codec in order {
                 if codec != Codec::H264 && !available_codecs().contains(&codec) {
                     continue;
@@ -356,6 +375,26 @@ pub(crate) fn annexb_nal_types(data: &[u8], hevc: bool) -> impl Iterator<Item = 
 mod tests {
     use super::*;
 
+    /// 请求的格式建不起来时按"控制端也能解码"的顺序降级：AV1 → H.265 → H.264，而不是直接 H.264
+    #[test]
+    fn fallback_tries_the_codecs_the_controller_can_decode() {
+        // 这一台有什么硬件编码器（有没有 AV1/H.265）随机器不同，只比较"顺序里出现的相对次序"
+        let order = fallback_order(Codec::AV1, &[Codec::AV1, Codec::H265, Codec::H264]);
+        assert_eq!(order.first(), Some(&Codec::AV1));
+        assert_eq!(order.last(), Some(&Codec::H264), "H.264 永远兜底");
+        if let Some(h265) = order.iter().position(|c| *c == Codec::H265) {
+            assert!(h265 < order.len() - 1, "H.265 排在 H.264 前面");
+        }
+        // 控制端只会 H.264（旧界面 / 解不了 HEVC）：不试别的
+        assert_eq!(fallback_order(Codec::AV1, &[Codec::H264]), vec![Codec::AV1, Codec::H264]);
+        // 控制端没有 AV1：H.265 排第二
+        let order = fallback_order(Codec::H264, &[Codec::H265, Codec::H264]);
+        assert_eq!(order.first(), Some(&Codec::H264));
+        assert_eq!(order.len(), 1, "请求的就是 H.264，没有别的可试");
+        let order = fallback_order(Codec::H265, &[Codec::H265, Codec::H264]);
+        assert_eq!(order, vec![Codec::H265, Codec::H264]);
+    }
+
     #[test]
     fn scaling_needed() {
         assert!(!needs_scaling(1920, 1080, 1080));
@@ -409,7 +448,7 @@ mod tests {
             max_short: 0,
             ..Default::default()
         };
-        let mut enc = Encoder::new(&frame, &s, 3000, allow_hw, true).unwrap();
+        let mut enc = Encoder::new(&frame, &s, 3000, &[Codec::H264], allow_hw, true).unwrap();
         assert!(!enc.uses_gpu());
         if enc.info().codec != codec {
             return None;

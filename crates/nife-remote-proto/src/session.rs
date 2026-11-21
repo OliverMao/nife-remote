@@ -604,7 +604,8 @@ pub struct QualitySettings {
     /// 根据网络状况自动下调/恢复码率
     #[n(3)]
     pub adaptive: bool,
-    /// 期望的编码格式（被控端不支持时自动回退到 H.264；不认识的格式也是 H.264，见 [`QualitySettings::sanitized`]）
+    /// 期望的编码格式。被控端建不起来时退到双方都支持的次优格式（AV1 > H.265 > H.264，控制端的解码能力见
+    /// [`crate::handshake::ControllerIntro::codecs`]）；不认识的值当成 H.264，见 [`QualitySettings::sanitized`]
     #[n(4)]
     pub codec: Codec,
     /// 缩放画面时优先低延迟还是清楚。低延迟（默认）不写进线上的数组，和之前的版本发的字节一样；

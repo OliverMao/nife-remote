@@ -53,7 +53,8 @@ fn main() {
             priority,
             ..Default::default()
         };
-        let mut e = Encoder::new(&f, &s, 6000, hw, true).unwrap();
+        let mut e = Encoder::new(&f, &s, 6000, &[Codec::H264, Codec::H265, Codec::AV1], hw, true)
+            .unwrap();
         let first = frames[0].uncached();
         let t = Instant::now();
         let k = e.encode(&first, true).unwrap().unwrap();

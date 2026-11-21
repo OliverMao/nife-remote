@@ -305,7 +305,14 @@ export class RemoteSession {
     try {
       info = await api.connect(
         this.code,
-        { resume: this.resume, hostKey: this.hostKey, pairing: this.pairing, settings: sent, audio },
+        {
+          resume: this.resume,
+          hostKey: this.hostKey,
+          pairing: this.pairing,
+          settings: sent,
+          audio,
+          codecs: store.get().decoders,
+        },
         this.view,
         onEvent,
         this.clipboardSync,

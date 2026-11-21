@@ -23,8 +23,7 @@ use nife_remote_proto::framing;
 use nife_remote_proto::handshake::{Confirm, Negotiated, PublicKey};
 use nife_remote_proto::session::{
     ControllerDatagram, ControllerMsg, DirectOffer, HostDatagram, InputEvent, MAX_CLIPBOARD_TEXT,
-    QualitySettings,
-};
+    QualitySettings, Codec};
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
 use tokio::sync::{Notify, mpsc, oneshot};
@@ -243,6 +242,8 @@ pub struct Admitted {
     pub settings: QualitySettings,
     /// 开始时要不要声音
     pub audio: bool,
+    /// 控制端能解码的格式（空 = 旧版控制端，只有 H.264 一定能用）
+    pub codecs: Vec<Codec>,
 }
 
 impl HostStreams {
@@ -279,6 +280,7 @@ impl HostStreams {
             negotiated: r.negotiated,
             settings: r.intro.settings.sanitized(),
             audio: r.intro.audio,
+            codecs: r.intro.codecs,
         };
         info!(
             session_id,

@@ -72,7 +72,7 @@ use crate::wire::{read_msg, write_msg};
 use nife_remote_proto::framing;
 use nife_remote_proto::handshake::SEAL_OVERHEAD;
 use nife_remote_proto::media;
-use nife_remote_proto::session::{ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, QualitySettings};
+use nife_remote_proto::session::{ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, QualitySettings, Codec};
 use nife_remote_proto::signal::{ClientMsg, ResumeToken, ServerMsg, SessionGrant, connect_outcome};
 use nife_remote_proto::{MAX_SIGNAL_MSG, Role};
 use anyhow::{Result, anyhow};
@@ -222,6 +222,10 @@ pub struct ConnectOptions {
     /// 开始时要不要声音（同上）
     #[serde(default)]
     pub audio: bool,
+    /// 本机能解码的格式（降序：AV1 > H.265 > H.264）。被控端按"双方都支持"的顺序挑编码格式，
+    /// 例如 AV1 硬件编码器建不起来时退 H.265 而不是直接退 H.264。不填（旧界面）就是只有 H.264 一定能用
+    #[serde(default)]
+    pub codecs: Vec<Codec>,
 }
 
 #[derive(Clone)]
@@ -341,6 +345,7 @@ impl ControllerService {
             &self.inner.cfg.os,
             opts.settings,
             opts.audio,
+            opts.codecs.clone(),
         );
         let (initiator, init) = secure::initiate(InitiatorParams {
             code,

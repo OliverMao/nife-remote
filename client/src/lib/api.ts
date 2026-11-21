@@ -236,6 +236,8 @@ export interface ConnectOptions {
   settings: QualitySettings;
   /** 开始时要不要声音（同上） */
   audio: boolean;
+  /** 本机能解码的格式（降序）：被控端据此在"双方都支持"的格式里挑、降级，例如 AV1 建不起来时退 H.265 而不是直接退 H.264 */
+  codecs: Codec[];
 }
 
 /** 被控端的平台，与 nife_remote_proto::session::Platform 对应（对方的版本更新、报了这边不认识的平台时是 linux） */

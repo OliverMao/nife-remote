@@ -138,7 +138,8 @@ fn connect_options() -> (Value, ConnectOptions) {
             "hostKey": "ab".repeat(32),
             "pairing": "482913",
             "settings": { "fps": 60, "bitrateKbps": 8000, "maxShort": 1080, "adaptive": true, "codec": "h265" },
-            "audio": true
+            "audio": true,
+            "codecs": ["av1", "h265", "h264"]
         }),
         ConnectOptions {
             resume: Some([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
@@ -146,6 +147,7 @@ fn connect_options() -> (Value, ConnectOptions) {
             pairing: Some("482913".into()),
             settings: settings(),
             audio: true,
+            codecs: vec![Codec::AV1, Codec::H265, Codec::H264],
         },
     )
 }

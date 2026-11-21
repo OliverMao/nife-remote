@@ -29,7 +29,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use nife_remote_proto::session::{ByeReason, HostMsg, InputEvent, QualitySettings};
+use nife_remote_proto::session::{ByeReason, HostMsg, InputEvent, QualitySettings, Codec};
 use anyhow::{Result, bail};
 use bytes::Bytes;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch};
@@ -124,11 +124,13 @@ pub enum Request {
 }
 
 /// 会话怎么开始：握手里的画质和要不要声音，同意之前又收到的设置也算进来
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Start {
     /// 做过范围校验
     pub settings: QualitySettings,
     pub audio: bool,
+    /// 控制端能解码的格式（空 = 旧版控制端，只有 H.264 一定能用）
+    pub codecs: Vec<Codec>,
 }
 
 /// 交给平台的发送端（[`serve`] 的 `platform` 拿到它们）
@@ -320,12 +322,14 @@ async fn drive<P: Platform>(
     let mut start = Start {
         settings: admitted.settings,
         audio: admitted.audio,
+        codecs: admitted.codecs.clone(),
     };
     // 不用同意的：不等确认就开始（见模块说明）
     let mut phase = if admitted.admission == Admission::NeedsApproval {
         Phase::Confirming
     } else {
-        platform.start(start).await?;
+        // 同意之前还可能收到画质/声音设置（见下面的 Request 分支），所以留一份
+        platform.start(start.clone()).await?;
         info!(session_id, "session started");
         started();
         Phase::Open
@@ -395,7 +399,8 @@ async fn drive<P: Platform>(
                     Answer::Allowed => {
                         info!(session_id, "the local user allowed the connection");
                         phase = Phase::Open;
-                        platform.start(start).await?;
+                        // 同意之前还可能收到画质/声音设置（见下面的 Request 分支），所以留一份
+        platform.start(start.clone()).await?;
                         info!(session_id, "session started");
                         started();
                         continue;
@@ -552,6 +557,7 @@ mod tests {
             },
             settings: QualitySettings::default(),
             audio: true,
+            codecs: vec![Codec::H264],
         }
     }
 
@@ -727,7 +733,8 @@ mod tests {
             [
                 Call::Start(Start {
                     settings: QualitySettings::default(),
-                    audio: true
+                    audio: true,
+                    codecs: vec![Codec::H264]
                 }),
                 Call::Request(Request::Input(click())),
                 Call::Request(Request::Settings(fast().sanitized())),
@@ -812,7 +819,8 @@ mod tests {
                 Call::Answered(true),
                 Call::Start(Start {
                     settings: fast().sanitized(),
-                    audio: false
+                    audio: false,
+                    codecs: vec![Codec::H264]
                 }),
             ]
         );
