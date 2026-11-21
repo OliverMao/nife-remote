@@ -1,6 +1,6 @@
 // 标签栏右侧的两个按钮：
 // * 服务器状态（ServerIndicator）：一直写着在线 / 连接中 / 离线，点开是服务器的详情，弹出层就在它下面；
-// * 设置（SettingsButton）：本机名称与控制码、语言、配置文件、快捷键说明。
+// * 设置（SettingsButton）：本机名称、语言、默认画质、快捷键说明。
 //
 // 主菜单在最右边（以前在最左边的 Logo 上，和窗口按钮挤在一起，点服务器状态也会在最左边弹出菜单。
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -9,7 +9,7 @@ import { focusActive, loadDevices } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { serverStatus, store, useStore } from "../lib/store";
-import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconMenuLines, IconRefresh, IconServer, IconSettings, IconWarn } from "./Icons";
+import { IconChevron, IconKeyboard, IconMenuLines, IconRefresh, IconServer, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { PRESETS, presetDesc, presetName } from "../lib/presets";
 import { Popover } from "./Popover";
@@ -89,16 +89,6 @@ function AppMenu({ onClose }: { onClose: () => void }) {
           </div>
           <QualitySwitch />
         </div>
-        {/* 设置、本机的控制码、我的设备都在这个文件里 */}
-        {app?.configPath && (
-          <div className="am-row am-stack" title={t("menu.configHint")}>
-            <div className="am-row-line">
-              <span className="am-label">{t("menu.config")}</span>
-              <CopyButton text={app.configPath} />
-            </div>
-            <div className="am-path">{breakablePath(app.configPath)}</div>
-          </div>
-        )}
       </div>
 
       <div className="am-actions">
@@ -175,41 +165,6 @@ function ServerRow() {
       </button>
       {open && <ServerPanel onClose={() => setOpen(false)} />}
     </>
-  );
-}
-
-/** 长路径只在分隔符后面换行，不把文件名从中间断开 */
-function breakablePath(path: string): ReactNode[] {
-  return path.split(/(?<=[\\/])/).map((part, i) => (
-    <span key={i}>
-      {part}
-      <wbr />
-    </span>
-  ));
-}
-
-/** 复制配置文件的路径（复制不了就什么也不做，路径本身也可以选中复制） */
-function CopyButton({ text }: { text: string }) {
-  const t = useT();
-  const [done, setDone] = useState(false);
-  useEffect(() => {
-    if (!done) return;
-    const timer = window.setTimeout(() => setDone(false), 1500);
-    return () => clearTimeout(timer);
-  }, [done]);
-  return (
-    <button
-      className={`chip-btn ${done ? "done" : ""}`}
-      onClick={() =>
-        void navigator.clipboard?.writeText(text).then(
-          () => setDone(true),
-          () => {},
-        )
-      }
-    >
-      {done ? <IconCheck size={13} /> : <IconCopy size={13} />}
-      <span>{t(done ? "menu.copied" : "menu.copy")}</span>
-    </button>
   );
 }
 
