@@ -75,10 +75,10 @@ flowchart LR
 ### 1. 部署中转服务器
 
 ```bash
-git clone https://github.com/sqlpxc/nife-remote.git
+git clone https://github.com/OliverMao/nife-remote.git
 cd nife-remote
 # 镜像在算力好的机器（或 CI）上构建好并推送到镜像仓库，部署机只拉取（见 .env.example，构建侧见 docker-compose.build.yml）
-cp .env.example .env          # NIFE_REMOTE_IMAGE=registry.example.com/nife-remote-server:0.0.1
+cp .env.example .env          # 默认已指向 mirror.naig.us/docker/nife-remote-server:0.0.1
 docker compose pull
 docker compose up -d
 docker compose logs nife-remote | grep fingerprint   # 记下证书的 SHA-256 指纹

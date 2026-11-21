@@ -9,7 +9,7 @@ name: nife-remote-web
 services:
   nife-remote-web:
     # 和构建机打出来的 tag 必须完全一致；升级就是换 tag，然后 docker compose pull && docker compose up -d
-    image: ${NIFE_REMOTE_WEB_IMAGE:?set NIFE_REMOTE_WEB_IMAGE in .env, e.g. registry.example.com/nife-remote-web:0.0.1}
+    image: ${NIFE_REMOTE_WEB_IMAGE:?set NIFE_REMOTE_WEB_IMAGE in .env, e.g. mirror.naig.us/docker/nife-remote-web:0.0.1}
     container_name: nife-remote-web
     restart: unless-stopped
     ports:

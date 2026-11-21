@@ -15,7 +15,7 @@ services:
   nife-remote:
     # 和构建机打出来的 tag 必须完全一致（版本号取自仓库根 Cargo.toml 的 version）。
     # 升级就是把这个 tag 换掉：先在有算力的机器上构建 + 推送，再在部署机上 docker compose pull && docker compose up -d
-    image: ${NIFE_REMOTE_IMAGE:?set NIFE_REMOTE_IMAGE in .env, e.g. registry.example.com/nife-remote-server:0.0.1}
+    image: ${NIFE_REMOTE_IMAGE:?set NIFE_REMOTE_IMAGE in .env, e.g. mirror.naig.us/docker/nife-remote-server:0.0.1}
     container_name: nife-remote-server
     restart: unless-stopped
     ports:
@@ -48,7 +48,7 @@ services:
   # ── 账号服务（server/auth，FastAPI）：注册 / 登录 / 本账号设备 ──
   # 和中转服务器互不影响：没配镜像就注释掉这一段，远程控制照样能用，只是登录用不了。
   nife-remote-auth:
-    image: ${NIFE_REMOTE_AUTH_IMAGE:?set NIFE_REMOTE_AUTH_IMAGE in .env, e.g. registry.example.com/nife-remote-auth:0.0.1}
+    image: ${NIFE_REMOTE_AUTH_IMAGE:?set NIFE_REMOTE_AUTH_IMAGE in .env, e.g. mirror.naig.us/docker/nife-remote-auth:0.0.1}
     container_name: nife-remote-auth
     restart: unless-stopped
     ports:
