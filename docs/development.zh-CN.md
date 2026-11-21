@@ -120,4 +120,4 @@ Rust 和控制台（TypeScript）用同一套格式：媒体包（`crates/nife-r
 
 ### 图标
 
-源文件是 `assets/icon.svg`。修改后在 `client/` 下运行 `npx tauri icon ../assets/icon.svg -o src-tauri/icons`，然后把 `src-tauri/icons/32x32.png` 复制为 `src-tauri/icons/tray.png`。
+源文件只有 `assets/icon.svg`。改完在仓库根目录跑 `node scripts/icon.mjs`：它用系统自带的 Edge/Chrome 无头渲染 SVG（里面有 foreignObject，普通光栅化库画不出来），再生成整套程序图标、托盘图标、界面 Logo 和 favicon。细节见 `assets/README.md`。

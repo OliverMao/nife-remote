@@ -1437,6 +1437,11 @@ kbd {
   overflow-y: auto;
 }
 
+/* 应用图标（就是 assets/icon.svg 渲染出来的 PNG） */
+.app-logo {
+  display: block;
+  flex-shrink: 0;
+}
 /* 左栏小节标题：线性图标（不是可点击的按钮，所以是灰色细线） */
 .sb-title svg {
   color: var(--text-2);

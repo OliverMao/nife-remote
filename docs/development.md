@@ -120,4 +120,4 @@ Anything the user may see that crosses the network or comes from the Rust side i
 
 ### Icon
 
-The source is `assets/icon.svg`. After editing it, run `npx tauri icon ../assets/icon.svg -o src-tauri/icons` in `client/`, then copy `src-tauri/icons/32x32.png` to `src-tauri/icons/tray.png`.
+The only source is `assets/icon.svg`. After editing it run `node scripts/icon.mjs` from the repo root: it renders the SVG with the system Edge/Chrome (it uses foreignObject, which plain rasterizers drop) and regenerates the app icons, the tray icon, the console logo and the favicon. See `assets/README.md`.

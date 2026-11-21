@@ -84,7 +84,7 @@ A resume token has two halves: the first is the server's signature (with its own
 | `web/` | Web console service (axum: static files + WebSocket, HTTP and HTTPS on one port), its `Dockerfile` and `docker-compose.yml`. A separate Cargo workspace, like `client/src-tauri/` |
 | `client/src-tauri/` | Desktop client, Rust side: host `host/`, tray, console window and commands |
 | `client/src/` | `lib/session.ts` manages sessions, `connection-attempt.ts` isolates connection generations, `media.ts` parses media packets, `video.ts` owns decoding / video queues, `input.ts` owns input (including relative movement and pointer lock); console UI (React 19 + TypeScript, no UI library), shared by the desktop and web consoles, which differ only in `client/src/lib/backend/`; strings in `client/src/locales/` |
-| `client/assets/icon.svg` | Application icon source (same geometry as the console Logo); `icon.png`, the `icons/*` set and the tray icon are generated from it, see `client/assets/README.md` |
+| `assets/icon.svg` | The **single** application icon source: `node scripts/icon.mjs` generates the app/installer icons, the tray icon, the console logo and the favicon from it, see `assets/README.md` |
 
 ### The host on each platform
 

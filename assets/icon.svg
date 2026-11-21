@@ -1,17 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Nife Remote 图标：和 NifeCode 一套的平面风格 —— 紫色圆角方块 + 白色图形，不用渐变、不用阴影 -->
-  <rect x="32" y="32" width="960" height="960" rx="224" fill="#6D4AE0"/>
-  <!-- 屏幕 -->
-  <rect x="248" y="284" width="528" height="352" rx="56" fill="none" stroke="#FFFFFF" stroke-width="56"/>
-  <!-- 底座 -->
-  <path d="M 378 740 L 646 740" fill="none" stroke="#FFFFFF" stroke-width="56" stroke-linecap="round"/>
-  <path d="M 512 636 L 512 740" fill="none" stroke="#FFFFFF" stroke-width="56" stroke-linecap="round"/>
-  <!-- 远程光标 -->
-  <path
-    fill="#FFFFFF"
-    stroke="#FFFFFF"
-    stroke-width="40"
-    stroke-linejoin="round"
-    d="M 452 392 L 452 616 L 508 568 L 542 644 L 604 618 L 570 542 L 646 542 Z"
-  />
+<svg width="1000" height="1010" viewBox="0 0 1000 1010" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_6_20)">
+
+<path d="M800 0H200C89.5431 0 0 90.4385 0 202V808C0 919.562 89.5431 1010 200 1010H800C910.457 1010 1000 919.562 1000 808V202C1000 90.4385 910.457 0 800 0Z" fill="white"/>
+<foreignObject x="0" y="0" width="1000" height="1010" overflow="visible" data-figma-3d="true">
+<div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:1000px;height:1010px">
+<div style="position:absolute;left:0;top:0;margin:0;width:1171px;height:1171px;transform-origin:0 0;transform:matrix(1, 0, 0, 1, -103, -105);transform-style:preserve-3d">
+<svg xmlns="http://www.w3.org/2000/svg" width="1171" height="1171" overflow="visible" style="position:absolute;left:0;top:0;overflow:visible">
+</svg>
+<div style="position:absolute;left:0;top:0;margin:0;width:927.0038px;height:866.2997px;transform-origin:0 0;transform:matrix(1, 0, 0, 1, 121.487, 151.8588);transform-style:preserve-3d">
+<svg xmlns="http://www.w3.org/2000/svg" width="927.004" height="866.3" overflow="visible" style="position:absolute;left:0;top:0;overflow:visible">
+</svg>
+<div style="position:absolute;left:0;top:0;margin:0;width:927.0038px;height:256.24px;transform-origin:0 0;transform:matrix(1, 0, 0, 1, 0, 447.203) translate(50%, 68.2945%) rotateZ(-1.5894deg) translate(-50%, -68.2945%)">
+<svg xmlns="http://www.w3.org/2000/svg" width="927.004" height="256.24" overflow="visible" style="position:absolute;left:0;top:0;overflow:visible">
+<path d="M874.649 133.131L344.272 254.478C339.393 255.595 334.27 254.487 330.288 251.455L39.7972 30.2985C26.9443 20.5133 33.8642 0 50.018 0H832.439C846.173 0 858.896 7.21752 865.943 19.0056L899.447 75.0531C913.05 97.8102 900.494 127.218 874.649 133.131Z" fill="#989898"/>
+</svg>
+</div>
+<div style="position:absolute;left:0;top:0;margin:0;width:308.7528px;height:859.1698px;transform-origin:0 0;transform:matrix(0.9997, -0.0239, 0.0239, 0.9997, 389.2085, 7.3749) translate(95.4549%, 54.3103%) translateZ(110.8935px) rotateX(0.058deg) rotateY(-43.9687deg) rotateZ(-1.0929deg) translate(-95.4549%, -54.3103%)">
+<svg xmlns="http://www.w3.org/2000/svg" width="308.753" height="859.17" overflow="visible" style="position:absolute;left:0;top:0;overflow:visible">
+<path d="M18.9904 736.451L169.292 829.131C192.657 843.538 223.191 829.843 227.969 802.811L305.73 362.895C307.645 352.056 304.653 340.927 297.56 332.511L80.4701 74.9328C58.444 48.7986 15.7916 63.8003 14.9752 97.9687L0.532903 702.437C0.202884 716.25 7.2299 729.2 18.9904 736.451Z" fill="url(#paint0_linear_6_20)"/>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</foreignObject>
+<foreignObject x="0" y="0" width="1000" height="1010" overflow="visible" data-figma-3d="true">
+<div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:1000px;height:1010px">
+<div style="position:absolute;left:0;top:0;margin:0;width:927.0038px;height:256.24px;transform-origin:0 0;transform:matrix(1, 0, 0, 1, 18.487, 494.066) translate(50%, 68.2945%) rotateZ(-1.5894deg) translate(-50%, -68.2945%)">
+<svg xmlns="http://www.w3.org/2000/svg" width="927.004" height="256.24" overflow="visible" style="position:absolute;left:0;top:0;overflow:visible">
+<g style="mix-blend-mode:soft-light">
+<path d="M874.649 133.131L344.272 254.478C339.393 255.595 334.27 254.487 330.288 251.455L39.7972 30.2985C26.9443 20.5133 33.8642 0 50.018 0H832.439C846.173 0 858.896 7.21752 865.943 19.0056L899.447 75.0531C913.05 97.8102 900.494 127.218 874.649 133.131Z" fill="url(#paint1_linear_6_20)"/>
+</g>
+</svg>
+</div>
+</div>
+</foreignObject>
+</g>
+<defs>
+<linearGradient id="paint0_linear_6_20" x1="260.012" y1="59.1583" x2="224.793" y2="1005.62" gradientUnits="userSpaceOnUse">
+<stop stop-color="#452760"/>
+<stop offset="0.925777" stop-color="#8E50C6"/>
+</linearGradient>
+<linearGradient id="paint1_linear_6_20" x1="0" y1="128.12" x2="927.004" y2="128.12" gradientUnits="userSpaceOnUse">
+<stop offset="0.0144231" stop-color="white"/>
+<stop offset="1" stop-color="#DDDDDD"/>
+</linearGradient>
+<clipPath id="clip0_6_20">
+<rect width="1000" height="1010" fill="white"/>
+</clipPath>
+</defs>
 </svg>

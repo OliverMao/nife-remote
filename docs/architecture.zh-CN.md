@@ -84,7 +84,7 @@ flowchart LR
 | `web/` | 网页控制台服务（axum：静态网页 + WebSocket，HTTP / HTTPS 同一端口）及其 `Dockerfile`、`docker-compose.yml`。和 `client/src-tauri/` 一样是独立的 Cargo 工作区 |
 | `client/src-tauri/` | 桌面客户端 Rust 部分：被控端 `host/`、托盘、控制台窗口和命令 |
 | `client/src/` | `lib/session.ts` 管理会话，`connection-attempt.ts` 隔离连接代际，`media.ts` 解析媒体包，`video.ts` 管理解码 / 画面队列，`input.ts` 管理输入（含相对移动和指针锁定）；控制台界面（React 19 + TypeScript，不依赖 UI 库），桌面版和网页版共用，区别只在 `client/src/lib/backend/`；文案在 `client/src/locales/` |
-| `client/assets/icon.svg` | 应用图标源文件（和控制台里的 Logo 同一套几何），`icon.png` / 各个 `icons/*.ico` / 托盘图标都由它生成，见 `client/assets/README.md` |
+| `assets/icon.svg` | 应用图标**唯一源文件**：`node scripts/icon.mjs` 一次生成程序图标 / 安装包图标 / 托盘图标 / 界面 Logo / favicon，见 `assets/README.md` |
 
 ### 被控端在各平台上的实现
 
