@@ -720,7 +720,7 @@ pub fn run() {
     };
     // Windows：安装好的 Nife Remote 由系统服务运行被控端；发布版必须安装，调试构建直接运行时被控端在本进程里运行
     let service_mode = winsvc::installed_here();
-    if !service_mode {
+    if !service_mode && !cfg!(debug_assertions) {
         winsvc::show_not_installed();
         return;
     }
