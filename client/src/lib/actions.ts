@@ -8,7 +8,7 @@ import { emptyDraft, store } from "./store";
 
 export { fmtCode } from "./devices";
 
-/** 默认画质：设置里选的预设（默认"均衡"）+ 本机能解码的格式。新连接都用它 */
+/** 新连接用的画质：设置里选的预设（默认"均衡"）+ 本机能解码的格式 */
 export function defaultQuality(): QualitySettings {
   const st = store.get();
   return presetSettings(st.quality, bestCodec(st.decoders));
@@ -145,7 +145,7 @@ export function syncDevicesToAccount() {
   });
 }
 
-/** 登录之后：把账号里的设备拉回来（本机没有的补进"我的设备"，用默认画质），再把本机的补上去 */
+/** 登录之后：把账号里的设备拉回来（本机没有的补进"我的设备"，用设置里的画质），再把本机的补上去 */
 export async function syncDevicesFromAccount(): Promise<void> {
   if (!store.get().account) return;
   try {

@@ -1,6 +1,6 @@
 // 标签栏右侧的两个按钮：
 // * 服务器状态（ServerIndicator）：一直写着在线 / 连接中 / 离线，点开是服务器的详情，弹出层就在它下面；
-// * 设置（SettingsButton）：本机名称、语言、默认画质、快捷键说明。
+// * 设置（SettingsButton）：本机名称、语言、画质、快捷键说明。
 //
 // 主菜单在最右边（以前在最左边的 Logo 上，和窗口按钮挤在一起，点服务器状态也会在最左边弹出菜单。
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -81,14 +81,8 @@ function AppMenu({ onClose }: { onClose: () => void }) {
           <span className="am-label">{t("menu.language")}</span>
           <LangSwitch />
         </div>
-        {/* 默认画质：新连接用它，正在连的会话在会话工具栏 / 设备页里单独改 */}
-        <div className="am-row am-stack" title={t("menu.qualityHint")}>
-          <div className="am-row-line">
-            <span className="am-label">{t("menu.quality")}</span>
-            <span className="muted small">{presetDesc(store.get().quality)}</span>
-          </div>
-          <QualitySwitch />
-        </div>
+        {/* 画质：新连接用它，正在连的会话在会话工具栏 / 设备页里单独改 */}
+        <QualitySwitch />
       </div>
 
       <div className="am-actions">
@@ -128,21 +122,29 @@ function AppMenu({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** 默认画质：省流 / 均衡 / 流畅 / 高清 / 原画（记在 localStorage 里，跟着这台电脑） */
+/** 画质：省流 / 均衡 / 流畅 / 高清 / 原画（记在 localStorage 里，跟着这台电脑）。
+ *  上面一行写的是**当前选中**那个预设的说明，选哪个就显示哪个。 */
 function QualitySwitch() {
+  const t = useT();
   const quality = useStore((s) => s.quality);
   return (
-    <div className="segmented">
-      {PRESETS.map((p) => (
-        <button
-          key={p.id}
-          className={quality === p.id ? "active" : ""}
-          title={presetDesc(p.id)}
-          onClick={() => store.setQuality(p.id)}
-        >
-          {presetName(p.id)}
-        </button>
-      ))}
+    <div className="am-row am-stack" title={t("menu.qualityHint")}>
+      <div className="am-row-line">
+        <span className="am-label">{t("menu.quality")}</span>
+        <span className="muted small">{presetDesc(quality)}</span>
+      </div>
+      <div className="segmented">
+        {PRESETS.map((p) => (
+          <button
+            key={p.id}
+            className={quality === p.id ? "active" : ""}
+            title={presetDesc(p.id)}
+            onClick={() => store.setQuality(p.id)}
+          >
+            {presetName(p.id)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

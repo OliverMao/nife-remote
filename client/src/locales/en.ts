@@ -61,7 +61,7 @@ const en: Record<MsgKey, Msg> = {
   "menu.name": "This computer",
   "menu.nameHintWeb": "The name remote computers see for this console (NIFE_REMOTE_NAME)",
   "menu.language": "Language",
-  "menu.quality": "Default quality",
+  "menu.quality": "Quality",
   "menu.qualityHint": "Used by new connections; each session can still override it in the session toolbar",
   "menu.shortcuts": "Keyboard shortcuts",
   "menu.shortcutsHint": "Available when you're not controlling a remote computer",

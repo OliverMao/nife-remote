@@ -65,7 +65,7 @@ export default {
   "menu.name": "本机名称",
   "menu.nameHintWeb": "对方电脑上显示的控制端名称（NIFE_REMOTE_NAME）",
   "menu.language": "语言",
-  "menu.quality": "默认画质",
+  "menu.quality": "画质",
   "menu.qualityHint": "新连接用这个画质；连上之后可以在会话工具栏里单独调",
   "menu.shortcuts": "键盘快捷键",
   "menu.shortcutsHint": "没有在操作远程电脑时可用",

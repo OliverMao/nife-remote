@@ -45,7 +45,7 @@ export function AssistView() {
   // 配对码就地输入（对方第一次被连时才需要，见 problem.pairingRequired）
   const [pairInput, setPairInput] = useState("");
 
-  // 画质用"设置 → 默认画质"里的预设（默认均衡）；连上之后还能在会话工具栏里单独调
+  // 画质用"设置 → 画质"里的预设（默认均衡）；连上之后还能在会话工具栏里单独调
   const connect = (code6 = digits, pair = "") => {
     if (!/^\d{6}$/.test(code6)) return;
     setError(null);
@@ -86,7 +86,7 @@ export function AssistView() {
     }
   };
 
-  /** 最近连接也用设置里的默认画质 */
+  /** 最近连接也用"设置 → 画质"里的预设 */
   const knownQuality = () => defaultQuality();
 
   return (

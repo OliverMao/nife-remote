@@ -63,7 +63,7 @@ interface State {
   host: HostStatus | null;
   decoders: Codec[];
   immersive: boolean;
-  /** 默认画质预设（新连接用；老连接在会话工具栏 / 设备页里单独改） */
+  /** 设置里选的画质预设（新连接用；老连接在会话工具栏 / 设备页里单独改） */
   quality: PresetId;
   /** 画面增强（所有会话通用，见 enhance.ts） */
   enhance: EnhanceLevel;
@@ -98,7 +98,7 @@ export function loadLocalCursor(): boolean {
   }
 }
 
-/** 默认画质（读不到就是"均衡"） */
+/** 设置里的画质（读不到就是"均衡"） */
 export function loadQuality(): PresetId {
   try {
     const v = globalThis.localStorage?.getItem(QUALITY_KEY);
@@ -212,7 +212,7 @@ export const store = {
   /** 被控中那一页（左栏被控卡的放大按钮） */
   showHost: () => set({ view: "host", immersive: false }),
   setImmersive: (immersive: boolean) => set({ immersive }),
-  /** 默认画质：下次连接用它（正在连的会话不跟着变，见 QualityPanel） */
+  /** 画质：下次连接用它（正在连的会话不跟着变，见 QualityPanel） */
   setQuality: (quality: PresetId) => {
     if (quality === state.quality) return;
     saveLocal(QUALITY_KEY, quality);
