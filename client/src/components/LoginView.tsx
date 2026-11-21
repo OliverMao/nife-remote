@@ -56,6 +56,31 @@ export function LoginView() {
     }
   };
 
+  // 网页版没有账号服务：`server/auth` 的账号是给客户端登录用的，浏览器这边不接（见 lib/backend/web.ts）。
+  // 中转服务器在容器启动时就配好了（NIFE_REMOTE_SERVER），这里直接进主界面，输对方的控制码就能连。
+  if (api.kind === "web") {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-brand">
+            <Logo size={34} />
+            <div>
+              <div className="login-name">Nife Remote</div>
+              <div className="login-sub">{t("web.subtitle")}</div>
+            </div>
+          </div>
+          <p className="login-hint">{t("web.noAccountHint")}</p>
+          <button
+            className="login-btn"
+            onClick={() => store.setAccount({ id: "web-local", name: t("web.localName"), createdAt: 0 })}
+          >
+            {t("web.start")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-page">
       <div className="login-card">
