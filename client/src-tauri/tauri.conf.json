@@ -26,6 +26,7 @@
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
       "nsis": {
+        "installerIcon": "icons/icon.ico",
         "installMode": "perMachine",
         "languages": ["SimpChinese", "English"],
         "installerHooks": "./windows/hooks.nsh"
