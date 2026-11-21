@@ -292,12 +292,6 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
           <div className="sp-addr mono">{app.auth || t("server.authNotSet")}</div>
-          {app.configured && (
-            <>
-              <span className="am-label sp-relay-label">{t("server.relay")}</span>
-              <div className="sp-addr mono">{app.server}</div>
-            </>
-          )}
         </div>
       )}
 
@@ -333,7 +327,6 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
         </form>
       )}
 
-      <p className="sp-hint">{t("server.hint")}</p>
     </Popover>
   );
 }

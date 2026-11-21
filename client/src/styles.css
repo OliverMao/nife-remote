@@ -3556,11 +3556,6 @@ button.hv-item:hover {
 .acc-form .primary-btn {
   height: 34px;
 }
-/* 服务器面板：账号服务地址下面的"中转服务器（自动分配）" */
-.sp-relay-label {
-  margin-top: 10px;
-}
-
 /* ───────── 登录页（没登录时整页就是它） ───────── */
 .login-shell {
   background: var(--gutter);
