@@ -437,9 +437,11 @@ export interface WindowFrame {
   onResized(cb: () => void): () => void;
   /** 请求关闭：和点系统的关闭按钮、Alt+F4 一样，先经过 onCloseRequested */
   close(): Promise<void>;
-  /** 直接关闭，不再询问（关闭控制台 = 断开自己的会话，被控端照常跑） */
+  /** 直接关闭窗口 */
   destroy(): Promise<void>;
-  /** 用户要关闭窗口：回调返回 false 时先不关（界面询问之后再调用 destroy）。返回取消订阅的函数 */
+  /** 把窗口藏起来（托盘里还在，点"打开控制台"再出来） */
+  hide(): Promise<void>;
+  /** 用户要关闭窗口：回调返回 false 时窗口先不关。返回取消订阅的函数 */
   onCloseRequested(cb: () => boolean): () => void;
 }
 

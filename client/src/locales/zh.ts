@@ -75,10 +75,6 @@ export default {
   "shortcut.nthTab": "切换到第 1~9 个标签",
 
   // 关闭控制台之前确认（被控端不受影响，别人还是能连本机）
-  "confirm.close.title": "关闭控制台？",
-  "confirm.close.body": "将断开 {n} 个远程连接。本机不会被关掉：别人还能用连接码连上这台电脑。",
-  "confirm.close.ok": "断开并关闭",
-  "confirm.cancel": "取消",
 
   // 首页：本机的连接码
   "host.open": "去远程协助页查看设备ID",

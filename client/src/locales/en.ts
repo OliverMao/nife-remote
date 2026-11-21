@@ -70,12 +70,6 @@ const en: Record<MsgKey, Msg> = {
   "shortcut.reopen": "Reopen the last closed connection",
   "shortcut.nthTab": "Go to tab 1–9",
 
-  "confirm.close.title": "Close the console?",
-  "confirm.close.body": (p) =>
-    `${p.n} remote ${plural(p.n, "connection", "connections")} will be disconnected. This computer stays reachable: others can still connect to it with its control code.`,
-  "confirm.close.ok": "Disconnect and close",
-  "confirm.cancel": "Cancel",
-
   // Home page: this computer's control code
   "host.open": "Open remote assistance",
   "host.controllersLine": "{n} device is controlling this computer",

@@ -24,13 +24,13 @@ function windowFrame(): WindowFrame {
     onResized: (cb) => unlistenLater(w.onResized(() => cb())),
     close: () => w.close(),
     destroy: () => w.destroy(),
+    hide: () => w.hide(),
     onCloseRequested: (cb) =>
       unlistenLater(
         w.onCloseRequested((e) => {
+          // 关窗口 = 只藏界面（见 actions.ts 的 hideOnClose）：这里拦住真正的关闭，别的都不做
           if (cb()) return;
           e.preventDefault();
-          // 例如在任务栏上关闭最小化的窗口：先把窗口拿出来，用户才看得到询问
-          void w.unminimize().then(() => w.setFocus());
         }),
       ),
   };

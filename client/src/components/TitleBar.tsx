@@ -67,7 +67,7 @@ function WindowButtons() {
       >
         {maximized ? <IconWinRestore /> : <IconWinMaximize />}
       </button>
-      {/* 和系统的关闭按钮一样：有会话时先确认（见 App 里的 onCloseRequested） */}
+      {/* 和系统的关闭按钮一样：只把界面藏起来，程序还在托盘里（见 App 里的 onCloseRequested） */}
       <button className="win-btn close" title={t("window.close")} onClick={() => void frame.close()}>
         <IconWinClose />
       </button>

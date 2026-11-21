@@ -245,7 +245,7 @@ fn set_lang(app: &AppHandle, lang: Lang) {
 }
 
 fn on_console_destroyed(app: &AppHandle) {
-    // 关掉控制台只断开自己的会话（控制端），被控端照常跑，别人随时可以连本机
+    // 控制台窗口没了（托盘退出 / 程序退出）：清掉这次运行留下的 WebView 数据目录
     let dirs: Vec<PathBuf> =
         std::mem::take(&mut *app.state::<AppState>().webview_dirs.lock().unwrap());
     for d in dirs {

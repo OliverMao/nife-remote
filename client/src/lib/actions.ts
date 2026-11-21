@@ -209,34 +209,18 @@ export function resetDraft() {
   store.patchDraft(emptyDraft());
 }
 
-// ── 关闭控制台 ──
-
-/** 还连着（或者在等、在重连）的会话数：为 0 时关闭控制台不会丢掉什么，不用问 */
-const activeSessions = () => store.get().sessions.filter((s) => s.state !== "closed").length;
+// ── 关闭控制台窗口 ──
 
 /**
  * 窗口要关闭了（标题栏的关闭按钮、任务栏、Alt+F4，见 App 里的 onCloseRequested）：
- * 关窗口 = 断开所有自己的会话，有会话时先问一下。返回 true 表示直接关
+ * **只把界面藏起来**，不问也不退出 —— 被控端照常跑，托盘里还在，点托盘菜单"打开控制台"又出来。
+ * 真正退出程序走托盘右键菜单的"退出"。
  */
-export function allowClose(): boolean {
-  const n = activeSessions();
-  if (n > 0) {
-    store.setConfirm({ kind: "close", sessions: n });
-    return false;
-  }
-  // 我的设备还没存完：存完再关
-  if (unsaved > 0) {
-    void devicesSaved().then(() => api.frame?.destroy());
-    return false;
-  }
-  return true;
-}
-
-/** 用户确认之后：断开自己的会话、关窗口。被控端照常跑，别人还是能连本机 */
-export async function quit() {
-  store.setConfirm(null);
-  await devicesSaved();
-  await api.frame?.destroy();
+export function hideOnClose(): boolean {
+  // 我的设备还没存完：先把它存完（不等，别拖慢关窗口）
+  if (unsaved > 0) void devicesSaved();
+  void api.frame?.hide();
+  return false;
 }
 
 // ── 全屏 ──

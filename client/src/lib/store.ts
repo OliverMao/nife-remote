@@ -29,9 +29,6 @@ export interface Recent {
   settings: QualitySettings;
 }
 
-/** 等用户确认的操作：关闭控制台会断开所有会话 */
-export type Confirm = null | { kind: "close"; sessions: number };
-
 interface State {
   /** 顺序就是标签的顺序 */
   sessions: RemoteSession[];
@@ -51,7 +48,6 @@ interface State {
   devices: SavedDevice[];
   /** 我的设备能不能保存（桌面版：config.toml）；网页版只在本页面的内存里 */
   devicesSaved: boolean;
-  confirm: Confirm;
   server: ServerState;
   /**
    * 最近一次连不上服务器的原因。断开后会自动重试（状态在 disconnected 和 connecting 之间来回），
@@ -136,7 +132,6 @@ let state: State = {
   accountLoaded: false,
   devices: [],
   devicesSaved: false,
-  confirm: null,
   server: { state: "connecting" },
   serverProblem: null,
   app: null,
@@ -303,7 +298,6 @@ export const store = {
   setProfile: (profile: Profile) => set({ profile }),
   setAccount: (account: AccountInfo | null) => set({ account, accountLoaded: true }),
 
-  setConfirm: (confirm: Confirm) => set({ confirm }),
 };
 
 export function useStore<T>(select: (s: State) => T): T {

@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
-import { ConfirmDialog } from "./components/ConfirmDialog";
 import { GridView } from "./components/GridView";
 import { SessionView } from "./components/SessionView";
 import { TitleBar } from "./components/TitleBar";
 import { WebUnsupported, webUnsupported } from "./components/WebUnsupported";
-import { allowClose, applyFullscreen, closeTab, loadDevices, reopenLast, syncDevicesFromAccount } from "./lib/actions";
+import { applyFullscreen, closeTab, hideOnClose, loadDevices, reopenLast, syncDevicesFromAccount } from "./lib/actions";
 import { api } from "./lib/api";
 import { supportedDecoders } from "./lib/codec";
 import { setLang, useLang } from "./lib/i18n";
@@ -33,7 +32,7 @@ export function App() {
 function shortcut(e: KeyboardEvent): boolean {
   if (api.kind !== "desktop" || !e.ctrlKey || e.altKey || e.metaKey) return false;
   const st = store.get();
-  if (st.confirm || st.sessions.find((s) => s.id === st.view)?.state === "live") return false;
+  if (st.sessions.find((s) => s.id === st.view)?.state === "live") return false;
   const key = e.key.toLowerCase();
   if (e.key === "Tab" || e.key === "PageDown" || e.key === "PageUp") {
     store.cycle(e.shiftKey || e.key === "PageUp" ? -1 : 1);
@@ -105,7 +104,8 @@ function Console() {
     });
     const unOnline = api.onHostOnline(store.hostOnline);
     // 关闭窗口（标题栏的关闭按钮、任务栏、Alt+F4）：有会话时先确认
-    const unClose = api.frame?.onCloseRequested(allowClose);
+    // 关窗口 = 只藏界面（不退出、不问），真正退出在托盘右键菜单里
+    const unClose = api.frame?.onCloseRequested(hideOnClose);
     const onKey = (e: KeyboardEvent) => {
       // 屏蔽 WebView 自带的刷新/查找/打印等快捷键，避免误触
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && ["r", "p", "f", "g", "j", "u"].includes(e.key.toLowerCase()))) {
@@ -192,7 +192,6 @@ function Console() {
         )}
         </main>
       </div>
-      <ConfirmDialog />
     </div>
   );
 }
