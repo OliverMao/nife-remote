@@ -11,6 +11,7 @@ import { problemText } from "../lib/messages";
 import { serverStatus, store, useStore } from "../lib/store";
 import { IconCheck, IconChevron, IconCopy, IconKeyboard, IconMenuLines, IconRefresh, IconServer, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
+import { PRESETS, presetDesc, presetName } from "../lib/presets";
 import { Popover } from "./Popover";
 
 /** 弹出层的开关：关掉后键盘回到远程画面 */
@@ -80,6 +81,14 @@ function AppMenu({ onClose }: { onClose: () => void }) {
           <span className="am-label">{t("menu.language")}</span>
           <LangSwitch />
         </div>
+        {/* 默认画质：新连接用它，正在连的会话在会话工具栏 / 设备页里单独改 */}
+        <div className="am-row am-stack" title={t("menu.qualityHint")}>
+          <div className="am-row-line">
+            <span className="am-label">{t("menu.quality")}</span>
+            <span className="muted small">{presetDesc(store.get().quality)}</span>
+          </div>
+          <QualitySwitch />
+        </div>
         {/* 设置、本机的控制码、我的设备都在这个文件里 */}
         {app?.configPath && (
           <div className="am-row am-stack" title={t("menu.configHint")}>
@@ -126,6 +135,25 @@ function AppMenu({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </Popover>
+  );
+}
+
+/** 默认画质：省流 / 均衡 / 流畅 / 高清 / 原画（记在 localStorage 里，跟着这台电脑） */
+function QualitySwitch() {
+  const quality = useStore((s) => s.quality);
+  return (
+    <div className="segmented">
+      {PRESETS.map((p) => (
+        <button
+          key={p.id}
+          className={quality === p.id ? "active" : ""}
+          title={presetDesc(p.id)}
+          onClick={() => store.setQuality(p.id)}
+        >
+          {presetName(p.id)}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -5,7 +5,7 @@ import type { SavedDevice } from "../lib/api";
 import { fmtCode } from "../lib/actions";
 import { useT } from "../lib/i18n";
 import { store, useStore } from "../lib/store";
-import { MyDevices } from "./ConnectView";
+import { MyDevices } from "./MyDevices";
 import { Logo } from "./Logo";
 import { IconExpand, IconMonitor, IconSwap } from "./Icons";
 

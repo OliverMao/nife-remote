@@ -4,11 +4,9 @@
 // 只有「显示远程窗口」是真的去连（开的还是原来的会话标签）。
 import { useMemo, useState } from "react";
 import type { SavedDevice } from "../lib/api";
-import { fmtCode, forgetDevice, loadDevices, openSession } from "../lib/actions";
+import { defaultQuality, fmtCode, forgetDevice, loadDevices, openSession } from "../lib/actions";
 import { deviceTitle } from "../lib/devices";
 import { useT } from "../lib/i18n";
-import { bestCodec } from "../lib/codec";
-import { DEFAULT_PRESET, presetSettings } from "../lib/presets";
 import { store, useStore } from "../lib/store";
 import { IconGrid, IconKebab, IconMonitor, IconRefresh, IconSliders, IconTrash, IconVolume } from "./Icons";
 
@@ -25,7 +23,6 @@ export function DeviceView() {
   const code = useStore((s) => s.device);
   const devices = useStore((s) => s.devices);
   const sessions = useStore((s) => s.sessions);
-  const decoders = useStore((s) => s.decoders);
   const [menu, setMenu] = useState(false);
 
   const device: SavedDevice | undefined = useMemo(
@@ -36,7 +33,7 @@ export function DeviceView() {
 
   if (!code) return null;
   const name = device ? deviceTitle(device) : fmtCode(code);
-  const quality = device?.quality ?? presetSettings(DEFAULT_PRESET, bestCodec(decoders));
+  const quality = device?.quality ?? defaultQuality();
   const live = session?.state === "live";
 
   const enter = () => void openSession(code, quality);

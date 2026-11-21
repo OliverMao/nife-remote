@@ -5,7 +5,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { AccountInfo, AppInfo, Codec, HostStatus, Problem, Profile, QualitySettings, SavedDevice, ServerState } from "./api";
 import { fmtCode } from "./devices";
 import { ENHANCE_LEVELS, type EnhanceLevel } from "./enhance";
-import { DEFAULT_PRESET, type PresetId } from "./presets";
+import { DEFAULT_PRESET, PRESETS, type PresetId } from "./presets";
 import type { RemoteSession } from "./session";
 
 /** "new" = 新建连接标签，"grid" = 多屏总览，其余为会话 id */
@@ -63,6 +63,8 @@ interface State {
   host: HostStatus | null;
   decoders: Codec[];
   immersive: boolean;
+  /** 默认画质预设（新连接用；老连接在会话工具栏 / 设备页里单独改） */
+  quality: PresetId;
   /** 画面增强（所有会话通用，见 enhance.ts） */
   enhance: EnhanceLevel;
   /**
@@ -74,6 +76,7 @@ interface State {
 
 const MAX_RECENT = 8;
 const ENHANCE_KEY = "nife-remote.enhance";
+const QUALITY_KEY = "nife-remote.quality";
 const LOCAL_CURSOR_KEY = "nife-remote.localCursor";
 
 /** 上次选的画面增强（读不到就是关） */
@@ -92,6 +95,16 @@ export function loadLocalCursor(): boolean {
     return globalThis.localStorage?.getItem(LOCAL_CURSOR_KEY) !== "0";
   } catch {
     return true;
+  }
+}
+
+/** 默认画质（读不到就是"均衡"） */
+export function loadQuality(): PresetId {
+  try {
+    const v = globalThis.localStorage?.getItem(QUALITY_KEY);
+    return PRESETS.find((p) => p.id === v)?.id ?? DEFAULT_PRESET;
+  } catch {
+    return DEFAULT_PRESET;
   }
 }
 
@@ -130,6 +143,7 @@ let state: State = {
   host: null,
   decoders: ["h264"],
   immersive: false,
+  quality: loadQuality(),
   enhance: loadEnhance(),
   localCursor: loadLocalCursor(),
 };
@@ -198,6 +212,12 @@ export const store = {
   /** 被控中那一页（左栏被控卡的放大按钮） */
   showHost: () => set({ view: "host", immersive: false }),
   setImmersive: (immersive: boolean) => set({ immersive }),
+  /** 默认画质：下次连接用它（正在连的会话不跟着变，见 QualityPanel） */
+  setQuality: (quality: PresetId) => {
+    if (quality === state.quality) return;
+    saveLocal(QUALITY_KEY, quality);
+    set({ quality });
+  },
   /** 画面增强：记下来，所有会话马上按它重画 */
   setEnhance: (enhance: EnhanceLevel) => {
     if (enhance === state.enhance) return;

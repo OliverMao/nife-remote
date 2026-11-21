@@ -13,7 +13,6 @@ import { store, useStore } from "./lib/store";
 import { Sidebar } from "./components/Sidebar";
 import { DeviceView } from "./components/DeviceView";
 import { AssistView } from "./components/AssistView";
-import { ConnectView } from "./components/ConnectView";
 import { HostView } from "./components/HostView";
 import { LoginView } from "./components/LoginView";
 
@@ -180,10 +179,7 @@ function Console() {
         <main className="main">
         {view === "host" ? (
           <HostView />
-        ) : view === "new" ? (
-          // 新建连接页：正在连谁、进度、要配对码、画质预设（远程协助页点"连接"就切到这里）
-          <ConnectView />
-        ) : view === "assist" ? (
+        ) : view === "assist" || view === "new" ? (
           <AssistView />
         ) : view === "device" ? (
           <DeviceView />

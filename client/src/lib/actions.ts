@@ -2,11 +2,17 @@
 import { api, toProblem, type QualitySettings, type SavedDevice } from "./api";
 import * as devices from "./devices";
 import { bestCodec } from "./codec";
-import { DEFAULT_PRESET, presetSettings } from "./presets";
+import { presetSettings } from "./presets";
 import { RemoteSession } from "./session";
 import { emptyDraft, store } from "./store";
 
 export { fmtCode } from "./devices";
+
+/** 默认画质：设置里选的预设（默认"均衡"）+ 本机能解码的格式。新连接都用它 */
+export function defaultQuality(): QualitySettings {
+  const st = store.get();
+  return presetSettings(st.quality, bestCodec(st.decoders));
+}
 
 /** 新建连接标签里正在连的会话（关掉这个标签就放弃） */
 let pending: RemoteSession | null = null;
@@ -147,7 +153,7 @@ export async function syncDevicesFromAccount(): Promise<void> {
     const now = store.get().devices;
     const missing = codes.filter((c) => !now.some((d) => d.code === c));
     if (missing.length > 0) {
-      const preset = presetSettings(DEFAULT_PRESET, bestCodec(store.get().decoders));
+      const preset = defaultQuality();
       // 从账号拉回来的只记 ID：名字先当控制码、画质用默认，连一次之后会自动补全
       let merged = now;
       for (const code of missing) {
