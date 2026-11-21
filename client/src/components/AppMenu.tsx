@@ -1,8 +1,6 @@
-// 标签栏右侧的两个按钮：
-// * 服务器状态（ServerIndicator）：一直写着在线 / 连接中 / 离线，点开是服务器的详情，弹出层就在它下面；
-// * 设置（SettingsButton）：本机名称、语言、画质、快捷键说明。
+// 标题栏右侧的齿轮按钮（SettingsButton）：网络状态、本机名称、语言、画质、快捷键说明都在这个弹层里。
 //
-// 主菜单在最右边（以前在最左边的 Logo 上，和窗口按钮挤在一起，点服务器状态也会在最左边弹出菜单。
+// 弹层挂在按钮下面（以前挂在最左边的 Logo 上，和窗口按钮挤在一起）。
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, toProblem, type Problem } from "../lib/api";
 import { focusActive, loadDevices } from "../lib/actions";
@@ -149,7 +147,7 @@ function QualitySwitch() {
   );
 }
 
-/** 菜单里的服务器一行：状态 + 改地址/指纹（原来顶栏那个胶囊搬进来） */
+/** 菜单里的"网络状态"一行：在线 / 连接中 / 离线，点开是详情（地址、指纹，见 ServerPanel） */
 function ServerRow() {
   const t = useT();
   const server = useStore((s) => s.server);
@@ -158,10 +156,10 @@ function ServerRow() {
   return (
     <>
       <button className="am-row am-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className="am-label">{t("server.title")}</span>
+        <span className="am-label">{t("menu.network")}</span>
         <span className={`am-value srv ${status} ${server.state === "connecting" ? "trying" : ""}`}>
           <span className="dot" />
-          {t(`server.${server.state}`)}
+          {t(`server.short.${status}`)}
           <IconChevron size={13} className="am-chevron" />
         </span>
       </button>
@@ -207,31 +205,7 @@ export function LangSwitch() {
   );
 }
 
-// ───────────────────────── 服务器状态 ─────────────────────────
-
-/** 标签栏右侧的服务器状态：一直写着是什么状态；点一下在它下面打开服务器的详情 */
-export function ServerIndicator() {
-  const t = useT();
-  const status = useStore(serverStatus);
-  const server = useStore((s) => s.server);
-  const app = useStore((s) => s.app);
-  const { open, close, toggle } = useMenu();
-  const label = t(`server.${server.state}`);
-  return (
-    <div className="menu-anchor">
-      <button
-        className={`server-ind ${status} ${server.state === "connecting" ? "trying" : ""} ${open ? "on" : ""}`}
-        title={`${t("server.title")} · ${label}${app && server.state === "connected" ? ` · ${app.server}` : ""}`}
-        aria-expanded={open}
-        onClick={toggle}
-      >
-        <span className="dot" />
-        <span className="server-ind-text">{t(`server.short.${status}`)}</span>
-      </button>
-      {open && <ServerPanel onClose={close} />}
-    </div>
-  );
-}
+// ───────────────────────── 网络状态（详情层） ─────────────────────────
 
 function ServerPanel({ onClose }: { onClose: () => void }) {
   const t = useT();
@@ -282,10 +256,10 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
           <IconServer size={18} />
         </span>
         <div className="sp-head-text">
-          <div className="pop-title">{t("server.title")}</div>
+          <div className="pop-title">{t("menu.network")}</div>
           <div className={`sp-state ${status}`}>
             <span className="dot" />
-            {t(`server.${server.state}`)}
+            {t(`server.short.${status}`)}
           </div>
         </div>
       </div>
