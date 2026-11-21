@@ -4,27 +4,25 @@
 
 ## Host and controller at the same time
 
-Double-click to run (on Windows install it first, see [Windows installation](#windows-installation)): the console window opens, and **the top of the home page shows this computer's control code and pairing code**. The pairing code has a **Change** button: pick your own 6 digits and it takes effect immediately. Others use that code to connect here, and you can connect out from the same window; the two halves don't affect each other. Closing the window only disconnects your own sessions, this computer stays reachable, and **Open console** in the tray brings the window back.
+Double-click to run (on Windows install it first, see [Windows installation](#windows-installation)): the console window opens, and **the top of the home page shows this computer's control code and pairing code**. The pairing code has a **Change** button: pick your own 6 digits and it takes effect immediately. Others use that code to connect here, and you can connect out from the same window; the two halves don't affect each other. Closing the window only disconnects your own sessions, this computer stays reachable, and **Show window** in the tray (or a left click on the icon) brings the window back.
 
-The tray icon sits in the bottom-right corner. Grey means not connected to the server, coloured means connected. The right-click menu contains:
+The tray icon sits in the bottom-right corner. Grey means not connected to the server, coloured means connected (hover it to see the status and this computer's control code). The **right-click menu has just two items**:
 
-- This computer's control code (also "Copy control code") and the server status
-- The **pairing code**, "Copy pairing code" and **Change pairing code**: a controller that hasn't paired with this computer needs it, besides the control code, the first time it connects (see "Pairing" below)
-- Who is controlling this computer right now (with the **safety code** after each connection), and **Disconnect all controllers**
-- **Change control code**: the old code stops working immediately and connected controllers are disconnected; the pairing code changes too and all paired controllers are forgotten
-- **Forget paired controllers**: they'll need the pairing code again
-- **Open console**, **Start with Windows** / Language / Quit
+- **Show window** (a left click on the icon does the same)
+- **Quit**: really exits; on an installed Windows build the host service stops too, so this computer can't be controlled anymore
+
+The control code, the pairing code, "Disconnect all controllers" and the language all live in the console: codes are on the **Remote assistance** page, the controllers on the **Being controlled** page, language and quality in the gear menu at the top right.
 
 After a network drop the host reconnects automatically with exponential backoff and **gets its old control code back**, even after a server restart. The code is **fixed**: it's saved in `config.toml`, and the server keeps it for this computer however long it stays offline (codes unused for 180 days are released), so it stays the same across restarts and upgrades until you change it.
 
-**Pairing**: the relay server assigns control codes, so it knows all of them; the control code alone therefore doesn't get anyone in (otherwise the server could connect by itself). The first time a controller connects to this computer it has to enter the 6-digit **pairing code** from the tray menu (or the console's home page); the pairing code never goes through the server. After that this computer remembers the controller and the control code is enough. After 5 wrong pairing codes in a row pairing is paused (the tray says so) until you pick a new pairing code. If you don't want pairing codes (e.g. you only use a relay server you trust), set `access = "open"` in `config.toml`. See [Security → End-to-end encryption](security.md#end-to-end-encryption).
+**Pairing**: the relay server assigns control codes, so it knows all of them; the control code alone therefore doesn't get anyone in (otherwise the server could connect by itself). The first time a controller connects to this computer it has to enter the 6-digit **pairing code** from the other computer's Remote assistance page; the pairing code never goes through the server. After that this computer remembers the controller and the control code is enough. After 5 wrong pairing codes in a row pairing is paused until you pick a new pairing code on that page. If you don't want pairing codes (e.g. you only use a relay server you trust), set `access = "open"` in `config.toml`. See [Security → End-to-end encryption](security.md#end-to-end-encryption).
 
 ## Windows installation
 
-On Windows Nife Remote is installed with its installer (into `C:\Program Files\Nife Remote` for all users; needs administrator rights). The host runs as the system service **Nife Remote**, as SYSTEM in the session of whoever is at the screen, so it keeps working on the lock screen, the sign-in screen and UAC prompts, and follows when users are switched. The tray icon is an ordinary program that shows the service's status and controls it:
+On Windows Nife Remote is installed with its installer (into `C:\Program Files\Nife Remote` for all users; needs administrator rights). The host runs as the system service **Nife Remote**, as SYSTEM in the session of whoever is at the screen, so it keeps working on the lock screen, the sign-in screen and UAC prompts, and follows when users are switched. The tray icon is an ordinary program; its right-click menu has just Show window and Quit:
 
 - Opening Nife Remote starts the service; **Quit** in the tray stops it (as before, the computer can't be controlled after quitting); when the service stops (or is uninstalled) the tray icons close too
-- **Start with Windows** (tray menu, on by default): the service starts at boot, so the computer can be controlled before anyone signs in, and the tray icon appears after signing in
+- **Start with Windows** (on by default at install time, see `autostart` in `config.toml`): the service starts at boot, so the computer can be controlled before anyone signs in, and the tray icon appears after signing in
 - The configuration file `config.toml` is in the install directory (created on installation, see [Configuration file](#configuration-file)) and maintained by the service; edit it as administrator
 - **Uninstalling** (Settings → Apps) stops and removes the service, the startup entry, `config.toml` and the program; nothing is left behind (see [Uninstalling](#uninstalling)). Installing a new version over an old one keeps `config.toml`, and with it the control code and My devices, even if you choose to uninstall the old version first
 - A bare `nife-remote.exe` doesn't run without being installed: release builds ask you to run the installer. Debug builds (`npm run tauri dev`) run the host inside the tray process, with `config.toml` next to the program (`client/src-tauri/target/debug/`)
@@ -43,7 +41,7 @@ Everything Nife Remote saves is in one `config.toml` (with comments). The menu i
 | `server_fp` | Relay certificate fingerprint; `""` means no fixed fingerprint: the server's certificate is remembered on the first connection (`[server_trust]`) and a different one is refused later; without it, the built-in fingerprint |
 | `[server_trust]` | Written by Nife Remote: the relay's certificate fingerprint remembered on the first connection (when no fingerprint is set). Delete it if the relay really gets a new certificate |
 | `access` | Whether controllers that haven't paired may connect: `"pairing"` (default) needs the pairing code from the tray; `"open"` lets anyone with the control code in (which means trusting the relay server) |
-| `autostart` | Start with Windows (also in the tray menu) |; System Settings is what counts, so editing only this line has no effect. Without it, Open at login hasn't been turned on by default yet (see above) |
+| `autostart` | Start with Windows (no UI switch; restart Nife Remote after editing) |; System Settings is what counts, so editing only this line has no effect. Without it, Open at login hasn't been turned on by default yet (see above) |
 | `[code]` | This computer's control code, and the secret that gets it back. Delete `code` and `secret` to get a new code |
 | `[host]` | Maintained by Nife Remote: this computer's end-to-end identity as a host (`key`), the pairing code and whether pairing is paused, all stored encrypted. Deleting `key` creates a new identity: controllers that connected before will warn that this computer's identity changed |
 | `[[paired]]` | Maintained by Nife Remote: paired controllers (public key, name, when they paired); they connect without the pairing code. Delete an entry to forget that controller |
@@ -67,10 +65,10 @@ Settings → Apps → Nife Remote → Uninstall. The uninstaller stops and remov
 
 ## Controller
 
-The console window is the controller. It opens at startup; **closing it only hides the window** (no confirmation; the controller and the host keep running and live sessions are not dropped) and **Open console** in the tray brings it back. To quit the program, use **Quit** in the tray icon's right-click menu.
+The console window is the controller. It opens at startup; **closing it only hides the window** (no confirmation; the controller and the host keep running and live sessions are not dropped) and **Show window** in the tray (or a left click) brings it back. To quit the program, use **Quit** in the tray icon's right-click menu.
 
 - It works like a browser: each computer gets a **tab** that you can drag to reorder and close (= disconnect) with × or a middle click. Click **+** for a new connection, enter the 6-digit control code (pasting `123 456` works), and once connected that tab becomes the computer. With two or more connections a **Multi-screen overview** tab appears on the left
-- **First connection to a computer**: when it asks for a pairing code (desktop hosts do by default), the new-connection page shows a "Pairing code" field: enter the 6-digit pairing code from its tray menu and connect again (or paste all 12 digits at once: control code + pairing code). Once paired, it remembers this console
+- **First connection to a computer**: when it asks for a pairing code (desktop hosts do by default), the new-connection page shows a "Pairing code" field: enter the 6-digit pairing code from its Remote assistance page and connect again (or paste all 12 digits at once: control code + pairing code). Once paired, it remembers this console
 - **End-to-end encryption**: sessions are encrypted end to end, so the relay server can't see the screen or keystrokes. The console remembers a computer's identity the first time it connects; if the identity changes later (reinstalled, or someone impersonating it), the console warns and doesn't reconnect by itself. Once you've confirmed it was reinstalled, enter its current pairing code from its tray to pair again. Hover the control code in the toolbar to see the **safety code**: if the remote computer's tray shows the same one, nobody is in between
 - **My devices**: computers you connect to are saved (in `config.toml`); next time, one click on the new-connection page connects with the quality settings you used last. Rename or remove them (with undo), and search when there are many. If one is offline, there's no error: its tab opens and waits, and connects as soon as it's back (using the saved reconnect token, which doesn't count as code guessing)
 - The window has no system title bar: drag an empty part of the tab bar to move it, double-click to maximize. The gear on the right of the tab bar is the menu: this computer's name, language, config file, shortcuts. Closing the window (including from the taskbar or Alt+F4) only hides it, it does not quit the program
@@ -101,6 +99,6 @@ Send this computer's microphone to the remote computer: programs there (meetings
 
 ## Language
 
-The console and tray menu are available in **English** and **Simplified Chinese**. By default the client follows the system display language: Chinese if it is Chinese, English otherwise. Switch any time from the 中文 / EN switch in the console menu (the gear at the top-right) or from the tray menu (More → Language / 语言). The choice isn't saved: the next start follows the system language again.
+The console is available in **English** and **Simplified Chinese**. By default the client follows the system display language: Chinese if it is Chinese, English otherwise. Switch any time from the 中文 / EN switch in the console menu (the gear at the top-right). The choice isn't saved: the next start follows the system language again.
 
 Notices and errors from the other computer or the server are sent as message types, not text, so they always appear in **your** language. Logs (client and server) are always in English.

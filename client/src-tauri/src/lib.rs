@@ -74,11 +74,14 @@ enum Hosting {
 /// 托盘菜单里对配对的操作
 #[derive(Debug, Clone)]
 enum PairingCmd {
-    /// 换一个配对码（暂停了的配对随之恢复）
+    /// 换一个配对码（暂停了的配对随之恢复）。托盘菜单精简成两项后暂时没有入口，
+    /// 留着给以后放回界面用（控制台里改的是具体某个码，见 [`PairingCmd::Set`]）
+    #[allow(dead_code)]
     NewCode,
     /// 换成本机用户填的配对码
     Set(String),
-    /// 忘掉所有配对过的控制端
+    /// 忘掉所有配对过的控制端（下次要重新输配对码）。同上：暂时没有界面入口
+    #[allow(dead_code)]
     Forget,
 }
 
@@ -256,63 +259,7 @@ fn on_console_destroyed(app: &AppHandle) {
 pub(crate) fn on_menu(app: &AppHandle, id: &str) {
     match id {
         "console" => open_console(app),
-        "lang_zh" => set_lang(app, Lang::Zh),
-        "lang_en" => set_lang(app, Lang::En),
-        "kick_all" | "new_code" => {
-            let cmd = if id == "kick_all" {
-                HostCmd::KickAll
-            } else {
-                HostCmd::NewCode
-            };
-            if let Some(h) = &app.state::<AppState>().services.lock().unwrap().host {
-                h.send(cmd);
-            }
-        }
-        "new_pairing" | "forget_paired" => {
-            let cmd = if id == "new_pairing" {
-                PairingCmd::NewCode
-            } else {
-                PairingCmd::Forget
-            };
-            if let Some(h) = &app.state::<AppState>().services.lock().unwrap().host {
-                h.pairing(cmd);
-            }
-        }
-        "autostart" => {
-            let state = app.state::<AppState>();
-            let current = state.hub.borrow().service.map(|s| s.autostart);
-            if let (Some(current), Some(Hosting::Service(link))) =
-                (current, &state.services.lock().unwrap().host)
-            {
-                link.send(winsvc::ipc::ToAgent::SetAutostart { on: !current });
-            }
-            // 勾选项被点击时系统会自动翻转勾选状态：重建菜单，以被控端确认后的设置为准
-            state.hub.send_modify(|_| {});
-        }
-        "start_service" => {
-            std::thread::spawn(|| {
-                if let Err(e) = winsvc::start() {
-                    warn!("can't start the Nife Remote service: {e:#}");
-                }
-            });
-        }
-        "copy_code" => {
-            if let Some(code) = app.state::<AppState>().hub.borrow().host.code {
-                match clipboard::set_text(&format!("{code:06}")) {
-                    Ok(()) => info!("control code copied"),
-                    Err(e) => warn!("copying failed: {e}"),
-                }
-            }
-        }
-        "copy_pairing" => {
-            let pairing = app.state::<AppState>().hub.borrow().host.pairing.clone();
-            if let Some(p) = pairing {
-                match clipboard::set_text(&p) {
-                    Ok(()) => info!("pairing code copied"),
-                    Err(e) => warn!("copying failed: {e}"),
-                }
-            }
-        }
+        // 菜单只有这两项（见 tray::build_menu）：其余操作都在主界面里
         "quit" => {
             let state = app.state::<AppState>();
             // Windows 安装版：退出 = 被控端也停止（和直接运行时一样，退出后本机不能再被控制）
