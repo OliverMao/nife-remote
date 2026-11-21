@@ -4,7 +4,7 @@
 use std::sync::OnceLock;
 
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Wry};
 
@@ -82,14 +82,10 @@ fn server_line(server: &ServerState) -> String {
     }
 }
 
+/// 托盘菜单：只放"现在什么状态"和常用的几个动作，换控制码、换配对码、语言这些低频的收进「更多」。
+/// 控制端的连接状态、正在控制本机的设备明细都在控制台里看。
 fn build_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::new(app)?;
-    menu.append(&label(
-        app,
-        format!("Nife Remote  v{}", crate::config::VERSION),
-    )?)?;
-    menu.append(&PredefinedMenuItem::separator(app)?)?;
-
     match st.service {
         Some(svc) => service_items(app, &menu, st, svc)?,
         None => {
@@ -97,14 +93,60 @@ fn build_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Menu<Wry>> {
             host_items(app, &menu, st)?;
             menu.append(&PredefinedMenuItem::separator(app)?)?;
             menu.append(&item(app, "console", tr!("打开控制台", "Open console"))?)?;
-            // 控制台自己的服务器连接（去连别人的那一半）
-            menu.append(&label(app, server_line(&st.controller))?)?;
         }
     }
-    menu.append(&language_menu(app)?)?;
+    menu.append(&more_menu(app, st)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&item(app, "quit", tr!("退出", "Quit"))?)?;
     Ok(menu)
+}
+
+/// 「更多」里的低频操作：开机自动启动、换控制码 / 配对码、忘掉配对过的控制端、语言。
+fn more_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Submenu<Wry>> {
+    let mut entries: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
+    if let Some(svc) = st.service {
+        entries.push(Box::new(CheckMenuItem::with_id(
+            app,
+            "autostart",
+            tr!("开机自动启动", "Start with Windows"),
+            svc.connected,
+            svc.autostart,
+            None::<&str>,
+        )?));
+    }
+    if matches!(st.host.server, ServerState::Connected) {
+        if st.host.code.is_some() {
+            entries.push(Box::new(item(
+                app,
+                "new_code",
+                tr!(
+                    "更换控制码（旧码失效，配对也作废）",
+                    "Change control code (old code and pairings stop working)"
+                ),
+            )?));
+        }
+        if st.host.pairing.is_some() {
+            entries.push(Box::new(item(
+                app,
+                "new_pairing",
+                tr!("更换配对码", "Change pairing code"),
+            )?));
+        }
+        if st.host.paired > 0 {
+            let n = st.host.paired;
+            entries.push(Box::new(item(
+                app,
+                "forget_paired",
+                tr!("忘掉已配对的 {n} 个控制端", "Forget {n} paired controllers"),
+            )?));
+        }
+    }
+    if !entries.is_empty() {
+        entries.push(Box::new(PredefinedMenuItem::separator(app)?));
+    }
+    entries.push(Box::new(language_menu(app)?));
+    let refs: Vec<&dyn IsMenuItem<Wry>> = entries.iter().map(|e| e.as_ref()).collect();
+    Submenu::with_items(app, tr!("更多", "More"), true, &refs)
 }
 
 /// Windows 安装版：被控端在系统服务里一直运行，控制台随时可以打开
@@ -142,122 +184,53 @@ fn service_items(
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&item(app, "console", tr!("打开控制台", "Open console"))?)?;
-    menu.append(&CheckMenuItem::with_id(
-        app,
-        "autostart",
-        tr!("开机自动启动", "Start with Windows"),
-        svc.connected,
-        svc.autostart,
-        None::<&str>,
-    )?)?;
     Ok(())
 }
 
 
-/// 被控端：服务器状态、控制码、正在控制本机的控制端
+/// 被控端：服务器状态、控制码 / 配对码（点一下复制）、正在被控制时一行提示（点一下断开）
 fn host_items(app: &AppHandle, menu: &Menu<Wry>, st: &AppStatus) -> tauri::Result<()> {
     menu.append(&label(app, server_line(&st.host.server))?)?;
-    {
-        if let (ServerState::Connected, Some(code)) = (&st.host.server, st.host.code) {
-            let code = nife_remote_proto::format_code(code);
-            menu.append(&label(app, tr!("控制码：{code}", "Control code: {code}"))?)?;
-            menu.append(&item(
-                app,
-                "copy_code",
-                tr!("复制控制码", "Copy control code"),
-            )?)?;
-            menu.append(&item(
-                app,
-                "new_code",
-                tr!(
-                    "更换控制码（旧码立即失效，配对也全部作废）",
-                    "Change control code (old code stops working, all pairings are revoked)"
-                ),
-            )?)?;
-            pairing_items(app, menu, st)?;
-        }
-        if !st.host.controllers.is_empty() {
-            menu.append(&PredefinedMenuItem::separator(app)?)?;
-            menu.append(&label(
-                app,
-                format!("⚠ {}", controlled_by(st.host.controllers.len())),
-            )?)?;
-            for c in st.host.controllers.iter().take(5) {
-                let name = if c.peer.name.is_empty() {
-                    tr!("未知设备", "Unknown device")
-                } else {
-                    c.peer.name.clone()
-                };
-                // 安全码：控制端显示的是同一个，两边的人可以对一下（见 nife_remote_proto::handshake）
-                let line = match &c.safety {
-                    Some(s) => tr!(
-                        "    {name} ({ip}) · 安全码 {s}",
-                        "    {name} ({ip}) · safety code {s}",
-                        ip = c.peer.ip
-                    ),
-                    None => format!("    {name} ({})", c.peer.ip),
-                };
-                menu.append(&label(app, line)?)?;
+    if let (ServerState::Connected, Some(code)) = (&st.host.server, st.host.code) {
+        let code = nife_remote_proto::format_code(code);
+        menu.append(&item(
+            app,
+            "copy_code",
+            tr!("控制码 {code}（点击复制）", "Control code {code} (click to copy)"),
+        )?)?;
+        match &st.host.pairing {
+            // 配对码：第一次连接本机时要输，点一下复制
+            Some(p) if !st.host.pairing_locked => {
+                let p = format!("{} {}", &p[..3], &p[3..]);
+                menu.append(&item(
+                    app,
+                    "copy_pairing",
+                    tr!("配对码 {p}（点击复制）", "Pairing code {p} (click to copy)"),
+                )?)?;
             }
-            menu.append(&item(
+            // 输错太多次暂停了：点一下换一个
+            Some(_) => menu.append(&item(
                 app,
-                "kick_all",
-                tr!("断开所有控制端", "Disconnect all controllers"),
-            )?)?;
+                "new_pairing",
+                tr!("⚠ 配对已暂停，点击换一个配对码", "⚠ Pairing paused, click for a new code"),
+            )?)?,
+            None => {}
         }
     }
-    Ok(())
-}
-
-/// 配对（见 [`crate::host::gate`]）：配对码，暂停了的话提示换一个；配对过的控制端可以全部忘掉。
-/// 不要配对码（config.toml 的 `access = "open"`）时什么也不显示
-fn pairing_items(app: &AppHandle, menu: &Menu<Wry>, st: &AppStatus) -> tauri::Result<()> {
-    let Some(pairing) = &st.host.pairing else {
-        return Ok(());
-    };
-    if st.host.pairing_locked {
+    if !st.host.controllers.is_empty() {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
         menu.append(&item(
             app,
-            "new_pairing",
+            "kick_all",
             tr!(
-                "⚠ 有人多次输错配对码，配对已暂停（点击换一个配对码）",
-                "⚠ Pairing paused after too many wrong codes (click for a new pairing code)"
-            ),
-        )?)?;
-    } else {
-        let p = format!("{} {}", &pairing[..3], &pairing[3..]);
-        menu.append(&label(
-            app,
-            tr!(
-                "配对码：{p}（第一次连接本机时要输入）",
-                "Pairing code: {p} (needed the first time a controller connects)"
-            ),
-        )?)?;
-        menu.append(&item(
-            app,
-            "copy_pairing",
-            tr!("复制配对码", "Copy pairing code"),
-        )?)?;
-        menu.append(&item(
-            app,
-            "new_pairing",
-            tr!("更换配对码", "Change pairing code"),
-        )?)?;
-    }
-    if st.host.paired > 0 {
-        let n = st.host.paired;
-        menu.append(&item(
-            app,
-            "forget_paired",
-            tr!(
-                "忘掉已配对的 {n} 个控制端（下次要重新输入配对码）",
-                "Forget {n} paired controller(s) (they'll need the pairing code again)"
+                "⚠ {}（点击断开）",
+                "⚠ {} (click to disconnect)",
+                controlled_by(st.host.controllers.len())
             ),
         )?)?;
     }
     Ok(())
 }
-
 
 fn item(app: &AppHandle, id: &str, text: String) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::with_id(app, id, text, true, None::<&str>)

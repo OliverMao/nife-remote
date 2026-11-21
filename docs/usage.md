@@ -101,6 +101,6 @@ Send this computer's microphone to the remote computer: programs there (meetings
 
 ## Language
 
-The console and tray menu are available in **English** and **Simplified Chinese**. By default the client follows the system display language: Chinese if it is Chinese, English otherwise. Switch any time from the tray menu (Language / 语言) or the 中文 / EN switch in the console menu (the icon at the top-left). The choice isn't saved: the next start follows the system language again.
+The console and tray menu are available in **English** and **Simplified Chinese**. By default the client follows the system display language: Chinese if it is Chinese, English otherwise. Switch any time from the 中文 / EN switch in the console menu (the gear at the top-right) or from the tray menu (More → Language / 语言). The choice isn't saved: the next start follows the system language again.
 
 Notices and errors from the other computer or the server are sent as message types, not text, so they always appear in **your** language. Logs (client and server) are always in English.
