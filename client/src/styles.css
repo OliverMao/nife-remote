@@ -2480,7 +2480,8 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 5px 0 13px;
+  /* 左右留一样的边（右边原来只留 5px，是给旧的彩色编码胶囊让位的） */
+  padding: 0 13px;
   border-radius: 16px;
   background: var(--well);
   border: 1px solid var(--edge);
