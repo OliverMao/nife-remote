@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { closeTab, fmtCode, toggleFullscreen } from "../lib/actions";
-import { api, type Platform } from "../lib/api";
+import { api } from "../lib/api";
 import { type MsgKey, t, useT } from "../lib/i18n";
 import { errorText, noticeText, problemText, sessionStateText } from "../lib/messages";
 import { CODEC_LABEL } from "../lib/presets";
@@ -57,52 +57,20 @@ const WINDOWS_COMBOS: Combo[] = [
   { label: "combo.printScreen", keys: ["PrintScreen"] },
 ];
 
-// Linux 桌面（GNOME / KDE 等）的常用快捷键
-const LINUX_COMBOS: Combo[] = [
-  { label: "combo.super", keys: ["MetaLeft"] },
-  { label: "combo.altTab", keys: ["AltLeft", "Tab"] },
-  { label: "combo.superD", keys: ["MetaLeft", "KeyD"] },
-  { label: "combo.terminal", keys: ["ControlLeft", "AltLeft", "KeyT"] },
-  { label: "combo.altF2", keys: ["AltLeft", "F2"] },
-  { label: "combo.superL", keys: ["MetaLeft", "KeyL"] },
-  { label: "combo.altF4", keys: ["AltLeft", "F4"] },
-  { label: "combo.printScreen", keys: ["PrintScreen"] },
-];
-
-// macOS 的常用快捷键（Command 键在对方那边就是 MetaLeft）
-const MAC_COMBOS: Combo[] = [
-  { label: "combo.cmdTab", keys: ["MetaLeft", "Tab"] },
-  { label: "combo.spotlight", keys: ["MetaLeft", "Space"] },
-  { label: "combo.missionControl", keys: ["ControlLeft", "ArrowUp"] },
-  { label: "combo.forceQuit", keys: ["MetaLeft", "AltLeft", "Escape"] },
-  { label: "combo.cmdQ", keys: ["MetaLeft", "KeyQ"] },
-  { label: "combo.lockMac", keys: ["ControlLeft", "MetaLeft", "KeyQ"] },
-  { label: "combo.screenshotMac", keys: ["MetaLeft", "ShiftLeft", "Digit5"] },
-];
-
-/** 被控端平台对应的快捷键。hello 之前不知道平台，按系统名称猜（Windows 报告 "Windows 11 ..."，macOS 报告 "macOS 15.3"） */
-const combosFor = (platform: Platform | null, os: string) => {
-  if (platform === "mac") return MAC_COMBOS;
-  if (platform === "linux") return LINUX_COMBOS;
-  if (platform === "windows") return WINDOWS_COMBOS;
-  return os === "" || /windows/i.test(os) ? WINDOWS_COMBOS : /^macos/i.test(os) ? MAC_COMBOS : LINUX_COMBOS;
-};
-
 type Menu = null | "quality" | "keys" | "display" | "clipboard" | "audio" | "mic" | "sessions";
 
 /** 顶端热区的高度（和 .hot-edge 一致） */
 const HOT_EDGE = 6;
-/** 鼠标从这个高度以内移出网页，也算移到了顶端（例如 macOS 的菜单栏常驻、带刘海的屏幕，网页顶端上面还有一条） */
+/** 鼠标从这个高度以内移出网页，也算移到了顶端（网页顶端上面还有浏览器的界面时） */
 const LEAVE_TOP = 48;
 /**
- * 工具栏周围这一圈内不收起：跨过热区和工具栏之间的空隙；macOS 上的网页版全屏时鼠标碰到顶端，
- * 系统菜单栏和浏览器的工具栏会滑下来盖住工具栏，鼠标往下移出它们时还在这一圈里
- * （桌面版全屏时菜单栏不出现，见 src-tauri/src/fullscreen.rs）
+ * 工具栏周围这一圈内不收起：跨过热区和工具栏之间的空隙。网页版全屏时鼠标碰到顶端，
+ * 浏览器的工具栏可能盖住工具条，鼠标往下移出它时还在这一圈里
  */
 const KEEP_NEAR = 32;
 
 /**
- * 全屏时悬浮工具栏的显示 / 收起。不用 CSS :hover：macOS 的系统菜单栏盖住顶端时网页就不算悬停了，
+ * 全屏时悬浮工具栏的显示 / 收起。不用 CSS :hover：系统界面盖住顶端时网页就不算悬停了，
  * 工具栏会马上收起。这里只在鼠标明确离开（在网页里移到了工具栏附近以外）时才收起
  */
 function useToolbarReveal(active: boolean, toolbar: RefObject<HTMLElement | null>) {
@@ -340,7 +308,7 @@ export function SessionView({ s }: { s: RemoteSession }) {
                         {t(`action.${a}` as const)}
                       </button>
                     ))
-                  : combosFor(s.hostPlatform, s.hostOs).map((c) => (
+                  : WINDOWS_COMBOS.map((c) => (
                       <button
                         key={c.label}
                         className="dd-item"
@@ -470,20 +438,18 @@ export function SessionView({ s }: { s: RemoteSession }) {
               )}
             </div>
           )}
-          {s.hostPlatform !== "android" && (
-            // 游戏：鼠标锁定在画面上、发相对移动（被控端隐藏光标时会自动这样做，这里是手动的）
-            <button
-              className={`tb-btn icon ${s.mouseLocked ? "on" : ""}`}
-              title={s.mouseLocked ? t("session.mouseUnlock") : t("session.mouseLock")}
-              onClick={() => {
-                setMenu(null);
-                s.toggleMouseLock();
-                if (s.mouseLocked) setToast(t("session.mouseLocked"));
-              }}
-            >
-              <IconMouse size={17} />
-            </button>
-          )}
+          {/* 游戏：鼠标锁定在画面上、发相对移动（被控端隐藏光标时会自动这样做，这里是手动的） */}
+          <button
+            className={`tb-btn icon ${s.mouseLocked ? "on" : ""}`}
+            title={s.mouseLocked ? t("session.mouseUnlock") : t("session.mouseLock")}
+            onClick={() => {
+              setMenu(null);
+              s.toggleMouseLock();
+              if (s.mouseLocked) setToast(t("session.mouseLocked"));
+            }}
+          >
+            <IconMouse size={17} />
+          </button>
           <button
             className={`tb-btn icon ${s.scaleMode === "native" ? "on" : ""}`}
             title={s.scaleMode === "fit" ? t("session.toNative") : t("session.toFit")}

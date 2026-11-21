@@ -15,12 +15,10 @@
 //! `host_key` 是那台电脑的端到端加密公钥（第一次连上时记下，见 `nife_remote_link::controller` 的"端到端加密"）：
 //! 之后只认它，对不上就警告。是公钥，不用加密。
 //!
-//! 控制码能直接控制那台电脑，相当于钥匙：
-//! * Windows：config.toml 在安装目录里，本机的所有账户都能读，所以 `code` 用**当前用户**的 DPAPI 加密，
-//!   别的账户、别的电脑都解不开。解不开的（别的账户保存的）原样保留，不显示；
-//! * macOS / Linux：文件在用户自己的目录里，权限 600（见 [`crate::config`]），`code` 直接写 6 位数字。
+//! 控制码能直接控制那台电脑，相当于钥匙：config.toml 在安装目录里，本机的所有账户都能读，所以 `code`
+//! 用**当前用户**的 DPAPI 加密，别的账户、别的电脑都解不开。解不开的（别的账户保存的）原样保留，不显示。
 //!
-//! 手动添加时 `code` 写 6 位数字在所有平台上都可以。
+//! 手动添加时 `code` 写 6 位数字都可以。
 
 use nife_remote_proto::session::{Codec, QualitySettings, VideoPriority};
 use nife_remote_proto::signal::ResumeToken;
@@ -178,7 +176,7 @@ fn quality_from(item: &Item) -> Option<QualitySettings> {
     })
 }
 
-/// 解开 `code`：6 位数字原样使用（macOS / Linux，或者手动添加的）；Windows 上其余的按 DPAPI 解密。
+/// 解开 `code`：6 位数字原样使用（手动添加的）；其余的按 DPAPI 解密。
 /// 解不开（别的账户保存的、坏了的）返回 `None`
 fn open(mut d: Device) -> Option<Device> {
     if !valid_code(&d.code) {
@@ -200,7 +198,6 @@ pub fn for_file(mine: Vec<Device>) -> Result<Vec<Device>> {
         out.push(seal(d.clone())?);
     }
     // 别的账户保存的（本账户解不开）原样保留；本账户的以控制台发来的为准（删掉的就不要了）
-    #[cfg(windows)]
     if let Some(doc) =
         crate::config::read_text().and_then(|t| t.parse::<toml_edit::DocumentMut>().ok())
     {
@@ -449,7 +446,6 @@ name = "no code"
     fn sealed_code_roundtrip() {
         let d = device("482913", 1_762_597_230_000);
         let sealed = seal(d.clone()).unwrap();
-        #[cfg(windows)]
         assert_ne!(sealed.code, "482913");
         let back = from_table(&to_table(&sealed).unwrap()).unwrap();
         assert_eq!(open(back), Some(d));

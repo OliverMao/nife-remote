@@ -12,11 +12,9 @@
 //!
 //! * **配置文件 `config.toml`**（见 [`Settings`]）：可以手动改服务器地址和指纹；还保存着服务器分配的控制码
 //!   （固定不变，见 `nife_remote_proto::signal` 的"固定控制码"）、控制台的"我的设备"（见 [`crate::devices`]），
-//!   Windows 上还有开机自动启动（macOS 上是登录时自动启动的记录，见 [`autostart_default_pending`]）。
-//!   所有数据都只在这一个文件里。位置（见 [`path`]）：
-//!   * Windows：程序所在目录（安装目录）。文件由系统服务里的被控端维护（见 [`crate::winsvc`]），
-//!     托盘进程没有写权限，控制台保存设备时经命名管道交给它写；
-//!   * macOS：`~/Library/Application Support/app.nife-remote.client/`；Linux：`~/.config/nife-remote/`。只有本账户能读写（600）。
+//!   还有开机自动启动。
+//!   所有数据都只在这一个文件里。位置（见 [`path`]）：程序所在目录（安装目录）。文件由系统服务里的被控端维护
+//!   （见 [`crate::winsvc`]），托盘进程没有写权限，控制台保存设备时经命名管道交给它写。
 //! * 文件由 Nife Remote 维护，手动修改的内容和注释都会保留；改了设置要重新启动 Nife Remote 才生效。
 //! * 文件不存在时（第一次运行、被删掉了）按默认配置重新生成：启动时检查一次，运行中每隔几秒检查一次（[`keep_file`]），
 //!   控制码、开机自动启动、我的设备、记下的服务器指纹从删掉之前的内容接着用，不会丢。
@@ -87,10 +85,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(test, allow(dead_code))]
 pub const FILE_NAME: &str = "config.toml";
 
-/// 与 tauri.conf.json 的 `identifier` 相同：macOS 上配置目录以它命名（Apple 的建议）
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub(crate) const BUNDLE_ID: &str = "app.nife-remote.client";
-
 /// 卸载中（见 [`freeze`]）：不再写配置文件，删掉了也不再重新生成
 static FROZEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -110,7 +104,7 @@ pub struct Settings {
     pub server: String,
     /// 中转服务器证书指纹（`server_fp`），空字符串表示第一次连接时记下（见 [`FileTrust`]）
     pub server_fp: String,
-    /// 开机自动启动（`autostart`，Windows 安装版）。macOS 上以系统设置为准，这一项只是记录（见 [`autostart_default_pending`]）
+    /// 开机自动启动（`autostart`，安装版）：开机后被控端服务自动运行，登录之前也能被控制
     pub autostart: bool,
     /// 没配对过的控制端怎么办（`access`）：要配对码（默认），或者知道控制码就能连
     pub access: Access,
@@ -150,31 +144,18 @@ impl Settings {
     }
 }
 
-/// 配置文件的路径：
-/// * Windows：程序所在目录（安装目录）下的 `config.toml`，被控端（系统服务）和所有账户共用；
-/// * macOS：`~/Library/Application Support/app.nife-remote.client/config.toml`（Apple 的建议：
-///   Application Support 下以 bundle ID 命名的目录）；
-/// * Linux：`$XDG_CONFIG_HOME/nife-remote/config.toml`，默认 `~/.config/nife-remote/config.toml`（XDG 基础目录规范）。
+/// 配置文件的路径：程序所在目录（安装目录）下的 `config.toml`，被控端（系统服务）和所有账户共用。
 ///
-/// 找不到用户目录时（极少见）返回 `None`：这次运行不保存任何东西
+/// 找不到程序目录时（极少见）返回 `None`：这次运行不保存任何东西
 pub fn path() -> Option<PathBuf> {
-    #[cfg(all(windows, not(test)))]
+    // 测试默认不读写配置文件（每次都是新的控制码）；测试配置文件本身时在那个测试的线程里指定一个临时路径
+    #[cfg(test)]
+    return TEST_PATH.with(|p| p.borrow().clone());
+    #[cfg(not(test))]
     {
         let exe = std::env::current_exe().ok()?;
         Some(exe.parent()?.join(FILE_NAME))
     }
-    #[cfg(all(not(windows), not(test)))]
-    {
-        let base = dirs::config_dir()?;
-        #[cfg(target_os = "macos")]
-        let dir = base.join(BUNDLE_ID);
-        #[cfg(not(target_os = "macos"))]
-        let dir = base.join("nife-remote");
-        Some(dir.join(FILE_NAME))
-    }
-    // 测试默认不读写配置文件（每次都是新的控制码）；测试配置文件本身时在那个测试的线程里指定一个临时路径
-    #[cfg(test)]
-    TEST_PATH.with(|p| p.borrow().clone())
 }
 
 #[cfg(test)]
@@ -389,18 +370,12 @@ fn template() -> String {
         DEFAULT_SERVER_FP.to_string()
     };
     let server = DEFAULT_SERVER;
-    #[cfg(not(windows))]
-    {
-        template_user(server, &fp)
-    }
-    #[cfg(windows)]
     {
         template_windows(server, &fp)
     }
 }
 
 /// Windows 的模板：文件在安装目录里，由系统服务维护
-#[cfg(windows)]
 fn template_windows(server: &str, fp: &str) -> String {
     let access = access_comment();
     tr!(
@@ -450,59 +425,6 @@ autostart = true
     )
 }
 
-/// macOS / Linux 的模板：文件在用户自己的目录里，没有开机自动启动
-#[cfg(not(windows))]
-fn template_user(server: &str, fp: &str) -> String {
-    let access = access_comment();
-    let quit = if cfg!(target_os = "macos") {
-        tr!(
-            "菜单栏图标的菜单里选\"退出\"",
-            "\"Quit\" in the menu bar icon's menu"
-        )
-    } else {
-        tr!("托盘菜单\"退出\"", "tray menu \"Quit\"")
-    };
-    tr!(
-        r#"# Nife Remote 配置文件。修改后要重新启动 Nife Remote 才生效（{quit}，然后再打开 Nife Remote）。
-# 这个文件由 Nife Remote 维护（保存控制码和控制台的"我的设备"），手动修改的内容和注释都会保留。
-# 不小心删掉了也没关系：Nife Remote 会按默认配置重新生成，控制码和我的设备不会丢。
-# 里面的控制码能用来控制电脑，所以只有你的账户能读写这个文件（权限 600），不要发给别人。
-
-# 中转服务器地址 host:port（UDP）。不设置时使用编译进程序的地址：{server}
-# server = "relay.example.com:4433"
-
-# 中转服务器证书的 SHA-256 指纹（服务器日志里打印的 64 位十六进制，可以用 : 或空格分隔）。
-# 设为 "" 表示不固定指纹：第一次连接时记住服务器的证书（下面的 [server_trust]），之后证书变了就拒绝连接。不设置时使用编译进程序的指纹：{fp}
-# server_fp = ""
-
-{access}
-
-# 本机的控制码：第一次连上服务器时由服务器分配，之后一直使用同一个（重启、掉线、升级都不变）。
-# 菜单里"更换控制码"会换一个新的；删掉 code 和 secret 则下次启动时重新分配。
-# secret 是取回这个控制码的凭据
-[code]
-"#,
-        r#"# Nife Remote configuration. Restart Nife Remote after editing it ({quit}, then open Nife Remote again).
-# Nife Remote maintains this file (it saves the control code and the console's "My devices"); your edits and comments are kept.
-# If it gets deleted by accident, Nife Remote recreates it with the default settings, keeping the control code and your devices.
-# The control codes in it can be used to control computers, so only your account can read and write it (mode 600). Don't share it.
-
-# Relay server address host:port (UDP). Without it the address built into the program is used: {server}
-# server = "relay.example.com:4433"
-
-# SHA-256 fingerprint of the relay server certificate (the 64 hex digits printed in the server log, `:` and spaces are allowed).
-# "" means no fixed fingerprint: the server's certificate is remembered on the first connection ([server_trust] below) and a different one is refused later. Without it the built-in fingerprint is used: {fp}
-# server_fp = ""
-
-{access}
-
-# This computer's control code: assigned by the server the first time, then always the same (across restarts, disconnects and upgrades).
-# "Change control code" in the menu gets a new one; delete code and secret to get a new one at the next start.
-# secret proves to the server that this computer owns the code
-[code]
-"#
-    )
-}
 
 /// 模板里 `access` 的说明
 fn access_comment() -> String {
@@ -514,15 +436,9 @@ fn access_comment() -> String {
 
 /// 写在第一台设备前面的说明
 fn devices_comment() -> String {
-    #[cfg(windows)]
     let how = tr!(
         "code 用你的 Windows 账户加密过，别的账户、别的电脑解不开；手动添加时直接写 6 位数字。",
         "code is encrypted with your Windows account; other accounts and computers can't read it. To add one by hand, just write the 6 digits."
-    );
-    #[cfg(not(windows))]
-    let how = tr!(
-        "code 是对方的控制码，有了它就能控制那台电脑。",
-        "code is the remote computer's control code: anyone who has it can control that computer."
     );
     tr!(
         "# 我的设备：控制台连接过的电脑，连上时自动保存（\"新建连接\"页里的\"我的设备\"，最多 50 台）。\n# {how}\n",
@@ -545,10 +461,7 @@ fn regenerate(before: Option<&str>) -> Result<DocumentMut> {
     let Some(old) = before.and_then(|t| t.parse::<DocumentMut>().ok()) else {
         return Ok(doc);
     };
-    // Windows 的模板里有；macOS 的模板里没有，之前有的话（已经按默认打开过登录时自动启动）照样加上
-    if let Some(on) = old.get("autostart").and_then(Item::as_bool)
-        && (doc.contains_key("autostart") || cfg!(target_os = "macos"))
-    {
+    if let Some(on) = old.get("autostart").and_then(Item::as_bool) {
         put_autostart(&mut doc, on);
     }
     if let (Some(from), Some(to)) = (
@@ -611,38 +524,12 @@ fn edit_at(path: &Path, f: impl FnOnce(&mut DocumentMut) -> Result<()>) -> Resul
     Ok(())
 }
 
-/// 先写临时文件再改名：写到一半断电也不会把配置文件弄坏。目录不存在时创建（macOS / Linux 第一次运行、
-/// 整个目录被删掉了）；macOS / Linux 上目录只有本账户能进（700），文件只有本账户能读写（600）
+/// 先写临时文件再改名：写到一半断电也不会把配置文件弄坏。目录不存在时创建（整个目录被删掉了）。
 fn write(path: &Path, text: &str) -> Result<()> {
     if let Some(dir) = path.parent() {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::DirBuilderExt;
-            std::fs::DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(dir)?;
-        }
-        #[cfg(not(unix))]
         std::fs::create_dir_all(dir)?;
     }
     let tmp = path.with_extension("toml.tmp");
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-        let _ = std::fs::remove_file(&tmp);
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&tmp)?;
-        // umask 只会去掉权限，这里再明确设一次
-        f.set_permissions(std::fs::Permissions::from_mode(0o600))?;
-        f.write_all(text.as_bytes())?;
-        f.sync_all()?;
-    }
-    #[cfg(not(unix))]
     std::fs::write(&tmp, text)?;
     std::fs::rename(&tmp, path)?;
     Ok(())
@@ -719,13 +606,6 @@ pub fn keep_file() {
     }
 }
 
-/// 卸载（macOS 菜单里的"卸载 Nife Remote…"）：从现在起不再写配置文件，配置文件被删掉也不再重新生成。
-/// 还在运行的东西（例如正在停下来的被控端保存控制码）也写不回去。返回时，正在写的那一次已经写完
-#[cfg(target_os = "macos")]
-pub fn freeze() {
-    let _wait = last();
-    FROZEN.store(true, std::sync::atomic::Ordering::Release);
-}
 
 /// 保存服务器分配的控制码；`None` 表示放弃了原来的控制码（下次启动时重新分配）
 pub fn save_code(code: Option<Reclaim>) -> Result<()> {
@@ -749,8 +629,7 @@ pub fn save_code(code: Option<Reclaim>) -> Result<()> {
     })
 }
 
-/// 保存开机自动启动的设置（macOS：登录时自动启动的记录）
-#[cfg_attr(target_os = "linux", allow(dead_code))]
+/// 保存开机自动启动的设置
 pub fn save_autostart(on: bool) -> Result<()> {
     edit(|doc| {
         put_autostart(doc, on);
@@ -850,19 +729,8 @@ pub fn save_server(server: &str, fp: &str) -> Result<()> {
     })
 }
 
-/// macOS：还没有按默认打开过登录时自动启动（配置文件里还没有 `autostart`）。
-///
-/// macOS 的模板里没有这一项：第一次从"应用程序"文件夹运行时，Nife Remote 和 Windows 一样默认打开登录时自动启动，
-/// 然后记下 `autostart`，之后再也不会自己打开——用户关掉了就一直关着（见 [`crate::login_item`]）。
-/// 配置文件不存在、写坏了时返回 `false`：判断不了，宁可不打开
-#[cfg(target_os = "macos")]
-pub fn autostart_default_pending() -> bool {
-    read_text()
-        .and_then(|t| t.parse::<DocumentMut>().ok())
-        .is_some_and(|doc| !doc.contains_key("autostart"))
-}
 
-/// 写入 `autostart`。已经有了就只改值；没有（macOS 的模板里没有）时加上一段说明，放在文件开头的说明后面
+/// 写入 `autostart`。已经有了就只改值；没有时加上一段说明，放在文件开头的说明后面
 /// （直接插入的话 toml_edit 会把它排在整个文件的第一行，开头的说明前面）
 fn put_autostart(doc: &mut DocumentMut, on: bool) {
     if let Some(item) = doc.get_mut("autostart") {
@@ -898,11 +766,11 @@ fn put_autostart(doc: &mut DocumentMut, on: bool) {
     }
 }
 
-/// macOS 上 `autostart` 前面的说明
+/// `autostart` 前面的说明
 fn autostart_note() -> String {
     tr!(
-        "# 登录时自动启动（\"系统设置 → 通用 → 登录项\"里的\"登录时打开\"）。第一次从\"应用程序\"文件夹运行时默认打开。\n# 以系统设置为准：在菜单栏图标的菜单里切换、或者在系统设置里改，这里都会跟着更新；只改这一项不起作用\n",
-        "# Open at login (\"Open at Login\" in System Settings → General → Login Items). Turned on the first time Nife Remote runs from the Applications folder.\n# System Settings is what counts: switch it in the menu bar icon's menu or in System Settings and this line follows; editing only this line has no effect\n"
+        "# 开机自动启动：开机后被控端服务自动运行（登录之前也能被控制），登录后显示托盘图标。托盘菜单里也可以切换\n",
+        "# Start with Windows: the host service runs after boot (the computer can be controlled before anyone signs in),\n# and the tray icon shows up after signing in. Can also be changed in the tray menu\n"
     )
 }
 
@@ -1172,17 +1040,14 @@ fn controller_comment() -> String {
 
 /// 加密保存的东西：取回控制码用的密钥、"我的设备"里的控制码、端到端加密的身份密钥和配对码。
 ///
-/// Windows：config.toml 在安装目录里，本机所有账户都能读，所以用 DPAPI 加密（只有同一个账户能解开：
+/// config.toml 在安装目录里，本机所有账户都能读，所以用 DPAPI 加密（只有同一个账户能解开：
 /// 被控端的密钥是 SYSTEM，设备的控制码是保存它的用户），配置文件被别人读到、拷走也没用。
-/// macOS / Linux：文件只有本账户能读（600），不加密。
 pub(crate) mod secret {
     use anyhow::{Result, bail};
     use base64::Engine;
     use base64::engine::general_purpose::STANDARD;
 
-    #[cfg(windows)]
     const ENTROPY: &[u8] = b"nife-remote control code secret v1";
-    #[cfg(windows)]
     const DEVICE_ENTROPY: &[u8] = b"nife-remote saved device code v1";
 
     /// 端到端加密用到的密文：各用各的 DPAPI 熵，不能互相冒充
@@ -1196,7 +1061,6 @@ pub(crate) mod secret {
         ControllerKey,
     }
 
-    #[cfg(windows)]
     fn entropy(kind: Kind) -> &'static [u8] {
         match kind {
             Kind::HostKey => b"nife-remote host identity v1",
@@ -1205,42 +1069,27 @@ pub(crate) mod secret {
         }
     }
 
-    /// 加密保存一段字节（Windows：DPAPI；macOS / Linux：文件只有本账户能读，只是 base64）
+    /// 加密保存一段字节（DPAPI）
     pub fn seal_bytes(data: &[u8], kind: Kind) -> Result<String> {
-        #[cfg(windows)]
         {
             Ok(STANDARD.encode(dpapi(data, entropy(kind), true)?))
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = kind;
-            Ok(STANDARD.encode(data))
         }
     }
 
     pub fn open_bytes(text: &str, kind: Kind) -> Result<Vec<u8>> {
         let raw = STANDARD.decode(text.trim())?;
-        #[cfg(windows)]
         let raw = dpapi(&raw, entropy(kind), false)?;
-        #[cfg(not(windows))]
-        let _ = kind;
         Ok(raw)
     }
 
     pub fn seal(secret: &[u8; 16]) -> Result<String> {
-        #[cfg(windows)]
         {
             Ok(STANDARD.encode(dpapi(secret, ENTROPY, true)?))
-        }
-        #[cfg(not(windows))]
-        {
-            Ok(STANDARD.encode(secret))
         }
     }
 
     pub fn open(text: &str) -> Result<[u8; 16]> {
         let raw = STANDARD.decode(text.trim())?;
-        #[cfg(windows)]
         let raw = dpapi(&raw, ENTROPY, false)?;
         match <[u8; 16]>::try_from(raw.as_slice()) {
             Ok(s) => Ok(s),
@@ -1248,32 +1097,21 @@ pub(crate) mod secret {
         }
     }
 
-    /// "我的设备"里的控制码写进文件之前（macOS / Linux 原样）
+    /// "我的设备"里的控制码写进文件之前（DPAPI 加密）
     pub fn seal_device_code(code: &str) -> Result<String> {
-        #[cfg(windows)]
         {
             Ok(STANDARD.encode(dpapi(code.as_bytes(), DEVICE_ENTROPY, true)?))
         }
-        #[cfg(not(windows))]
-        {
-            Ok(code.to_string())
-        }
     }
 
-    /// 解开加密过的控制码（6 位数字的不用解，调用方直接用）。macOS / Linux 不加密，这里总是失败
+    /// 解开加密过的控制码（6 位数字的不用解，调用方直接用）
     pub fn open_device_code(text: &str) -> Result<String> {
-        #[cfg(windows)]
         {
             let raw = dpapi(&STANDARD.decode(text.trim())?, DEVICE_ENTROPY, false)?;
             Ok(String::from_utf8(raw)?)
         }
-        #[cfg(not(windows))]
-        {
-            bail!("{text:?} isn't a control code")
-        }
     }
 
-    #[cfg(windows)]
     fn dpapi(data: &[u8], entropy: &[u8], protect: bool) -> Result<Vec<u8>> {
         use anyhow::Context;
         use windows::Win32::Foundation::{HLOCAL, LocalFree};
@@ -1465,7 +1303,7 @@ mod tests {
             code: code.into(),
             alias: None,
             name: format!("PC-{code}"),
-            os: "macOS 15.3".into(),
+            os: "Windows 11 Pro".into(),
             resume: None,
             last_used: 1_762_597_230_000,
             quality: None,
@@ -1563,8 +1401,8 @@ mod tests {
         let s = parse(&after).unwrap();
         assert_eq!(s.server, DEFAULT_SERVER);
         assert_eq!(s.code(), Some(code));
-        // 开机自动启动（Windows）、登录时自动启动的记录（macOS）接着用；Linux 没有这一项，是默认值
-        assert_eq!(s.autostart, cfg!(target_os = "linux"));
+        // 开机自动启动接着用
+        assert_eq!(s.autostart, parse(&before).unwrap().autostart);
         assert_eq!(
             crate::devices::entries(&after.parse().unwrap()),
             vec![device("482913")]
@@ -1589,68 +1427,8 @@ mod tests {
         assert_eq!(regenerate(Some("[code")).unwrap().to_string(), template());
     }
 
-    /// macOS / Linux 的模板里没有 autostart（macOS 上有没有它表示是否已经按默认打开过登录时自动启动）。
-    /// 加上时带一段说明，排在文件开头的说明后面、[code] 的说明前面；之后只改值
-    #[test]
-    #[cfg(not(windows))]
-    fn autostart_goes_after_the_header() {
-        let tpl = template();
-        let mut doc: DocumentMut = tpl.parse().unwrap();
-        assert!(!doc.contains_key("autostart"));
-        put_autostart(&mut doc, true);
-        let text = doc.to_string();
-        println!("{text}");
-        let note = autostart_note();
-        let note = note.lines().next().unwrap();
-        let first_line = tpl.lines().next().unwrap();
-        let fp_line = tpl.lines().find(|l| l.starts_with("# server_fp")).unwrap();
-        let code_note = tpl
-            .lines()
-            .rev()
-            .skip_while(|l| !l.starts_with("[code]"))
-            .skip(1)
-            .take_while(|l| l.starts_with('#'))
-            .last()
-            .unwrap();
-        let at = |s: &str| text.find(s).unwrap_or_else(|| panic!("missing {s:?}"));
-        assert!(text.starts_with(first_line), "开头的说明不在第一行了");
-        assert!(at(fp_line) < at(note));
-        assert!(at(note) < at("autostart = true"));
-        assert!(at("autostart = true") < at(code_note));
-        assert!(at(code_note) < at("[code]"));
-        // 空行隔开，不和前后的说明挤在一起
-        assert!(text.contains(&format!("\n\n{note}")));
-        assert!(text.contains(&format!("autostart = true\n\n{code_note}")));
-        // 模板里原有的说明一行都不少
-        for line in tpl.lines().filter(|l| !l.is_empty()) {
-            assert!(text.contains(line), "少了 {line:?}");
-        }
-        assert!(parse(&text).unwrap().autostart);
-
-        // 再改只改值，说明只有一份
-        put_autostart(&mut doc, false);
-        let text = doc.to_string();
-        assert_eq!(text.matches(note).count(), 1);
-        assert!(!parse(&text).unwrap().autostart);
-
-        // 用户自己写了 server：加在它后面，开头的说明不动
-        let mine = tpl.replacen(
-            "# server = \"relay.example.com:4433\"",
-            "server = \"relay.example.com:4433\"",
-            1,
-        );
-        let mut doc: DocumentMut = mine.parse().unwrap();
-        put_autostart(&mut doc, true);
-        let text = doc.to_string();
-        assert!(text.starts_with(first_line));
-        assert!(text.find("server = ").unwrap() < text.find("autostart = true").unwrap());
-        let s = parse(&text).unwrap();
-        assert!(s.autostart);
-        assert_eq!(s.server, "relay.example.com:4433");
-    }
-
     /// 真正的文件：
-    /// * 没有时按默认配置生成（macOS / Linux：目录 700、文件 600），保存的控制码和设备读得回来；
+    /// * 没有时按默认配置生成，保存的控制码和设备读得回来；
     /// * 运行中文件、或者整个目录被删掉，很快就按默认配置重新生成，控制码和设备还在，删之前手动改过的也在
     #[test]
     fn file_lifecycle() {
@@ -1669,20 +1447,10 @@ mod tests {
                 std::thread::sleep(Duration::from_millis(10));
             }
         };
-        #[cfg(unix)]
-        let mode = |p: &Path| {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::metadata(p).unwrap().permissions().mode() & 0o777
-        };
 
         // 第一次运行：目录和文件都没有
         ensure_file().unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), template());
-        #[cfg(unix)]
-        {
-            assert_eq!(mode(&file), 0o600);
-            assert_eq!(mode(&dir), 0o700);
-        }
 
         let code = Reclaim {
             code: 654_321,
@@ -1694,10 +1462,7 @@ mod tests {
         assert_eq!(crate::devices::load(), vec![d.clone()]);
         assert_eq!(parse(&read_text().unwrap()).unwrap().code(), Some(code));
         // Windows：文件里没有明文的控制码
-        #[cfg(windows)]
         assert!(!read_text().unwrap().contains("code = \"482913\""));
-        #[cfg(not(windows))]
-        assert!(read_text().unwrap().contains("code = \"482913\""));
 
         keep_file();
         std::fs::remove_file(&file).unwrap();
@@ -1722,21 +1487,10 @@ mod tests {
         wait_for("the directory to be recreated", &|| file.exists());
         assert_eq!(crate::devices::load(), vec![d]);
         assert_eq!(parse(&read_text().unwrap()).unwrap().code(), Some(code));
-        #[cfg(unix)]
-        {
-            assert_eq!(mode(&file), 0o600);
-            assert_eq!(mode(&dir), 0o700);
-        }
 
         STOP_KEEPING.store(true, std::sync::atomic::Ordering::Relaxed);
         std::thread::sleep(KEEP_CHECK * 4);
         std::fs::remove_dir_all(&root).unwrap();
     }
 
-    /// macOS 的配置目录以 bundle ID 命名，要和 tauri.conf.json 一致
-    #[test]
-    fn bundle_id_matches_tauri_conf() {
-        let conf = include_str!("../tauri.conf.json");
-        assert!(conf.contains(&format!("\"identifier\": \"{BUNDLE_ID}\"")));
-    }
 }

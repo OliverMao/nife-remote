@@ -3,7 +3,6 @@ import { api, toProblem, type QualitySettings, type SavedDevice } from "./api";
 import * as devices from "./devices";
 import { bestCodec } from "./codec";
 import { DEFAULT_PRESET, presetSettings } from "./presets";
-import { OS } from "./platform";
 import { RemoteSession } from "./session";
 import { emptyDraft, store } from "./store";
 
@@ -210,7 +209,7 @@ export function resetDraft() {
 const activeSessions = () => store.get().sessions.filter((s) => s.state !== "closed").length;
 
 /**
- * 窗口要关闭了（标题栏的关闭按钮、任务栏、Alt+F4、macOS 的红灯，见 App 里的 onCloseRequested）：
+ * 窗口要关闭了（标题栏的关闭按钮、任务栏、Alt+F4，见 App 里的 onCloseRequested）：
  * 关窗口 = 断开所有自己的会话，有会话时先问一下。返回 true 表示直接关
  */
 export function allowClose(): boolean {
@@ -240,9 +239,8 @@ export async function quit() {
 type KeyboardLock = { lock?: (codes?: string[]) => Promise<void>; unlock?: () => void };
 const keyboardApi = () => (navigator as Navigator & { keyboard?: KeyboardLock }).keyboard;
 
-// macOS 桌面版只用窗口全屏：WKWebView 不支持键盘锁定，网页全屏没有用处，
-// 而且 WebKit 会把网页挪进它自己的全屏窗口，再加上窗口全屏就成了两个全屏空间
-const WEB_FULLSCREEN = !(api.frame && OS === "mac");
+// 桌面版和网页版都先进入网页全屏（Keyboard Lock 的前提），再让窗口全屏
+const WEB_FULLSCREEN = true;
 
 /** 进入 / 退出全屏（网页全屏 + 键盘锁定 + 窗口全屏）。可以重复调用 */
 export async function applyFullscreen(on: boolean) {

@@ -2,7 +2,7 @@
 // * 服务器状态（ServerIndicator）：一直写着在线 / 连接中 / 离线，点开是服务器的详情，弹出层就在它下面；
 // * 设置（SettingsButton）：本机名称与控制码、语言、配置文件、快捷键说明。
 //
-// 以前主菜单在最左边的 Logo 上：macOS 上和系统的红绿灯按钮挤在一起，点服务器状态也会在最左边弹出菜单。
+// 主菜单在最右边（以前在最左边的 Logo 上，和窗口按钮挤在一起，点服务器状态也会在最左边弹出菜单。
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, toProblem, type Problem } from "../lib/api";
 import { focusActive, loadDevices } from "../lib/actions";

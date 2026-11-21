@@ -10,9 +10,7 @@ import type { RemoteSession } from "./session";
 export type LocalNotice =
   | { kind: "h264Undecodable" }
   | { kind: "codecFallback"; codec: string; to: string }
-  | { kind: "noOpus" }
-  /** 对方是 Android 手机，没有开启 Nife Remote 的"远程操作"（被控端发来的 missingPermissions） */
-  | { kind: "androidNoInput" };
+  | { kind: "noOpus" };
 
 /** 被控端发来的"已恢复"：只用来撤下之前的提示，本身不显示 */
 export type RecoveredNotice = Extract<RemoteNotice, { kind: "captureRecovered" | "audioRecovered" }>;

@@ -30,12 +30,7 @@ use crate::config;
 const VIDEO_QUEUE: usize = 2;
 
 /// 告诉控制端的平台（控制端据此选快捷键、提示的说法）
-#[cfg(windows)]
 const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Windows;
-#[cfg(target_os = "macos")]
-const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Mac;
-#[cfg(not(any(windows, target_os = "macos")))]
-const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Linux;
 /// 检查系统权限是否有变化的间隔
 const PERMISSION_CHECK: Duration = Duration::from_secs(2);
 /// 检查显示器有没有变化（插拔、旋转、改分辨率 / 缩放 / 排列）的间隔
@@ -140,14 +135,14 @@ struct Desktop {
     /// 控制端缓存了哪些光标形状：整个会话一份，换显示器（重建管线）时接着用
     cursors: Arc<Mutex<CursorCache>>,
     pipeline: Option<Pipeline>,
-    /// 注入输入的线程：注入可能很慢（X11 上输入文字），会话的任务不等它
+    /// 注入输入的线程：注入可能很慢，会话的任务不等它
     injector: InjectorThread,
     sound: Option<AudioSubscription>,
     clip: ClipSync,
     clip_tick: Interval,
     permission_tick: Interval,
     display_tick: Interval,
-    /// 缺少的系统权限（macOS），见 [`super::missing_permissions`]
+    /// 缺少的系统权限，见 [`super::missing_permissions`]
     missing: (bool, bool),
     mic: Mic,
 }
@@ -330,7 +325,7 @@ impl Platform for Desktop {
         if let Some(n) = env_notice {
             self.out.send(&notice(n))?;
         }
-        // 缺少系统权限（macOS）：告诉控制端为什么没有画面 / 不能操作；之后权限有变化时再发
+        // 缺少系统权限：告诉控制端为什么没有画面 / 不能操作；之后权限有变化时再发
         self.missing = super::missing_permissions();
         if self.missing != (false, false) {
             self.out.send(&notice(permission_notice(self.missing)))?;

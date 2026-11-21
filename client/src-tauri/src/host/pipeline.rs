@@ -8,7 +8,7 @@
 //!
 //! 画面停下来之后补画质：画面大面积变化（切换窗口、滚动）时，码率控制只能给这一帧分到大约一帧的码率，
 //! 文字是糊的；采集只在画面变化时才有新帧，不补的话控制端就一直停在这一帧上。把最后一帧再编几次，
-//! 编码器只需要补残差，几帧之内就接近原画（实测 VideoToolbox H.264、4 Mbps、2880×1800 缩到 1080p 的文字：
+//! 编码器只需要补残差，几帧之内就接近原画（实测 H.264、4 Mbps、2880×1800 缩到 1080p 的文字：
 //! 42 dB → 58 dB，补的几帧一共约 40 KB）。编码器偶尔丢掉的帧（返回空）也靠这一步补发。
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -155,7 +155,7 @@ fn run(ctrl: Arc<Ctrl>, screen: u8, video: mpsc::Sender<Bytes>, out: Outbox) {
     capture::raise_priority();
     let mut settings = *ctrl.settings.lock().unwrap();
     let mut ver = ctrl.settings_ver.load(Ordering::Acquire);
-    // 要哪种画面取决于画质设置（macOS 让系统直接缩放，见 capture::output_for），设置变了可能要换一路采集
+    // 要哪种画面取决于画质设置（见 capture::output_for），设置变了可能要换一路采集
     let mut output = capture::output_for(screen, &settings);
     let mut sub = capture::subscribe(screen, settings.fps, output);
     let mut enc: Option<Encoder> = None;

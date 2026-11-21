@@ -82,7 +82,7 @@ struct Report {
     /// 收到时距采集时间多久（被控端时钟，毫秒）：最大值
     video_age_ms: f64,
     audio_age_ms: f64,
-    /// 被控端报告缺少屏幕录制权限（macOS）：没有画面和声音
+    /// 被控端报告缺少屏幕录制权限：没有画面和声音
     no_screen_permission: bool,
     /// 收到的"采集失败"提示
     capture_failed: u32,
@@ -295,7 +295,7 @@ async fn e2e_roundtrip() {
             clip_written = true;
             crate::clipboard::set_text(&from_host).unwrap();
         }
-        // 3 秒后切换到 AV1/HEVC（若被控端支持）、清楚优先（要缩放时改在 CPU 上缩放，macOS 换一路采集），
+        // 3 秒后切换到 AV1/HEVC（若被控端支持）、清楚优先（要缩放时改在 CPU 上缩放），
         // 验证运行时切换编码器和画面来路
         if !switched && started.elapsed() > Duration::from_secs(3) {
             switched = true;
@@ -462,7 +462,7 @@ async fn e2e_roundtrip() {
         rep.audio_rms,
         rep.audio_late,
     );
-    // macOS 上运行测试的终端没有"屏幕与系统录音"权限：被控端应当用专门的提示说明原因
+    // 运行测试的终端没有屏幕录制权限：被控端应当用专门的提示说明原因
     //（而不是报告为采集失败），画面和声音的检查跳过
     let capture = !rep.no_screen_permission;
     if !capture {
@@ -531,7 +531,6 @@ async fn e2e_roundtrip() {
 /// 没有时只检查被控端说了 noDevice）：打开麦克风，像界面那样每 20 ms 发一包 1 kHz 的声音（每个数据报带着上一包的副本，
 /// 再故意丢掉一些数据报），从"麦克风 (Steam Streaming Microphone)"录到的应该还是 1 kHz；关掉之后放开设备。
 /// 和 `e2e_roundtrip` 一样要先启动服务器
-#[cfg(windows)]
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn e2e_mic() {

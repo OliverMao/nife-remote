@@ -3,21 +3,14 @@
 pub(crate) mod audio;
 pub mod capture;
 pub(crate) mod clock;
-#[cfg(windows)]
 pub(crate) mod desktop;
 pub mod encoder;
 pub mod gate;
 mod input;
-#[cfg(target_os = "macos")]
-pub(crate) mod macos;
 pub(crate) mod mic;
 mod pace;
 mod pipeline;
-#[cfg(target_os = "macos")]
-pub(crate) mod sck;
 mod session;
-#[cfg(target_os = "linux")]
-pub(crate) mod x11;
 
 use std::sync::Arc;
 
@@ -39,9 +32,7 @@ use crate::status::StatusHub;
 ///
 /// DXGI 返回的是物理像素坐标，而 DPI 未感知的线程调用 `GetSystemMetrics` 等 API 会得到
 /// 缩放后的逻辑坐标，两者混用会导致鼠标位置错位。所有涉及坐标的调用都包在这里面。
-#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn dpi_aware<T>(f: impl FnOnce() -> T) -> T {
-    #[cfg(windows)]
     unsafe {
         use windows::Win32::UI::HiDpi::{
             DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetThreadDpiAwarenessContext,
@@ -53,18 +44,10 @@ pub(crate) fn dpi_aware<T>(f: impl FnOnce() -> T) -> T {
         }
         r
     }
-    #[cfg(not(windows))]
-    f()
 }
 
-/// 被控端缺少的系统权限：`(屏幕与系统录音, 辅助功能)`，true = 缺少。目前只有 macOS 需要用户授权。
+/// 被控端缺少的系统权限（Windows 上不需要用户授权，恒为 `false`）。
 pub(crate) fn missing_permissions() -> (bool, bool) {
-    #[cfg(target_os = "macos")]
-    {
-        let p = macos::permissions();
-        (!p.screen, !p.input)
-    }
-    #[cfg(not(target_os = "macos"))]
     {
         (false, false)
     }
@@ -72,11 +55,6 @@ pub(crate) fn missing_permissions() -> (bool, bool) {
 
 /// 采集失败是不是因为缺少系统权限（这种情况由会话用 `Notice::MissingPermissions` 单独说明）。
 pub(crate) fn missing_permission(e: &anyhow::Error) -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        e.chain().any(|c| c.is::<macos::PermissionDenied>())
-    }
-    #[cfg(not(target_os = "macos"))]
     {
         let _ = e;
         false
@@ -109,7 +87,6 @@ impl HostService {
     }
 
     /// 向被控端发命令的另一个入口（系统服务里的被控端经命名管道收到托盘的命令）
-    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn commands(&self) -> mpsc::UnboundedSender<HostCmd> {
         self.cmd.clone()
     }

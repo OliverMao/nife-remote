@@ -1,5 +1,5 @@
 //! 系统托盘：图标 + 右键菜单（本机连接码、服务器状态、正在控制本机的控制端、开机自动启动 /
-//! macOS 的登录时自动启动、语言、退出）。本机连接码在控制台首页也看得到。
+//! 开机自动启动、语言、退出）。本机连接码在控制台首页也看得到。
 
 use std::sync::OnceLock;
 
@@ -40,55 +40,22 @@ fn icon_offline() -> Image<'static> {
     .clone()
 }
 
-/// 能否显示托盘图标。
-///
-/// Linux 的托盘图标依赖 AppIndicator 库（运行时动态加载），没有安装时 tray-icon 会直接 panic
-/// （发布版 panic 即退出），所以先检查一下：没有的话不显示托盘，被控端照常工作，控制码写在日志里。
+/// 能否显示托盘图标（Windows 上总是可以）。
 pub fn available() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        let names = [
-            c"libayatana-appindicator3.so.1",
-            c"libappindicator3.so.1",
-            c"libayatana-appindicator3.so",
-            c"libappindicator3.so",
-        ];
-        let found = names.iter().any(|n| unsafe {
-            let h = libc::dlopen(n.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
-            if !h.is_null() {
-                libc::dlclose(h);
-            }
-            !h.is_null()
-        });
-        if !found {
-            tracing::warn!(
-                "AppIndicator library not found, can't show the tray icon (install libayatana-appindicator3-1); the control code is logged below"
-            );
-        }
-        found
-    }
-    #[cfg(not(target_os = "linux"))]
     true
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
     let st = AppStatus::default();
     let builder = TrayIconBuilder::with_id(TRAY_ID);
-    // Linux 的 AppIndicator 只接受图标文件：放到单独的临时目录里，退出时整个删掉
-    #[cfg(target_os = "linux")]
-    let builder = builder.temp_dir_path(crate::ephemeral::process_dir().join("tray"));
     builder
         .icon(icon_offline())
         .tooltip("Nife Remote")
         .menu(&build_menu(app, &st)?)
-        // macOS 的菜单栏图标习惯上左键就弹出菜单；Windows / Linux 左键在控制端模式下打开控制台
-        .show_menu_on_left_click(cfg!(target_os = "macos"))
+        // 左键在控制端模式下打开控制台，右键弹出菜单
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| crate::on_menu(app, event.id().as_ref()))
         .on_tray_icon_event(|tray, event| {
-            // macOS 上左键弹出的是菜单（菜单里有"打开控制台"），不再另外打开控制台
-            if cfg!(target_os = "macos") {
-                return;
-            }
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -101,12 +68,6 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         .build(app)
 }
 
-/// macOS 卸载时：先拿掉菜单栏图标。AppKit 移除图标时会改写 App 自己的偏好设置（清掉图标的位置等），
-/// 要在删偏好设置之前做，删完之后再移除会留下一个空的偏好设置文件（见 `uninstall::remove_preferences`）
-#[cfg(target_os = "macos")]
-pub fn remove(app: &AppHandle) {
-    drop(app.remove_tray_by_id(TRAY_ID));
-}
 
 fn label(app: &AppHandle, text: impl AsRef<str>) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::new(app, text, false, None::<&str>)
@@ -138,23 +99,10 @@ fn build_menu(app: &AppHandle, st: &AppStatus) -> tauri::Result<Menu<Wry>> {
             menu.append(&item(app, "console", tr!("打开控制台", "Open console"))?)?;
             // 控制台自己的服务器连接（去连别人的那一半）
             menu.append(&label(app, server_line(&st.controller))?)?;
-            #[cfg(target_os = "macos")]
-            if let Some(s) = st.login_item {
-                menu.append(&login_item_entry(app, s)?)?;
-            }
         }
     }
     menu.append(&language_menu(app)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    // macOS 的 App 没有卸载程序：在这里一次清理干净（见 crate::uninstall）。直接运行可执行文件（开发时）不提供
-    #[cfg(target_os = "macos")]
-    if crate::login_item::bundle().is_some() {
-        menu.append(&item(
-            app,
-            "uninstall",
-            tr!("卸载 Nife Remote…", "Uninstall Nife Remote…"),
-        )?)?;
-    }
     menu.append(&item(app, "quit", tr!("退出", "Quit"))?)?;
     Ok(menu)
 }
@@ -205,41 +153,11 @@ fn service_items(
     Ok(())
 }
 
-/// macOS：登录时自动启动（见 [`crate::login_item`]）。不在"应用程序"文件夹里时不能点，说明怎么做；
-/// 要在系统设置里允许时，点一下打开系统设置
-#[cfg(target_os = "macos")]
-fn login_item_entry(
-    app: &AppHandle,
-    s: crate::login_item::State,
-) -> tauri::Result<CheckMenuItem<Wry>> {
-    use crate::login_item::State;
-    let text = match s {
-        State::NotInstalled => tr!(
-            "登录时自动启动（先把 Nife Remote 拖进“应用程序”文件夹）",
-            "Open at login (move Nife Remote to the Applications folder first)"
-        ),
-        State::NeedsApproval => tr!(
-            "登录时自动启动（要在系统设置里允许，点击打开）",
-            "Open at login (allow it in System Settings, click to open)"
-        ),
-        State::On | State::Off => tr!("登录时自动启动", "Open at login"),
-    };
-    CheckMenuItem::with_id(
-        app,
-        "autostart",
-        text,
-        s != State::NotInstalled,
-        s == State::On,
-        None::<&str>,
-    )
-}
 
 /// 被控端：服务器状态、控制码、正在控制本机的控制端
 fn host_items(app: &AppHandle, menu: &Menu<Wry>, st: &AppStatus) -> tauri::Result<()> {
     menu.append(&label(app, server_line(&st.host.server))?)?;
     {
-        #[cfg(target_os = "macos")]
-        permission_items(app, menu)?;
         if let (ServerState::Connected, Some(code)) = (&st.host.server, st.host.code) {
             let code = nife_remote_proto::format_code(code);
             menu.append(&label(app, tr!("控制码：{code}", "Control code: {code}"))?)?;
@@ -340,35 +258,6 @@ fn pairing_items(app: &AppHandle, menu: &Menu<Wry>, st: &AppStatus) -> tauri::Re
     Ok(())
 }
 
-/// macOS：没有授予的权限各占一行，点击打开系统设置里对应的页面。
-#[cfg(target_os = "macos")]
-fn permission_items(app: &AppHandle, menu: &Menu<Wry>) -> tauri::Result<()> {
-    let p = crate::host::macos::permissions();
-    if !p.screen {
-        menu.append(&item(
-            app,
-            "perm_screen",
-            tr!(
-                "⚠ 需要“屏幕与系统录音”权限（点击打开设置）",
-                "⚠ Needs Screen & System Audio Recording permission (click to open Settings)"
-            ),
-        )?)?;
-    }
-    if !p.input {
-        menu.append(&item(
-            app,
-            "perm_input",
-            tr!(
-                "⚠ 需要“辅助功能”权限才能操作本机（点击打开设置）",
-                "⚠ Needs Accessibility permission to be controlled (click to open Settings)"
-            ),
-        )?)?;
-    }
-    if !p.screen || !p.input {
-        menu.append(&PredefinedMenuItem::separator(app)?)?;
-    }
-    Ok(())
-}
 
 fn item(app: &AppHandle, id: &str, text: String) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::with_id(app, id, text, true, None::<&str>)

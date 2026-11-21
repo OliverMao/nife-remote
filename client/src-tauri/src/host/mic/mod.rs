@@ -11,9 +11,7 @@
 //!   丢包补偿盖过去），抖动缓冲（[`Playout`]）攒够 [`TARGET_MS`] 再开始放，换成设备的格式（[`Format`]）写进去。
 //!   没有声音的时候写静音；网络卡住、积压太多时丢掉旧的，延迟不会越积越多。
 
-#![cfg_attr(not(windows), allow(dead_code))]
 
-#[cfg(windows)]
 pub(crate) mod wasapi;
 
 use std::collections::VecDeque;
@@ -83,15 +81,10 @@ pub async fn probe(session_id: u64) -> MicState {
     if OWNER.borrow().is_some_and(|o| o != session_id) {
         return MicState::Busy;
     }
-    #[cfg(windows)]
     {
         tokio::task::spawn_blocking(wasapi::probe)
             .await
             .unwrap_or(MicState::Failed)
-    }
-    #[cfg(not(windows))]
-    {
-        MicState::Unsupported
     }
 }
 
@@ -129,10 +122,7 @@ pub fn open(session_id: u64, input: &Arc<MicInput>) -> Result<MicLease, MicState
             if let Some(p) = previous {
                 let _ = p.join();
             }
-            #[cfg(windows)]
             render(rx, &thread_stop, &status_tx, wasapi::open);
-            #[cfg(not(windows))]
-            drop((rx, thread_stop, status_tx));
         });
     match spawned {
         Ok(t) => *last = Some(t),
@@ -774,7 +764,6 @@ pub(crate) mod tests {
     }
 
     /// 同一时刻只给一个会话；放开之后别的会话能用，等着的会话收到通知
-    #[cfg(windows)]
     #[test]
     fn one_session_at_a_time() {
         let mut changed = owner_changed();

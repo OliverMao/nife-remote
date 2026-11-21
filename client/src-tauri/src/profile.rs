@@ -145,6 +145,7 @@ fn normalize_code(code: &str) -> Option<String> {
 }
 
 /// `profile.json` 的路径：和 config.toml 在同一个目录里（见 [`crate::config::path`]）
+#[cfg_attr(test, allow(dead_code))]
 pub fn path() -> Option<PathBuf> {
     Some(crate::config::path()?.with_file_name(FILE_NAME))
 }

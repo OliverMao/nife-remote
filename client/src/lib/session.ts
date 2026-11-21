@@ -532,10 +532,7 @@ export class RemoteSession {
           if (this.notice?.kind === RECOVERS[n.kind]) this.notice = null;
         } else if (n.kind === "missingPermissions" && !n.screen && !n.input) {
           // 对方把权限都打开了：撤下之前的权限提示
-          if (this.notice?.kind === "missingPermissions" || this.notice?.kind === "androidNoInput") this.notice = null;
-        } else if (n.kind === "missingPermissions" && this.hostPlatform === "android") {
-          // 对方是手机：缺的是 Nife Remote 的"远程操作"（无障碍服务），不是 Mac 的系统权限
-          this.notice = { kind: "androidNoInput" };
+          if (this.notice?.kind === "missingPermissions") this.notice = null;
         } else if (n.kind === "audioFailed") {
           this.audioError = n.detail;
           // 声音的问题不盖住正在显示的其它提示（例如缺少权限、Wayland），原因在声音菜单里一直能看到

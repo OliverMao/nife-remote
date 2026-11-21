@@ -377,9 +377,6 @@ const en: Record<MsgKey, Msg> = {
   "notice.h264Undecodable": "This computer can't decode the H.264 video",
   "notice.codecFallback": "This computer can't decode {codec} video. Switched to {to}",
   "notice.noOpus": "This computer can't decode Opus, so remote sound can't be played",
-  "notice.androidNoInput":
-    "Remote control (Nife Remote's accessibility service) is off on the remote phone, so you can watch but not control it. The phone's owner can turn it on in Nife Remote → Share screen",
-
   "web.insecure.title": "Open this page over HTTPS",
   "web.insecure.body":
     "Browsers only allow video decoding and the other features the console needs on secure pages (HTTPS or localhost). This port also serves HTTPS:",

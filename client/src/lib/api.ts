@@ -116,7 +116,7 @@ export type RemoteNotice =
   | { kind: "audioFailed"; detail: string }
   /** 声音采集恢复：撤下 audioFailed（本身不显示） */
   | { kind: "audioRecovered" }
-  /** 被控端（macOS）缺少的系统权限；两项都为 false 表示已经全部授予 */
+  /** 被控端缺少的系统权限（Windows 上恒为 false，保留字段兼容协议） */
   | { kind: "missingPermissions"; screen: boolean; input: boolean };
 
 export interface AppInfo {

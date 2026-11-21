@@ -104,7 +104,7 @@ function Console() {
         });
     });
     const unOnline = api.onHostOnline(store.hostOnline);
-    // 关闭窗口（标题栏的关闭按钮、任务栏、Alt+F4、macOS 的红灯）：有会话时先确认
+    // 关闭窗口（标题栏的关闭按钮、任务栏、Alt+F4）：有会话时先确认
     const unClose = api.frame?.onCloseRequested(allowClose);
     const onKey = (e: KeyboardEvent) => {
       // 屏蔽 WebView 自带的刷新/查找/打印等快捷键，避免误触

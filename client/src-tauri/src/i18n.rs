@@ -18,18 +18,6 @@ pub enum Lang {
 }
 
 impl Lang {
-    /// 由语言标签判断（`zh-CN`、`zh_TW.UTF-8`、`en-US`、`C`…）：只认中文，其它都是英文。
-    /// Windows 直接用语言 ID 判断，用不到它。
-    #[cfg(any(not(windows), test))]
-    pub fn from_tag(tag: &str) -> Lang {
-        let primary = tag.trim().split(['-', '_', '.', '@']).next().unwrap_or("");
-        if primary.eq_ignore_ascii_case("zh") {
-            Lang::Zh
-        } else {
-            Lang::En
-        }
-    }
-
     /// 前端使用的代码（`"zh"` / `"en"`）
     pub fn code(self) -> &'static str {
         match self {
@@ -72,7 +60,6 @@ pub fn is_zh() -> bool {
 }
 
 /// 系统界面语言。只看首选语言：不是中文就用英文。
-#[cfg(windows)]
 pub fn system() -> Lang {
     // 用户的"显示语言"（不是"区域格式"）；主语言 ID 0x04 = LANG_CHINESE（简体、繁体都算中文）
     const LANG_CHINESE: u16 = 0x04;
@@ -84,40 +71,10 @@ pub fn system() -> Lang {
     }
 }
 
-/// 系统界面语言。只看首选语言：不是中文就用英文。
-#[cfg(not(any(windows, target_os = "macos")))]
-pub fn system() -> Lang {
-    posix_lang(|k| std::env::var(k).ok())
-}
 
-/// 系统界面语言："系统设置 → 通用 → 语言与地区"里排第一的语言（例如 `zh-Hans-CN`）。
-/// 从程序坞 / 访达启动的程序没有 `LANG` 之类的环境变量，所以不看环境变量。
-#[cfg(target_os = "macos")]
-pub fn system() -> Lang {
-    let first = objc2::rc::autoreleasepool(|_| {
-        let langs = objc2_foundation::NSLocale::preferredLanguages();
-        (langs.count() > 0).then(|| langs.objectAtIndex(0).to_string())
-    });
-    first.map_or(Lang::En, |l| Lang::from_tag(&l))
-}
 
 /// 与 gettext 相同的规则：`LC_ALL` > `LC_MESSAGES` > `LANG` 决定区域设置；
 /// 区域设置不是 C/POSIX 时，`LANGUAGE`（冒号分隔的优先列表）优先，取第一个。
-#[cfg(any(not(any(windows, target_os = "macos")), test))]
-fn posix_lang(var: impl Fn(&str) -> Option<String>) -> Lang {
-    let get = |k: &str| var(k).filter(|v| !v.trim().is_empty());
-    let locale = ["LC_ALL", "LC_MESSAGES", "LANG"].into_iter().find_map(get);
-    let is_c = locale
-        .as_deref()
-        .is_none_or(|l| l == "C" || l == "POSIX" || l.starts_with("C."));
-    let language = if is_c { None } else { get("LANGUAGE") };
-    let tag = language
-        .as_deref()
-        .and_then(|l| l.split(':').find(|s| !s.is_empty()))
-        .or(locale.as_deref());
-    tag.map_or(Lang::En, Lang::from_tag)
-}
-
 /// 按当前界面语言二选一并格式化，写法同 `format!`：`tr!("显示器 {n}", "Display {n}")`。
 macro_rules! tr {
     ($zh:literal, $en:literal $(, $($args:tt)*)?) => {
@@ -128,78 +85,6 @@ macro_rules! tr {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn tags() {
-        for t in [
-            "zh",
-            "zh-CN",
-            "zh-Hans-CN",
-            "zh_TW.UTF-8",
-            "ZH_cn",
-            "zh@pinyin",
-        ] {
-            assert_eq!(Lang::from_tag(t), Lang::Zh, "{t}");
-        }
-        for t in [
-            "en",
-            "en-US",
-            "en_GB.UTF-8",
-            "fr-FR",
-            "ja_JP.UTF-8",
-            "C",
-            "POSIX",
-            "C.UTF-8",
-            "",
-            "zhx",
-        ] {
-            assert_eq!(Lang::from_tag(t), Lang::En, "{t}");
-        }
-    }
-
-    #[test]
-    fn posix() {
-        let env = |pairs: &'static [(&'static str, &'static str)]| {
-            move |k: &str| {
-                pairs
-                    .iter()
-                    .find(|(n, _)| *n == k)
-                    .map(|(_, v)| v.to_string())
-            }
-        };
-        assert_eq!(posix_lang(env(&[])), Lang::En);
-        assert_eq!(posix_lang(env(&[("LANG", "zh_CN.UTF-8")])), Lang::Zh);
-        assert_eq!(
-            posix_lang(env(&[("LANG", "zh_CN.UTF-8"), ("LC_ALL", "en_US.UTF-8")])),
-            Lang::En
-        );
-        assert_eq!(
-            posix_lang(env(&[
-                ("LANG", "en_US.UTF-8"),
-                ("LC_MESSAGES", "zh_CN.UTF-8")
-            ])),
-            Lang::Zh
-        );
-        assert_eq!(
-            posix_lang(env(&[("LANG", "en_US.UTF-8"), ("LANGUAGE", "zh_CN:en")])),
-            Lang::Zh
-        );
-        // 首选语言不是中文：用英文（不往后找）
-        assert_eq!(
-            posix_lang(env(&[("LANG", "fr_FR.UTF-8"), ("LANGUAGE", "fr:zh_CN")])),
-            Lang::En
-        );
-        // 区域设置是 C 时忽略 LANGUAGE
-        assert_eq!(
-            posix_lang(env(&[("LANG", "C"), ("LANGUAGE", "zh_CN")])),
-            Lang::En
-        );
-        assert_eq!(posix_lang(env(&[("LANGUAGE", "zh_CN")])), Lang::En);
-        assert_eq!(
-            posix_lang(env(&[("LANG", ""), ("LC_ALL", "zh_SG")])),
-            Lang::Zh
-        );
-    }
 
     #[test]
     fn switch() {

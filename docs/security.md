@@ -13,7 +13,7 @@
 - Getting a control code back after a reconnect requires a random secret, so nobody else can claim it
 - Server resources: at most 128 simultaneous connections per IP (IPv6 /64, `NIFE_REMOTE_MAX_CONNS_PER_IP`), and the relay's QUIC flow-control windows are sized for forwarding (4 MiB per stream, 16 MiB per connection), so a peer that stops reading can only make the server buffer a few MiB for it
 - Fixed control codes: the server only stores a hash of the host's secret (in `nife-remote.db`), so the database can't be used to claim codes. On Windows the host's secret is encrypted with DPAPI for the SYSTEM account, so a copied `config.toml` doesn't carry the code to another computer; on Windows the file is readable by every local account, so don't hand `config.toml` to anyone. **Change control code** releases the old code on the server
-- My devices holds other computers' control codes: on Windows they're encrypted with your account (DPAPI), on macOS / Linux protected by the file permissions (600). Don't share `config.toml`
+- My devices holds other computers' control codes: they're encrypted with your account (DPAPI). Don't share `config.toml`
 - The Windows host runs as SYSTEM so that it can operate UAC prompts and the sign-in screen: whoever can connect to it (knows the control code, and has paired or knows the pairing code) controls the computer with administrator rights. Give the codes only to people you trust; whoever sits at the computer sees who is connected and can disconnect them, change the control code / pairing code or quit Nife Remote
 - The host's tray always shows who is controlling the computer; disconnect them or change the code with one click
 

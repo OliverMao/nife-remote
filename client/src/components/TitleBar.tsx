@@ -2,11 +2,10 @@
 //
 // 不再有标签条：一次只显示一个页面，多个远程会话靠左栏的"会话中"列表切换。
 //
-// macOS 上最左边是系统的红绿灯按钮（没有 Logo），右边没有窗口按钮。
+// 窗口按钮由界面画（最小化 / 最大化 / 关闭）。
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useT } from "../lib/i18n";
-import { NATIVE_WINDOW_BUTTONS } from "../lib/platform";
 import { AccountButton } from "./AccountMenu";
 import { SettingsButton } from "./AppMenu";
 import {
@@ -18,14 +17,14 @@ import {
 
 export function TitleBar() {
   return (
-    <header className={`titlebar ${NATIVE_WINDOW_BUTTONS ? "native-buttons" : ""}`} data-tauri-drag-region="deep">
+    <header className="titlebar" data-tauri-drag-region="deep">
       <div className="title-spacer" data-tauri-drag-region />
       <div className="title-actions">
         <AccountButton />
         <SettingsButton burger />
       </div>
       {/* 分隔线只在真有窗口按钮（桌面版）时才画：网页版右边是浏览器自己的按钮 */}
-      {api.frame && !NATIVE_WINDOW_BUTTONS && (
+      {api.frame && (
         <>
           <span className="ta-sep" aria-hidden />
           <WindowButtons />
@@ -50,7 +49,6 @@ function WindowButtons() {
     const update = () =>
       void frame.isMaximized().then((m) => {
         setMaximized(m);
-        // 没有最大化时 Linux 上画一圈细边框（系统不给无边框窗口画阴影）
         document.documentElement.classList.toggle("maximized", m);
       });
     update();

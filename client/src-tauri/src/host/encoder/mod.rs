@@ -1,26 +1,22 @@
 //! 视频编码。
 //!
 //! * **硬件编码**（优先）：Windows Media Foundation 硬件 MFT（NVENC / Quick Sync / AMF），
-//!   支持 H.264 / H.265 / AV1；macOS VideoToolbox，支持 H.264 / H.265。几乎不占用 CPU；
+//!   支持 H.264 / H.265 / AV1。几乎不占用 CPU；
 //! * **软件编码**（兜底）：OpenH264 屏幕内容模式。
 //!
 //! 被控端只在画面变化时才编码，静止画面完全不占带宽。
 //!
 //! # 画面怎么到编码器
 //!
-//! * **GPU 零拷贝**（硬件编码、画面在 GPU 上时）：画面不离开显卡。Windows 用 `ID3D11VideoProcessor` 缩放并转成 NV12，
-//!   `MFCreateDXGISurfaceBuffer` 直接交给硬件 MFT（见 mf.rs）；macOS 的 ScreenCaptureKit 采集时就按编码尺寸输出 NV12，
-//!   `CVPixelBuffer` 原样交给 VideoToolbox（见 vt.rs、`capture/sck.rs`）。省掉了读回、大块拷贝、CPU 缩放和色彩转换
-//!   （4K、Retina 屏上这些加起来每帧十几毫秒）；
-//! * **CPU**：BGRA →（SIMD 缩放，分条多线程）→（SIMD 色彩转换）YUV 4:2:0。软件编码、Linux、显卡不支持时走这条路；
+//! * **GPU 零拷贝**（硬件编码、画面在 GPU 上时）：画面不离开显卡。用 `ID3D11VideoProcessor` 缩放并转成 NV12，
+//!   `MFCreateDXGISurfaceBuffer` 直接交给硬件 MFT（见 mf.rs）。省掉了读回、大块拷贝、CPU 缩放和色彩转换
+//!   （4K 屏上这些加起来每帧十几毫秒）；
+//! * **CPU**：BGRA →（SIMD 缩放，分条多线程）→（SIMD 色彩转换）YUV 4:2:0。软件编码、显卡不支持时走这条路；
 //!   画质设置选了清楚优先（[`VideoPriority::Clarity`]）、而且需要缩小时也走这条路：GPU 的缩放滤镜由驱动决定，
 //!   缩小很多时文字不一定有 Catmull-Rom 清楚。
 
-#[cfg(windows)]
 mod mf;
 mod software;
-#[cfg(target_os = "macos")]
-mod vt;
 
 use std::sync::OnceLock;
 
@@ -28,7 +24,6 @@ use nife_remote_proto::session::{Codec, EncoderInfo, QualitySettings, VideoPrior
 use anyhow::{Context, Result, anyhow, bail};
 use fast_image_resize as fir;
 use tracing::info;
-#[cfg(any(windows, target_os = "macos"))]
 use tracing::warn;
 
 use super::capture::{Frame, GpuFrame};
@@ -69,7 +64,7 @@ fn resize_striped(
     let rows = h.div_ceil(n);
     let scale = src_h as f64 / h as f64;
     // 缩小用 Catmull-Rom 卷积：文字边缘比双线性清晰得多。Retina 屏（例如 2880×1800）缩到 1080p
-    // 是 0.6 这样的非整数倍，macOS 的细字体用双线性缩完明显发虚（单线程时 Catmull-Rom 比双线性慢约 60%）
+    // 是 0.6 这样的非整数倍，细字体用双线性缩完明显发虚（单线程时 Catmull-Rom 比双线性慢约 60%）
     let job = |r: &mut fir::Resizer, y0: u32, band: &mut [u8]| -> Result<()> {
         let rows = (band.len() / (w as usize * 4)) as u32;
         let mut img = fir::images::Image::from_slice_u8(w, rows, band, fir::PixelType::U8x4)
@@ -165,7 +160,6 @@ pub fn available_codecs() -> Vec<Codec> {
         .get_or_init(|| {
             #[allow(unused_mut)]
             let mut list = vec![Codec::H264];
-            #[cfg(any(windows, target_os = "macos"))]
             for c in [Codec::H265, Codec::AV1] {
                 if has_hardware(c) {
                     list.push(c);
@@ -177,17 +171,11 @@ pub fn available_codecs() -> Vec<Codec> {
         .clone()
 }
 
-#[cfg(windows)]
 fn has_hardware(codec: Codec) -> bool {
     mf::has_hardware(codec)
 }
 
-#[cfg(target_os = "macos")]
-fn has_hardware(codec: Codec) -> bool {
-    vt::has_hardware(codec)
-}
 
-#[cfg(windows)]
 fn hardware_encoder(
     codec: Codec,
     (w, h): (u32, u32),
@@ -198,16 +186,6 @@ fn hardware_encoder(
     Ok(Box::new(mf::MfEncoder::new(codec, w, h, fps, kbps, gpu)?))
 }
 
-#[cfg(target_os = "macos")]
-fn hardware_encoder(
-    codec: Codec,
-    (w, h): (u32, u32),
-    fps: u8,
-    kbps: u32,
-    gpu: Option<&GpuFrame>,
-) -> Result<Box<dyn VideoEncoder>> {
-    Ok(Box::new(vt::VtEncoder::new(codec, w, h, fps, kbps, gpu)?))
-}
 
 /// 缩放 + 编码。持有可复用的缩放缓冲区。
 pub struct Encoder {
@@ -252,7 +230,6 @@ impl Encoder {
         #[allow(unused_mut)]
         let mut inner: Option<Box<dyn VideoEncoder>> = None;
 
-        #[cfg(any(windows, target_os = "macos"))]
         if allow_hw {
             let mut order = vec![s.codec];
             if s.codec != Codec::H264 {
@@ -271,8 +248,6 @@ impl Encoder {
                 }
             }
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let _ = (allow_hw, gpu);
 
         let inner = match inner {
             Some(e) => e,
@@ -362,7 +337,6 @@ impl Encoder {
 }
 
 /// 在 Annex-B 码流中查找 NAL 类型（用于判断是否包含参数集 / 关键帧）。
-#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) fn annexb_nal_types(data: &[u8], hevc: bool) -> impl Iterator<Item = u8> + '_ {
     let mut i = 0usize;
     std::iter::from_fn(move || {
@@ -485,7 +459,6 @@ mod tests {
         assert_eq!(check(Codec::H264, false).as_deref(), Some("OpenH264"));
     }
 
-    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn hardware_all() {
         for c in available_codecs() {

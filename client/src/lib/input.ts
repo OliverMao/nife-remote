@@ -25,9 +25,6 @@
 // 这两种解除和浏览器的 Esc 一样：手动锁定结束，自动锁定到下一次点击之前不再来。
 import type { InputEvent, MouseButton } from "./api";
 
-const IS_MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform || navigator.userAgent);
-const META_KEYS = new Set(["MetaLeft", "MetaRight"]);
-const MODIFIERS = new Set(["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight", "CapsLock", "Fn"]);
 /** PointerEvent.buttons 的位 → 鼠标键 */
 const BUTTON_BITS: [number, MouseButton][] = [[1, "left"], [2, "right"], [4, "middle"], [8, "back"], [16, "forward"]];
 /** 被控端光标隐藏着、只是移动（没按键）时，持续这么久光标还是隐藏的才锁定（见文件开头） */
@@ -403,7 +400,6 @@ export class RemoteInput {
         if (e.repeat) return;
         this.holdEsc();
       }
-      if (IS_MAC && e.code === "CapsLock") return this.tapCaps();
       if (e.repeat && !this.pressed.has(e.code)) return;
       this.pressed.add(e.code);
       this.enqueue([{ type: "key", code: e.code, down: true }], true);
@@ -414,23 +410,11 @@ export class RemoteInput {
       if (!e.code || e.code === "Unidentified") return;
       if (this.swallowed.delete(e.code)) return;
       if (e.code === "Escape") this.cancelEscHold();
-      if (IS_MAC && e.code === "CapsLock") return this.tapCaps();
       this.pressed.delete(e.code);
       const events: InputEvent[] = [];
-      if (IS_MAC && META_KEYS.has(e.code)) {
-        for (const code of this.pressed) {
-          if (MODIFIERS.has(code)) continue;
-          this.pressed.delete(code);
-          events.push({ type: "key", code, down: false });
-        }
-      }
       events.push({ type: "key", code: e.code, down: false });
       this.enqueue(events, true);
     });
     on("blur", () => { this.cancelEscHold(); this.releaseAll(); });
-  }
-
-  private tapCaps() {
-    this.enqueue([{ type: "key", code: "CapsLock", down: true }, { type: "key", code: "CapsLock", down: false }], true);
   }
 }

@@ -49,7 +49,7 @@ fast_image_resize = "6"
 # 声音：libopus（随包源码静态编译）
 opus = "0.4"
 
-[target.'cfg(windows)'.dependencies]
+# Windows 平台 API（被控端采集、编码、注入、服务、剪贴板）
 windows = { version = "0.62", features = [
   "Win32_Foundation",
   "Win32_Graphics_Direct3D",
@@ -84,68 +84,6 @@ windows = { version = "0.62", features = [
   # 声音设备的属性（控制端的麦克风：按接口名找 Steam Streaming Microphone、读它的设备格式）
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_Security",
-] }
-
-# macOS / Linux：config.toml 放在系统建议的用户配置目录（~/Library/Application Support、~/.config）
-[target.'cfg(not(windows))'.dependencies]
-dirs = "7"
-
-# Linux 被控端：X11（MIT-SHM 采集 + DAMAGE 变化检测 + XFIXES 光标/剪贴板 + XTEST 注入），
-# 声音用 PulseAudio（PipeWire 的 pipewire-pulse 同样适用）监听默认输出设备。
-# x11rb 是纯 Rust 实现的 X11 协议，不依赖 libX11/libxcb；arboard 已经在用同一版本。
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
-# 和 Tauri（gtk 0.18）用同一个版本：全屏时暂停 webview 上的信号处理函数（见 fullscreen.rs）
-glib = "0.18"
-x11rb = { version = "0.13", features = ["shm", "damage", "xfixes", "randr", "xtest", "xkb"] }
-libpulse-binding = "2"
-
-# macOS 被控端：ScreenCaptureKit 采集画面和系统声音，VideoToolbox 硬件编码，CGEvent 注入键鼠，
-# NSPasteboard 检测剪贴板变化。与 Tauri 用同一套 objc2 绑定（版本一致，不会重复编译两份）；
-# 这些框架绑定的默认 feature 会把整个 AppKit / AVFoundation 都编译进来，所以只打开用到的部分。
-[target.'cfg(target_os = "macos")'.dependencies]
-libc = "0.2"
-objc2 = "0.6"
-block2 = "0.6"
-dispatch2 = "0.3"
-objc2-foundation = { version = "0.3", default-features = false, features = [
-  "std", "NSArray", "NSDictionary", "NSError", "NSFileManager", "NSGeometry", "NSLocale", "NSObject",
-  "NSProcessInfo", "NSString", "NSURL", "NSValue",
-] }
-# NSAlert 等：卸载时的确认对话框（src/uninstall.rs），NSApplication、NSButton 这些 Tauri 本来就打开了
-objc2-app-kit = { version = "0.3", default-features = false, features = [
-  "std", "NSAlert", "NSApplication", "NSButton", "NSColor", "NSControl", "NSCursor", "NSGraphics", "NSGraphicsContext",
-  "NSImage", "NSImageRep", "NSPasteboard", "NSResponder", "NSScreen", "NSView", "NSWindow", "objc2-core-foundation",
-  "objc2-core-graphics",
-] }
-objc2-core-foundation = { version = "0.3", default-features = false, features = [
-  "std", "CFArray", "CFBase", "CFCGTypes", "CFData", "CFDictionary", "CFMessagePort", "CFNumber",
-  "CFString",
-] }
-objc2-core-graphics = { version = "0.3", default-features = false, features = [
-  "std", "CGBitmapContext", "CGColorSpace", "CGContext", "CGDirectDisplay", "CGDisplayConfiguration",
-  "CGDisplayStream", "CGError", "CGEvent", "CGEventSource", "CGEventTypes", "CGGeometry", "CGImage", "CGRemoteOperation",
-  "libc",
-] }
-objc2-core-media = { version = "0.3", default-features = false, features = [
-  "std", "CMBase", "CMBlockBuffer", "CMFormatDescription", "CMSampleBuffer", "CMSync", "CMTime",
-  "objc2-core-audio-types", "objc2-core-video",
-] }
-objc2-core-audio-types = { version = "0.3", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
-objc2-core-video = { version = "0.3", default-features = false, features = [
-  "std", "CVBase", "CVBuffer", "CVImageBuffer", "CVPixelBuffer", "CVPixelBufferPool", "CVReturn",
-] }
-objc2-screen-capture-kit = { version = "0.3", default-features = false, features = [
-  "std", "SCShareableContent", "SCStream", "block2", "dispatch2", "objc2-core-foundation",
-  "objc2-core-graphics", "objc2-core-media",
-] }
-# 登录时自动启动（SMAppService，见 src/login_item.rs）
-objc2-service-management = { version = "0.3", default-features = false, features = [
-  "std", "SMAppService", "objc2", "objc2-foundation",
-] }
-objc2-video-toolbox = { version = "0.3", default-features = false, features = [
-  "std", "VTBase", "VTCompressionProperties", "VTCompressionSession", "VTErrors", "VTSession",
-  "VTVideoEncoderList", "objc2-core-media", "objc2-core-video",
 ] }
 
 [profile.release]

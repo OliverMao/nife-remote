@@ -391,8 +391,6 @@ export default {
   "notice.h264Undecodable": "本机无法解码 H.264 画面",
   "notice.codecFallback": "本机无法解码 {codec} 画面，已改用 {to}",
   "notice.noOpus": "本机不支持 Opus 解码，无法播放远程声音",
-  "notice.androidNoInput": "对方手机没有开启 Nife Remote 的“远程操作”（无障碍服务），只能看不能操作。需要手机的主人在 Nife Remote 的“共享本机”页里开启",
-
   // 网页版用不了时的说明
   "web.insecure.title": "请通过 HTTPS 打开",
   "web.insecure.body": "浏览器只在安全的页面（HTTPS 或 localhost）上提供视频解码等功能。这个端口同样支持 HTTPS：",

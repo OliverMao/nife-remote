@@ -98,11 +98,8 @@ export function annexBToAvc(data: Uint8Array): { sps?: Uint8Array; pps?: Uint8Ar
   return { sps, pps, data: out };
 }
 
-// Linux 上的 WebKitGTK：Annex-B 的 H.264 不能直接解码，一开始就用 AVC 格式。
-// 其它 WebView 默认用 Annex-B；如果实际解码失败，会自动改用 AVC 格式（见 markH264NeedsAvc）。
-const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
-const isWebKitGtk = /Linux/.test(ua) && /AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg\//.test(ua);
-let needsAvc = isWebKitGtk;
+// 默认用 Annex-B；如果实际解码失败，会自动改用 AVC 格式（见 markH264NeedsAvc）。
+let needsAvc = false;
 
 /** H.264 是否需要转换为 AVC 格式再解码 */
 export function h264NeedsAvc(): boolean {

@@ -72,8 +72,6 @@ struct ErrorBody {
 #[derive(Deserialize)]
 struct ErrorDetail {
     #[serde(default)]
-    code: String,
-    #[serde(default)]
     message: String,
 }
 
@@ -265,6 +263,7 @@ async fn check(r: reqwest::Response) -> Result<serde_json::Value> {
 
 // ───────────────────────── 本机保存的登录状态 ─────────────────────────
 
+#[cfg_attr(test, allow(dead_code))]
 fn path() -> Option<PathBuf> {
     Some(crate::config::path()?.with_file_name(FILE_NAME))
 }
@@ -331,11 +330,6 @@ fn write_to(path: &Path, session: &Session) -> Result<()> {
     {
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            opts.mode(0o600);
-        }
         let mut f = opts.open(&tmp).with_context(|| format!("creating {}", tmp.display()))?;
         f.write_all(text.as_bytes())?;
         f.write_all(b"\n")?;
@@ -389,7 +383,6 @@ mod tests {
     #[test]
     fn error_body_is_read() {
         let body: ErrorBody = serde_json::from_str(r#"{"error":{"code":"wrong_password","message":"wrong password"}}"#).unwrap();
-        assert_eq!(body.error.code, "wrong_password");
         assert_eq!(body.error.message, "wrong password");
     }
 }

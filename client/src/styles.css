@@ -145,7 +145,7 @@ h3 {
   display: flex;
   flex-direction: column;
 }
-/* 全屏只看远程画面。macOS 带刘海的屏幕：刘海那一条留黑边，内容放到它下面（高度由 src-tauri/src/fullscreen.rs 给出） */
+/* 全屏只看远程画面（顶端留出工具栏热区，具体高度由界面给出） */
 .app.immersive {
   flex-direction: column;
   background: #000;
@@ -158,16 +158,6 @@ h3 {
   flex-direction: column;
   position: relative;
 }
-/* Linux：系统不给无边框窗口画阴影，自己画一圈细边框（最大化、全屏时不要） */
-html.os-linux:not(.maximized) .app:not(.immersive)::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  pointer-events: none;
-  z-index: 1000;
-}
-
 /* ───────── 左栏 ───────── */
 .sidebar {
   width: var(--sidebar-w);
@@ -485,11 +475,7 @@ html.os-linux:not(.maximized) .app:not(.immersive)::after {
   font-weight: 600;
   color: var(--text);
 }
-/* macOS：给系统的红绿灯按钮留出位置（按钮在 x=16，三个一共约 52px 宽） */
-.titlebar.native-buttons {
-  padding-left: 80px;
-}
-/* Windows / Linux / 网页版最左边的 Logo：只是标识，不能点 */
+/* 最左边的 Logo：只是标识，不能点 */
 .brand {
   width: 26px;
   height: 26px;
@@ -656,8 +642,7 @@ html.os-linux:not(.maximized) .app:not(.immersive)::after {
   gap: 6px;
   padding: 0 8px 0 6px;
 }
-/* 右边没有窗口按钮（macOS、网页版）：离窗口边缘远一点 */
-.titlebar.native-buttons .title-actions,
+/* 右边没有窗口按钮（网页版）：离窗口边缘远一点 */
 html.os-web .title-actions {
   padding-right: 12px;
 }

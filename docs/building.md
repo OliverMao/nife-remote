@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · [简体中文](building.zh-CN.md)
 
-**The client is Windows only** (the macOS / Linux implementations are not built or supported). The client does **not** need a relay server to build: the address is filled in the installed app, so there is no need to deploy the server first. To ship a preconfigured installer, compile the address and fingerprint in as defaults (see [Server address and certificate fingerprint](#server-address-and-certificate-fingerprint)).
+**The client is Windows only** (the macOS / Linux implementations have been removed). The client does **not** need a relay server to build: the address is filled in the installed app, so there is no need to deploy the server first. To ship a preconfigured installer, compile the address and fingerprint in as defaults (see [Server address and certificate fingerprint](#server-address-and-certificate-fingerprint)).
 
 ## Desktop client
 

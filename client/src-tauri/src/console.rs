@@ -28,8 +28,7 @@ use crate::{AppState, clipboard, config};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// 打包进程序的控制台页面的 Origin：Tauri 的自定义协议（Windows 上是 `http://tauri.localhost`，
-/// macOS / Linux 上是 `tauri://localhost`）
+/// 打包进程序的控制台页面的 Origin：Tauri 的自定义协议（`http://tauri.localhost` 等）
 const CONSOLE_ORIGINS: [&str; 3] = [
     "http://tauri.localhost",
     "https://tauri.localhost",

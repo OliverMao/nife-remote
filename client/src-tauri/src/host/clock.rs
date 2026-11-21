@@ -23,38 +23,22 @@ pub fn us(t: Instant) -> u64 {
 }
 
 /// 系统 API 给出的时间戳只比现在早这么多以内才可信
-#[cfg(any(windows, target_os = "macos"))]
 const MAX_AGE: Duration = Duration::from_secs(5);
 
-/// `age_secs` 秒之前的时刻（macOS：CoreMedia 主机时钟上的时间差）；稍晚于现在（读取顺序造成的误差）按现在处理。
-#[cfg(target_os = "macos")]
-pub fn ago(age_secs: f64) -> Option<Instant> {
-    if !age_secs.is_finite() {
-        return None;
-    }
-    let age = Duration::from_secs_f64(age_secs.max(0.0));
-    if age > MAX_AGE {
-        return None;
-    }
-    Instant::now().checked_sub(age)
-}
 
 /// `QueryPerformanceCounter` 计数（DXGI 的 `LastPresentTime`）对应的时刻。
-#[cfg(windows)]
 pub fn from_qpc(ticks: i64) -> Option<Instant> {
     let (now, freq) = qpc();
     from_age(now.checked_sub(ticks)?, freq)
 }
 
 /// 以 100 ns 为单位的 QPC 时间（WASAPI `GetBuffer` 的 `u64QPCPosition`）对应的时刻。
-#[cfg(windows)]
 pub fn from_qpc_100ns(t: u64) -> Option<Instant> {
     let (now, freq) = qpc();
     let now_100ns = (now as i128 * 10_000_000 / freq as i128) as i64;
     from_age(now_100ns.checked_sub(t as i64)?, 10_000_000)
 }
 
-#[cfg(windows)]
 fn qpc() -> (i64, i64) {
     use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
     let (mut now, mut freq) = (0i64, 0i64);
@@ -66,7 +50,6 @@ fn qpc() -> (i64, i64) {
 }
 
 /// `age` 个时钟周期（频率 `freq`）之前的时刻；时间戳稍晚于现在（读取顺序造成的误差）按现在处理。
-#[cfg(windows)]
 fn from_age(age: i64, freq: i64) -> Option<Instant> {
     let age = Duration::from_nanos((age.max(0) as i128 * 1_000_000_000 / freq as i128) as u64);
     if age > MAX_AGE {
@@ -75,22 +58,8 @@ fn from_age(age: i64, freq: i64) -> Option<Instant> {
     Instant::now().checked_sub(age)
 }
 
-#[cfg(all(test, target_os = "macos"))]
-mod mac_tests {
-    use super::*;
 
-    #[test]
-    fn ago_conversion() {
-        let t = ago(0.1).unwrap();
-        let elapsed = t.elapsed().as_secs_f64();
-        assert!((0.099..0.105).contains(&elapsed), "{elapsed}");
-        assert!(ago(-0.01).unwrap().elapsed() < Duration::from_millis(5));
-        assert!(ago(60.0).is_none(), "过旧的时间戳应被拒绝");
-        assert!(ago(f64::NAN).is_none());
-    }
-}
-
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

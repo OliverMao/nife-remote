@@ -1,5 +1,4 @@
-//! 声音：采集被控端正在播放的声音（Windows：WASAPI 环回；Linux：PulseAudio/PipeWire 监视器；
-//! macOS：ScreenCaptureKit），Opus 编码后发给控制端。
+//! 声音：采集被控端正在播放的声音（WASAPI 环回），Opus 编码后发给控制端。
 //!
 //! * 所有会话共享一个采集 + 编码线程（引用计数，最后一个订阅者离开时停止）；
 //! * 没有声音时不发包（静音检测 + 拖尾），静止的桌面不会因为声音占用带宽；
@@ -7,22 +6,12 @@
 //! * 默认输出设备变化（例如插上耳机）或设备失效时自动重新打开；打不开时把原因告诉订阅者
 //!   （会话据此给控制端发 `Notice::AudioFailed` / `AudioRecovered`）。
 
-#[cfg(target_os = "linux")]
-pub(crate) mod pulse;
-#[cfg(target_os = "macos")]
-pub(crate) mod sck;
-#[cfg(windows)]
 pub(crate) mod wasapi;
 
-#[cfg(target_os = "linux")]
-use pulse as backend;
-#[cfg(target_os = "macos")]
-use sck as backend;
-#[cfg(windows)]
 use wasapi as backend;
 
 /// 测试用：在本机默认输出设备上播放测试音
-#[cfg(all(test, any(windows, target_os = "linux", target_os = "macos")))]
+#[cfg(test)]
 pub(crate) use backend::TonePlayer;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -320,12 +309,7 @@ fn broadcast(shared: &Shared, seq: u32, data: &[u8], start: bool, captured: Inst
 
 // ───────────────────────────── 采集线程 ─────────────────────────────
 
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-fn capture_loop(_shared: Arc<Shared>) {
-    info!("audio capture isn't supported on this platform");
-}
 
-#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 fn capture_loop(shared: Arc<Shared>) {
     super::capture::raise_priority();
     let mut packetizer = match Packetizer::new() {
@@ -603,11 +587,6 @@ mod tests {
             failure_detail(&e).as_deref(),
             Some("no default audio output device")
         );
-        #[cfg(target_os = "macos")]
-        assert_eq!(
-            failure_detail(&anyhow::Error::from(crate::host::macos::PermissionDenied)),
-            None
-        );
     }
 
     /// 订阅时就能拿到当前的状态；之后只有状态真的变了才通知（每次重试失败的原因一样时不重复发）
@@ -639,13 +618,13 @@ mod tests {
                 .unwrap(),
             None
         );
-        set_failure(&shared, Some("PulseAudio error 6".into()));
+        set_failure(&shared, Some("WASAPI error 6".into()));
         assert_eq!(
             tokio::time::timeout(wait, sub.failure_changed())
                 .await
                 .unwrap()
                 .as_deref(),
-            Some("PulseAudio error 6")
+            Some("WASAPI error 6")
         );
     }
 
