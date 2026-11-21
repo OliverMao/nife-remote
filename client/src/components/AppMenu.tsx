@@ -209,6 +209,8 @@ export function LangSwitch() {
 
 function ServerPanel({ onClose }: { onClose: () => void }) {
   const t = useT();
+  // 账号服务地址平时收起来（和菜单里的"键盘快捷键"一样），点一下才展开
+  const [details, setDetails] = useState(false);
   const status = useStore(serverStatus);
   const server = useStore((s) => s.server);
   const problem = useStore((s) => s.serverProblem);
@@ -281,17 +283,30 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {app && !editing && (
+      {app && (
+        <button
+          className={`am-item ${details || editing ? "open" : ""}`}
+          aria-expanded={details || editing}
+          onClick={() => setDetails((v) => !v)}
+        >
+          <span className="am-item-icon">
+            <IconServer size={16} />
+          </span>
+          <span className="am-item-text">{t("server.auth")}</span>
+          <IconChevron size={15} className="am-chevron" />
+        </button>
+      )}
+
+      {app && !editing && details && (
         <div className="sp-field">
           <div className="am-row-line">
-            <span className="am-label">{t("server.auth")}</span>
+            <span className="sp-addr mono">{app.auth || t("server.authNotSet")}</span>
             {api.kind === "desktop" && (
               <button className="sp-edit" onClick={startEdit}>
                 {t("server.edit")}
               </button>
             )}
           </div>
-          <div className="sp-addr mono">{app.auth || t("server.authNotSet")}</div>
         </div>
       )}
 
