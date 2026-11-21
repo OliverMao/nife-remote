@@ -7,7 +7,7 @@ import { focusActive, loadDevices } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { serverStatus, store, useStore } from "../lib/store";
-import { IconChevron, IconKeyboard, IconMenuLines, IconRefresh, IconServer, IconSettings, IconWarn } from "./Icons";
+import { IconChevron, IconKeyboard, IconMenuLines, IconRefresh, IconSettings, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { PRESETS, presetDesc, presetName } from "../lib/presets";
 import { Popover } from "./Popover";
@@ -147,14 +147,14 @@ function QualitySwitch() {
   );
 }
 
-/** 菜单里的"网络状态"一行：在线 / 连接中 / 离线，点开是详情（地址、指纹，见 ServerPanel） */
+/** 菜单里的"网络状态"：在线 / 连接中 / 离线，点一下在**本菜单里**展开详情（不另开弹窗） */
 function ServerRow() {
   const t = useT();
   const server = useStore((s) => s.server);
   const status = useStore(serverStatus);
   const [open, setOpen] = useState(false);
   return (
-    <>
+    <div className="am-net">
       <button className="am-row am-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <span className="am-label">{t("menu.network")}</span>
         <span className={`am-value srv ${status} ${server.state === "connecting" ? "trying" : ""}`}>
@@ -163,8 +163,8 @@ function ServerRow() {
           <IconChevron size={13} className="am-chevron" />
         </span>
       </button>
-      {open && <ServerPanel onClose={() => setOpen(false)} />}
-    </>
+      {open && <NetworkDetails />}
+    </div>
   );
 }
 
@@ -207,10 +207,9 @@ export function LangSwitch() {
 
 // ───────────────────────── 网络状态（详情层） ─────────────────────────
 
-function ServerPanel({ onClose }: { onClose: () => void }) {
+/** 网络状态的详情：状态说明 + 账号服务地址（就在设置菜单里展开，不另开弹窗） */
+function NetworkDetails() {
   const t = useT();
-  // 账号服务地址平时收起来（和菜单里的"键盘快捷键"一样），点一下才展开
-  const [details, setDetails] = useState(false);
   const status = useStore(serverStatus);
   const server = useStore((s) => s.server);
   const problem = useStore((s) => s.serverProblem);
@@ -252,20 +251,7 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
     }
   };
   return (
-    <Popover className="server-panel" onClose={onClose}>
-      <div className="sp-head">
-        <span className={`sp-icon ${status}`}>
-          <IconServer size={18} />
-        </span>
-        <div className="sp-head-text">
-          <div className="pop-title">{t("menu.network")}</div>
-          <div className={`sp-state ${status}`}>
-            <span className="dot" />
-            {t(`server.short.${status}`)}
-          </div>
-        </div>
-      </div>
-
+    <div className="am-net-body">
       {problem && status !== "connected" && (
         <div className="error-box left" role="alert">
           <IconWarn size={15} />
@@ -283,30 +269,17 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {app && (
-        <button
-          className={`am-item ${details || editing ? "open" : ""}`}
-          aria-expanded={details || editing}
-          onClick={() => setDetails((v) => !v)}
-        >
-          <span className="am-item-icon">
-            <IconServer size={16} />
-          </span>
-          <span className="am-item-text">{t("server.auth")}</span>
-          <IconChevron size={15} className="am-chevron" />
-        </button>
-      )}
-
-      {app && !editing && details && (
+      {app && !editing && (
         <div className="sp-field">
           <div className="am-row-line">
-            <span className="sp-addr mono">{app.auth || t("server.authNotSet")}</span>
+            <span className="am-label">{t("server.auth")}</span>
             {api.kind === "desktop" && (
               <button className="sp-edit" onClick={startEdit}>
                 {t("server.edit")}
               </button>
             )}
           </div>
+          <div className="sp-addr mono">{app.auth || t("server.authNotSet")}</div>
         </div>
       )}
 
@@ -341,7 +314,6 @@ function ServerPanel({ onClose }: { onClose: () => void }) {
           </div>
         </form>
       )}
-
-    </Popover>
+    </div>
   );
 }
