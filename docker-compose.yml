@@ -9,6 +9,8 @@
 #     sudo sysctl -w net.core.rmem_max=8388608 net.core.wmem_max=8388608
 # 要在这台机器上临时构建（开发 / 测试用，不推荐在部署机上做）：
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml build
+#   自己构建的镜像 tag 没变时，要 docker compose up -d --force-recreate —— compose 只比较 service 配置，
+#   镜像内容变了它不会自动重建容器。
 # 账号服务（server/auth）在同一个文件里：和中转服务器共用仓库根目录的 .env，一起 docker compose up -d。
 # 网页控制台（在浏览器里使用的控制端）见 web/docker-compose.yml
 services:

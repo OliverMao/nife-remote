@@ -5,6 +5,8 @@
 #   打开：在这台电脑上用 http://localhost:8080 ，在其它电脑上用 https://<这台电脑的地址>:8080
 #        （自签名证书，浏览器第一次会提示不安全，确认继续即可）
 #   在构建机上构建：docker compose -f docker-compose.yml -f docker-compose.build.yml build
+#   自己重新构建的镜像 tag 没变时，要 docker compose up -d --force-recreate —— compose 只比较 service 配置，
+#   镜像内容变了它不会自动重建容器，界面就还停在旧版本。
 name: nife-remote-web
 services:
   nife-remote-web:
