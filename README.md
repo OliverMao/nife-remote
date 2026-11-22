@@ -114,7 +114,7 @@ cd web
 NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<fingerprint> docker compose up -d
 ```
 
-Open `http://localhost:8080` on that machine, or `https://<its address>:8080` from other computers. The access password, the HTTPS certificate and the reverse proxy setup are all commented in `web/docker-compose.yml` and `web/.env.example`.
+Open `http://localhost:8080` on that machine, or `https://<its address>:8080` from other computers. The access password, the HTTPS certificate and the reverse proxy setup are all commented in `client/web/docker-compose.yml` and `client/web/.env.example`.
 
 ## Documentation
 
@@ -142,7 +142,7 @@ See [Security](docs/security.md) for details.
 | `crates/` | The protocol (`nife-remote-proto`) and the client-to-relay link (`nife-remote-link`) |
 | `server/core/` | Relay server (Rust + QUIC) |
 | `server/auth/` | Account service (Python + FastAPI: accounts and their devices) |
-| `web/` | Web console service |
+| `client/web/` | Web console (same UI and console protocol as the desktop app, just a different shell: runs in a browser) |
 | `client/` | Desktop client: Tauri (Rust) + React UI, which the web console uses too |
 
 How to run the tests, the debugging tools and the project conventions (protocol versions, UI strings…) are in [Development](docs/development.md).

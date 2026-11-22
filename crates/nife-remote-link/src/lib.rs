@@ -1,4 +1,4 @@
-//! Nife Remote 客户端一侧的链路，桌面客户端（`client/src-tauri`）、网页控制台（`web/`）和 Android（`android/native`）共用：
+//! Nife Remote 客户端一侧的链路，桌面客户端（`client/src-tauri`）、网页控制台（`client/web/`）和 Android（`android/native`）共用：
 //!
 //! * [`net`]：QUIC 连接、证书固定、版本握手、断线重连；
 //! * [`wire`]：从流里读写长度前缀帧（帧的格式和消息的编解码在 `nife_remote_proto::framing`，那边不碰 IO）；

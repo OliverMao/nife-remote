@@ -13,7 +13,7 @@ cargo test -p nife-remote-link --no-default-features
 # crates/nife-remote-proto/fuzz/: what the server parses before any authentication (version handshake, signaling messages, session headers); needs nightly and cargo-fuzz
 cargo +nightly fuzz run signal    # also hello, session_header
 
-# web/: web console (WebSocket protocol, password, HTTPS certificate)
+# client/web/: web console (WebSocket protocol, password, HTTPS certificate)
 cargo test
 
 # client/: UI (jitter buffer and A/V sync simulations, H.264 conversion, UI strings)
@@ -74,9 +74,9 @@ The service and the host log with `OutputDebugString`: run Sysinternals DebugVie
 ## Web console
 
 ```bash
-# build the UI, then start the service in web/ (connects to a server on 127.0.0.1:4433, serves ../client/dist); open http://localhost:8080
+# build the UI, then start the service in client/web/ (connects to a server on 127.0.0.1:4433, serves client/dist, i.e. ../dist); open http://localhost:8080
 (cd client && npm run build)
-cd web && cargo run
+cd client/web && cargo run
 # while working on the UI: npm run dev in client/ and open http://localhost:1420 (/ws is proxied to nife-remote-web on port 8080)
 ```
 

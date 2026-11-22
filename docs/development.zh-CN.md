@@ -13,7 +13,7 @@ cargo test -p nife-remote-link --no-default-features
 # crates/nife-remote-proto/fuzz/：服务器在认证之前就要解析的东西（版本握手、信令消息、会话头），需要 nightly 和 cargo-fuzz
 cargo +nightly fuzz run signal    # 还有 hello、session_header
 
-# web/：网页控制台（WebSocket 协议、访问密码、HTTPS 证书）
+# client/web/：网页控制台（WebSocket 协议、访问密码、HTTPS 证书）
 cargo test
 
 # client/：界面（抖动缓冲和音画同步仿真、H.264 格式转换、界面文案）
@@ -74,9 +74,9 @@ target\release\nife-remote.exe --uninstall     # 删除服务和开机启动项
 ## 网页控制台
 
 ```bash
-# 先构建界面，再在 web/ 里启动服务（默认连接 127.0.0.1:4433 的服务器，网页取自 ../client/dist），浏览器打开 http://localhost:8080
+# 先构建界面，再在 client/web/ 里启动服务（默认连接 127.0.0.1:4433 的服务器，网页取自 client/dist（默认 ../dist）），浏览器打开 http://localhost:8080
 (cd client && npm run build)
-cd web && cargo run
+cd client/web && cargo run
 # 修改界面时：在 client/ 里 npm run dev，浏览器打开 http://localhost:1420（/ws 会转给 8080 端口上的 nife-remote-web）
 ```
 

@@ -1,7 +1,7 @@
 //! 控制台（界面）和控制端服务之间的 WebSocket，桌面版和网页版共用：
 //!
 //! * 桌面版：控制台窗口（WebView）连本程序里只监听 127.0.0.1 的服务（客户端的 `console.rs`）；
-//! * 网页版：浏览器连 nife-remote-web（`web/src/console.rs`）。
+//! * 网页版：浏览器连 nife-remote-web（`client/web/src/console.rs`）。
 //!
 //! 两边只是接受连接的方式不同（检查 Origin、令牌……），连上之后都交给 [`serve`]。每条连接就是一个控制台，
 //! 有自己的控制端服务（[`ControllerService`]）和到中转服务器的连接，连接断了它的会话全部断开。

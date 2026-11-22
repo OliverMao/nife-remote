@@ -1,5 +1,5 @@
 # 服务端工作区：协议库、客户端链路库、中转服务器。
-# 桌面客户端（client/src-tauri）和网页控制台（web/）各自是独立的 Cargo 工作区，通过路径依赖使用 crates/ 里的库，
+# 桌面客户端（client/src-tauri）和网页控制台（client/web/）各自是独立的 Cargo 工作区，通过路径依赖使用 crates/ 里的库，
 # 这样 Docker 构建中转服务器时既不需要 GUI 依赖，也不需要网页控制台的代码。
 [workspace]
 resolver = "3"

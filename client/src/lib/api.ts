@@ -3,7 +3,7 @@
 // 控制台有两种运行方式，界面完全相同（见 Backend）。会话都走同一种 WebSocket（console.ts，协议见
 // crates/nife-remote-link/src/console.rs），只是连的地方不同：
 // * 桌面版：Tauri 窗口，连本程序只监听 127.0.0.1 的服务；窗口、我的设备这些走 invoke（backend/tauri.ts）；
-// * 网页版：浏览器打开 nife-remote-web（web/）的端口，连它的 `/ws`（backend/web.ts）。
+// * 网页版：浏览器打开 nife-remote-web（client/web/）的端口，连它的 `/ws`（backend/web.ts）。
 //
 // 对会话的操作是 Command（与 Rust 的 nife_remote_link::controller::Command 相同，Android 也一样），
 // 画面 / 光标 / 声音是媒体包（见 media.ts）。样例见 crates/nife-remote-link/tests/protocol.json。

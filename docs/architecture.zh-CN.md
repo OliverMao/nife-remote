@@ -81,7 +81,7 @@ flowchart LR
 | `crates/nife-remote-proto` | 协议：信令和版本握手、端到端握手的消息、会话控制消息、媒体包、帧格式和兼容规则。只做编解码：不碰 IO、不依赖异步运行时，能编译成 wasm，解析对方数据的函数都只吃字节（方便 fuzz） |
 | `crates/nife-remote-link` | 客户端到中转服务器的链路：QUIC 连接、证书固定、断线重连，端到端加密（`secure`：身份、Noise 握手、每条通道的加密），从流里读写帧（`wire`），会话的通道和数据报从哪里来（`lanes`）、往哪条路发（`paths`：中转、直连），两端之间的直连（`direct`：打洞、只认对方证书指纹的 TLS、画面走哪条路）和几条路上的帧按计数合并（`merge`），与界面无关的控制端会话和界面命令（`Command`），被控端的服务器连接和会话（`host`），`Problem`。桌面客户端和网页控制台共用（除了 `wire` 和 `udp`（收发缓冲区调大了的 UDP socket）都在默认的 `client` feature 里，中转服务器只用这两个）；`tests/protocol.json` 是两边共用的协议样例 |
 | `server/` | 中转服务器（quinn + rustls）及其 `Dockerfile`。`src/broker/`：`registry`（控制码登记、连接请求）、`relay`（会话通道的配对和转发、数据报）、`limits`（限速）、`tokens`（密钥和重连凭证）；锁的先后在调试构建里有检查（`lock.rs`） |
-| `web/` | 网页控制台服务（axum：静态网页 + WebSocket，HTTP / HTTPS 同一端口）及其 `Dockerfile`、`docker-compose.yml`。和 `client/src-tauri/` 一样是独立的 Cargo 工作区 |
+| `client/web/` | 网页控制台：客户端在浏览器里的外壳（axum：静态网页 + WebSocket，HTTP / HTTPS 同一端口）及其 `Dockerfile`、`docker-compose.yml`。界面（`client/src`）和控制台协议（`crates/nife-remote-link` 的 `console`）与桌面版共用一份，这里只有浏览器那一侧的门；和 `client/src-tauri/` 一样是独立的 Cargo 工作区 |
 | `client/src-tauri/` | 桌面客户端 Rust 部分：被控端 `host/`、托盘、控制台窗口和命令 |
 | `client/src/` | `lib/session.ts` 管理会话，`connection-attempt.ts` 隔离连接代际，`media.ts` 解析媒体包，`video.ts` 管理解码 / 画面队列，`input.ts` 管理输入（含相对移动和指针锁定）；控制台界面（React 19 + TypeScript，不依赖 UI 库），桌面版和网页版共用，区别只在 `client/src/lib/backend/`；文案在 `client/src/locales/` |
 | `assets/icon.svg` | 应用图标**唯一源文件**：`node scripts/icon.mjs` 一次生成程序图标 / 安装包图标 / 托盘图标 / 界面 Logo / favicon，见 `assets/README.md` |
@@ -184,4 +184,4 @@ Windows 上这些都运行在系统服务里（见 [Windows 服务](#windows-服
 - 单实例锁用的是内核对象而不是锁文件：Windows 命名互斥量
 - 控制台的 WebView 需要数据目录：放在临时目录下的随机子目录，开启隐私模式（不保存 Cookie 和缓存），关闭窗口或退出程序时删除；进程被强制结束时，下次启动会清理残留
 - 控制台的其它设置（界面语言、关闭的标签……）只保存在内存里
-- 以上说的是桌面客户端。网页控制台是部署在服务器上的服务：它把自签名的 HTTPS 证书存在 `web/data/` 里，浏览器那边也只在内存里保存设置，我的设备不保存、刷新页面后清空（登录密码时会有一个会话 Cookie）
+- 以上说的是桌面客户端。网页控制台是部署在服务器上的服务：它把自签名的 HTTPS 证书存在 `client/web/data/` 里，浏览器那边也只在内存里保存设置，我的设备不保存、刷新页面后清空（登录密码时会有一个会话 Cookie）

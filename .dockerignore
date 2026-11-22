@@ -1,5 +1,5 @@
-# 构建上下文是仓库根目录，中转服务器（server/core/Dockerfile）和网页控制台（web/Dockerfile）共用这一份。
-# （按 Dockerfile 分开的 web/Dockerfile.dockerignore 只有 Docker BuildKit 支持，Podman / Buildah 不认，所以不用。）
+# 构建上下文是仓库根目录，中转服务器（server/core/Dockerfile）和网页控制台（client/web/Dockerfile）共用这一份。
+# （按 Dockerfile 分开的 client/web/Dockerfile.dockerignore 只有 Docker BuildKit 支持，Podman / Buildah 不认，所以不用。）
 # 各镜像只 COPY 自己需要的目录，上下文里多出来的小文件不影响构建缓存。
 .git
 **/target
@@ -7,11 +7,11 @@
 **/*.md
 assets
 data
-web/data
+client/web/data
 client/dist
 # 本机的 compose 配置（镜像名等），不进任何镜像
 .env
 **/.env
 # 桌面客户端的 Rust 部分，两个镜像都用不到
 client/src-tauri
-web/.env
+client/web/.env

@@ -113,7 +113,7 @@ cd web
 NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker compose up -d
 ```
 
-在这台机器上打开 `http://localhost:8080`，从其它电脑打开 `https://<这台机器的地址>:8080`。访问密码、HTTPS 证书、反向代理的配置都在 `web/docker-compose.yml` 和 `web/.env.example` 的注释里。
+在这台机器上打开 `http://localhost:8080`，从其它电脑打开 `https://<这台机器的地址>:8080`。访问密码、HTTPS 证书、反向代理的配置都在 `client/web/docker-compose.yml` 和 `client/web/.env.example` 的注释里。
 
 ## 文档
 
@@ -141,7 +141,7 @@ NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker 
 | `crates/` | 协议（`nife-remote-proto`）和客户端到服务器的链路（`nife-remote-link`） |
 | `server/core/` | 中转服务器（Rust + QUIC） |
 | `server/auth/` | 账号服务（Python + FastAPI，账号与"本账号设备"） |
-| `web/` | 网页控制台服务 |
+| `client/web/` | 网页控制台（和桌面版同一份界面、同一套控制台协议，只是换了个外壳：浏览器里用） |
 | `client/` | 桌面客户端：Tauri（Rust）+ React 界面，界面也给网页控制台用 |
 
 怎么跑测试、调试工具和项目约定（协议版本、界面文案等）见[开发](docs/development.zh-CN.md)。

@@ -1,4 +1,4 @@
-// 网页版：浏览器打开 nife-remote-web 的端口，控制端服务跑在那台机器上（web/src/console.rs）。
+// 网页版：浏览器打开 nife-remote-web 的端口，控制端服务跑在那台机器上（client/web/src/console.rs）。
 //
 // 会话和桌面版一样走 WebSocket（console.ts），连的是同一个端口的 `/ws`。网页版自己的：
 // * 剪贴板在浏览器里同步（navigator.clipboard），规则与桌面版相同：只同步连接之后的变化，并抑制回声；
@@ -337,7 +337,7 @@ class WebConsole extends ConsoleLink implements Backend {
     defaultProfile = { ...defaultProfile, recent };
     return { ...defaultProfile };
   }
-  // 网页版的服务器地址和指纹是启动容器时的环境变量，界面里改不了（见 web/.env.example）
+  // 网页版的服务器地址和指纹是启动容器时的环境变量，界面里改不了（见 client/web/.env.example）
   async relayRefresh(): Promise<boolean> {
     return false;
   }

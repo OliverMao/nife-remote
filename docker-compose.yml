@@ -12,7 +12,7 @@
 #   自己构建的镜像 tag 没变时，要 docker compose up -d --force-recreate —— compose 只比较 service 配置，
 #   镜像内容变了它不会自动重建容器。
 # 账号服务（server/auth）在同一个文件里：和中转服务器共用仓库根目录的 .env，一起 docker compose up -d。
-# 网页控制台（在浏览器里使用的控制端）见 web/docker-compose.yml
+# 网页控制台（在浏览器里使用的控制端）见 client/web/docker-compose.yml
 services:
   nife-remote:
     # 和构建机打出来的 tag 必须完全一致（版本号取自仓库根 Cargo.toml 的 version）。

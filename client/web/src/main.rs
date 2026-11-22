@@ -18,8 +18,8 @@
 //! * `NIFE_REMOTE_WEB_CERT` / `NIFE_REMOTE_WEB_KEY`
 //!   HTTPS 证书和私钥（PEM）。文件不存在时生成一张自签名证书写到这里；不设置则每次启动临时生成
 //! * `NIFE_REMOTE_WEB_CERT_NAMES`  自动生成证书时写入的域名 / IP，逗号分隔，默认 `localhost`
-//! * `NIFE_REMOTE_WEB_ROOT`        控制台网页所在的目录（`client/` 里 `npm run build` 的输出），默认 `../client/dist`
-//!   （在 `web/` 里 `cargo run` 时正好是它；Docker 镜像里另有设置）
+//! * `NIFE_REMOTE_WEB_ROOT`        控制台网页所在的目录，默认 `../dist`：在 `client/web/` 里 `cargo run` 时
+//!   正好是 `client/` 里 `npm run build` 的输出（Docker 镜像里另有设置）
 //! * `RUST_LOG`                日志级别，默认 `info`
 
 mod auth;
@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     let listen: SocketAddr = env_or("NIFE_REMOTE_WEB_LISTEN", "0.0.0.0:8080")
         .parse()
         .context("invalid NIFE_REMOTE_WEB_LISTEN")?;
-    let root = PathBuf::from(env_or("NIFE_REMOTE_WEB_ROOT", "../client/dist"));
+    let root = PathBuf::from(env_or("NIFE_REMOTE_WEB_ROOT", "../dist"));
     ensure!(
         root.join("index.html").is_file(),
         "the console isn't built: {} has no index.html (run `npm run build` in client/, or set NIFE_REMOTE_WEB_ROOT)",

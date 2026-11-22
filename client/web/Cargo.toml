@@ -5,12 +5,14 @@ version = "0.0.1"
 edition = "2024"
 license = "MIT"
 
-# 独立工作区（和 client/src-tauri 一样）：中转服务器的工作区和 Docker 构建都不需要网页控制台的代码
+# 独立工作区（和 client/src-tauri 一样）：中转服务器的工作区和 Docker 构建都不需要网页控制台的代码。
+# 它是"客户端的另一个外壳"：界面（client/src）和控制台协议（crates/nife-remote-link）与桌面版共用一份，
+# 这里只有浏览器那一侧的门：HTTP/HTTPS、静态文件、WebSocket 升级、Basic 认证、end-to-end 身份
 [workspace]
 
 [dependencies]
-nife-remote-link = { path = "../crates/nife-remote-link", features = ["console"] }
-nife-remote-proto = { path = "../crates/nife-remote-proto" }
+nife-remote-link = { path = "../../crates/nife-remote-link", features = ["console"] }
+nife-remote-proto = { path = "../../crates/nife-remote-proto" }
 anyhow = "1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws"] }
 base64 = "0.22"
