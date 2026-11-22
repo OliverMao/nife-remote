@@ -87,6 +87,31 @@ docker compose logs nife-remote | grep fingerprint   # note the certificate's SH
 
 The certificate and the control-code database live in `data/`. **Keep that directory**: with a new certificate, clients you've already built can no longer connect. Server settings are in `docker-compose.yml`.
 
+### 1.5 Account service (optional: sign in, My devices)
+
+It lives in the same `docker-compose.yml` and `.env`: set `NIFE_REMOTE_AUTH_IMAGE`, plus
+`NIFE_REMOTE_AUTH_RELAY_HOST` (the relay's `host:port`, handed to clients **verbatim**) and optionally
+`NIFE_REMOTE_AUTH_RELAY_FP`; `docker compose up -d` starts it along with the relay. The account service binds
+to `127.0.0.1:8080` only and is exposed over HTTPS by a reverse proxy:
+
+```caddyfile
+auth.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Clients only need the account service address (`https://auth.example.com`); the relay address and fingerprint
+come from it.
+
+* **The relay cannot be proxied**: it is raw QUIC (UDP 4433, ALPN is not HTTP), so neither Caddy nor nginx can
+  front it. Clients verify the certificate **fingerprint**, not the host name, so `NIFE_REMOTE_AUTH_RELAY_HOST`
+  must be an address clients can reach directly (allow UDP 4433)
+* The account service can live on a different machine than the relay: it only hands out the address and
+  fingerprint, there is no network dependency between the two
+* Plain HTTP, no proxy: set `NIFE_REMOTE_AUTH_BIND=0.0.0.0` in `.env` and set
+  `NIFE_REMOTE_AUTH_FORWARDED_ALLOW_IPS` to empty (otherwise clients can spoof `X-Forwarded-For` to dodge the
+  login rate limit)
+
 ### 2. Build the client (Windows)
 
 ```powershell
@@ -110,7 +135,7 @@ The full guide is in [Usage](docs/usage.md).
 Start the web console on any machine with Docker and use it from a browser:
 
 ```bash
-cd web
+cd client/web
 NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<fingerprint> docker compose up -d
 ```
 

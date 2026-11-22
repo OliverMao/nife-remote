@@ -86,6 +86,26 @@ docker compose logs nife-remote | grep fingerprint   # 记下证书的 SHA-256 �
 
 证书和控制码数据库都在 `data/` 目录里，**请保留这个目录**：证书换了，已经构建好的客户端就连不上了。服务器的配置项在 `docker-compose.yml` 里。
 
+### 1.5 账号服务（可选：登录、我的设备）
+
+同一份 `docker-compose.yml` 和 `.env` 里就有：填 `NIFE_REMOTE_AUTH_IMAGE`，再填 `NIFE_REMOTE_AUTH_RELAY_HOST`
+（中转服务器的 `host:port`，**原样**交给客户端）和可选的 `NIFE_REMOTE_AUTH_RELAY_FP`，`docker compose up -d`
+会把它一起起来。账号服务默认只绑 `127.0.0.1:8080`，由反向代理用 HTTPS 对外：
+
+```caddyfile
+auth.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+客户端只填账号服务地址（`https://auth.example.com`），中转地址和指纹由它分配。
+
+* **中转服务器不能走反代**：它是裸 QUIC（UDP 4433，ALPN 不是 HTTP），Caddy / nginx 都代理不了。客户端按
+  证书**指纹**校验、不看域名，所以 `NIFE_REMOTE_AUTH_RELAY_HOST` 填客户端能直接访问到的地址（放行 UDP 4433）
+* 账号服务可以和中转服务器不在同一台机器上：它只把地址和指纹交给客户端，两者之间没有网络依赖
+* 想要裸 HTTP 直连：`.env` 里 `NIFE_REMOTE_AUTH_BIND=0.0.0.0`，并把 `NIFE_REMOTE_AUTH_FORWARDED_ALLOW_IPS` 设空
+  （否则客户端能伪造 `X-Forwarded-For` 绕过登录限速）
+
 ### 2. 构建客户端（Windows）
 
 ```powershell
@@ -109,7 +129,7 @@ npm run tauri build            # 出安装包：bundle/nsis/Nife Remote_<版本>
 在任意一台装了 Docker 的机器上启动网页控制台，用浏览器操作：
 
 ```bash
-cd web
+cd client/web
 NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker compose up -d
 ```
 

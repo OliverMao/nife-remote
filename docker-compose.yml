@@ -54,10 +54,16 @@ services:
     container_name: nife-remote-auth
     restart: unless-stopped
     ports:
-      - "${NIFE_REMOTE_AUTH_PORT:-8080}:8080" # HTTP，建议后面挂 Caddy 反代 /auth/* 和 /health
+      # 默认只绑回环：外面由反向代理（Caddy / nginx）用 HTTPS 进来，端口不用对公网开。
+      # 不想要反代、直接暴露时把 NIFE_REMOTE_AUTH_BIND 改成 0.0.0.0（注意：这时用的是裸 HTTP，密码不加密）
+      - "${NIFE_REMOTE_AUTH_BIND:-127.0.0.1}:${NIFE_REMOTE_AUTH_PORT:-8080}:8080"
     volumes:
       - ./data/auth:/data # accounts.json（账号 + 登录凭证 + 每个账号的设备列表），权限 600，记得备份
     environment:
+      # 反代后面要拿到真实的客户端 IP（登录失败的限速是按 IP 算的）：容器里看到的是 docker 网关，
+      # 不是 127.0.0.1，uvicorn 默认会忽略 X-Forwarded-For。端口只绑回环时放开是安全的；
+      # 直连（NIFE_REMOTE_AUTH_BIND=0.0.0.0）时把它改成空，否则客户端可以伪造 IP 绕过登录限速
+      FORWARDED_ALLOW_IPS: "${NIFE_REMOTE_AUTH_FORWARDED_ALLOW_IPS:-*}"
       NIFE_REMOTE_AUTH_DATA: /data
       NIFE_REMOTE_AUTH_DB: /data/accounts.json
       NIFE_REMOTE_AUTH_TOKEN_TTL: ${NIFE_REMOTE_AUTH_TOKEN_TTL:-2592000}
