@@ -8,7 +8,17 @@
 // * 会话的画面是一个 canvas：交给 Worker（transferControlToOffscreen）之后由它绘制，这边是 MediaView；
 // * 画面确认由 Worker 收到画面时自己发（二进制，见 ack.ts）；
 // * 显示的延迟 = 控制端服务到被控端的往返 + 这里到控制端服务的往返（网页版是网络，桌面版是本机）。
-import type { AppInfo, Codec, Command, ConnectOptions, Problem, ServerState, SessionEvent, SessionInfo } from "./api";
+import type {
+  AppInfo,
+  Codec,
+  Command,
+  ConnectOptions,
+  Problem,
+  ResumeToken,
+  ServerState,
+  SessionEvent,
+  SessionInfo,
+} from "./api";
 import type { AvSyncStats } from "./avsync";
 import type { FromWorker, ToWorker } from "./console-worker";
 import type { Area, EnhanceLevel } from "./enhance";
@@ -284,6 +294,20 @@ export class ConsoleLink {
   onServerStatus(cb: (s: ServerState) => void): () => void {
     this.statusListeners.add(cb);
     return () => void this.statusListeners.delete(cb);
+  }
+
+  /**
+   * 这些设备现在能不能连（"我的设备"用，见 nife_remote_proto::signal 的"在线状态"）：只问带重连凭证的，
+   * 服务器只回答凭证有效、被控端已经准备好的。服务器不懂这个功能（旧版本）时返回 null——界面据此不显示状态
+   */
+  async presence(devices: { code: string; resume: ResumeToken }[]): Promise<string[] | null> {
+    if (devices.length === 0) return [];
+    const r = await this.call<{ online: number[] | null }>("presence", {
+      devices: devices.map((d) => ({ code: d.code, resume: d.resume })),
+    });
+    if (r.online === null) return null;
+    // 服务器回答的是数字，界面里控制码一律是 6 位字符串
+    return r.online.map((c) => String(c).padStart(6, "0"));
   }
 
   onHostOnline(cb: (code: number) => void): () => void {

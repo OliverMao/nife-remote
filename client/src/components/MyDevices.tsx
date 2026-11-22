@@ -2,7 +2,7 @@
 // 详情页里再点"显示远程窗口"才真的连（画质用上次的，见 DeviceView）。
 import { useEffect, useState } from "react";
 import type { SavedDevice } from "../lib/api";
-import { fmtCode, forgetDevice, renameDevice, restoreDevice } from "../lib/actions";
+import { fmtCode, forgetDevice, refreshPresence, renameDevice, restoreDevice, PRESENCE_EVERY_MS } from "../lib/actions";
 import { deviceTitle, matchDevice, relativeTime } from "../lib/devices";
 import { getLang, useT } from "../lib/i18n";
 import { sessionStateText } from "../lib/messages";
@@ -20,9 +20,17 @@ export function MyDevices({ onOpen, disabled, compact = false }: { onOpen: (d: S
   const devices = useStore((s) => s.devices);
   const saved = useStore((s) => s.devicesSaved);
   const sessions = useStore((s) => s.sessions);
+  const presence = useStore((s) => s.presence);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [removed, setRemoved] = useState<SavedDevice | null>(null);
+
+  // 进来先问一次哪几台现在能连，之后隔一会儿再问一次（"我的设备"开着就在问）
+  useEffect(() => {
+    void refreshPresence();
+    const timer = window.setInterval(() => void refreshPresence(true), PRESENCE_EVERY_MS);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // 撤销的机会只保留一会儿
   useEffect(() => {
@@ -82,6 +90,8 @@ export function MyDevices({ onOpen, disabled, compact = false }: { onOpen: (d: S
             key={d.code}
             d={d}
             session={open.get(d.code)}
+            // 这台现在能不能连（服务器说的；不知道时是 undefined）
+            online={presence && d.resume ? presence[d.code] === true : undefined}
             disabled={disabled}
             editing={editing === d.code}
             onOpen={() => onOpen(d)}
@@ -101,6 +111,7 @@ export function MyDevices({ onOpen, disabled, compact = false }: { onOpen: (d: S
 function DeviceItem({
   d,
   session,
+  online,
   disabled,
   editing,
   onOpen,
@@ -110,6 +121,8 @@ function DeviceItem({
   d: SavedDevice;
   /** 已经打开的标签（点一下就切过去） */
   session: RemoteSession | undefined;
+  /** 这台现在能不能连：true = 在线，false = 不在线，undefined = 不知道（没连过、服务器旧、还没问完） */
+  online: boolean | undefined;
   disabled: boolean;
   editing: boolean;
   onOpen: () => void;
@@ -121,11 +134,18 @@ function DeviceItem({
   const title = deviceTitle(d);
   // 打开着的可以随时切过去；其余的要等服务器连上、没有正在进行的连接
   const off = disabled && !session;
-  const status = session
-    ? session.state === "live"
-      ? t("devices.open")
-      : sessionStateText(session)
-    : relativeTime(d.lastUsed, Date.now(), getLang() === "zh" ? "zh-CN" : "en");
+  // 这行显示的是"这台现在能不能连"（服务器说的），不是"本机有没有连着它"；问不出来时退回原来的说法
+  const status =
+    online !== undefined
+      ? online
+        ? t("device.online")
+        : t("device.offline")
+      : session
+        ? session.state === "live"
+          ? t("devices.open")
+          : sessionStateText(session)
+        : relativeTime(d.lastUsed, Date.now(), getLang() === "zh" ? "zh-CN" : "en");
+  const dot = online !== undefined ? `online-${online}` : session?.state;
   const p = d.quality ? matchPreset(d.quality) : null;
   const finish = (value: string | null) => {
     if (value !== null) renameDevice(d.code, value);
@@ -164,12 +184,14 @@ function DeviceItem({
           <span className="device-name">{title}</span>
         )}
         <span className="device-sub">
-          {session && <span className={`dot ${session.state}`} />}
+          {dot && <span className={`dot ${dot}`} />}
           {fmtCode(d.code)}
           {status && ` · ${status}`}
           {!session && d.quality && ` · ${p ? presetName(p) : t("connect.customQuality")}`}
         </span>
       </span>
+      {/* 左栏紧凑版没有副标题：用一个圆点表示这台现在能不能连 */}
+      {online !== undefined && <span className={`device-reach ${online ? "on" : ""}`} />}
       {!editing && (
         <span className="device-actions">
           <button

@@ -11,7 +11,8 @@
 //! # 协议
 //!
 //! 控制台 → 服务：
-//! * 文本（JSON，camelCase）：`{"id": 1, "cmd": "connect", ...参数}`，命令见 [`Call`]：`appInfo`、`connect`、`ping`，
+//! * 文本（JSON，camelCase）：`{"id": 1, "cmd": "connect", ...参数}`，命令见 [`Call`]：`appInfo`、`connect`、`ping`、
+//!   `presence`（"我的设备"问哪几台现在能连），
 //!   加上对会话的操作 [`Command`]（和 Android 一样）。带 `id` 的会收到回复；不带的（输入事件这类高频消息）不回复。
 //!   一条连接上的命令按收到的先后执行（例如按下和松开）；
 //! * 二进制，不走 JSON、不回复：
@@ -38,6 +39,7 @@ use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use nife_remote_proto::signal::ResumeToken;
 use serde_json::Value;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::error::TrySendError;
@@ -131,6 +133,12 @@ pub enum Call {
     },
     /// 测量控制台到这里的往返时间
     Ping,
+    /// 问服务器这几台设备现在能不能连（"我的设备"用，见 [`ControllerService::presence`]）：
+    /// `{"cmd":"presence","devices":[{"code":"260 778","resume":[16 个字节]}]}`，
+    /// 回答 `{"online":[260778]}`（只含现在在线、而且凭证仍然有效的）。服务器不懂这个的话 `online` 是 `null`
+    Presence {
+        devices: Vec<PresenceDevice>,
+    },
     /// 对会话的操作（输入、画质……）
     #[serde(untagged)]
     Session(Command),
@@ -142,6 +150,16 @@ struct Request {
     id: Option<u32>,
     #[serde(flatten)]
     call: Call,
+}
+
+/// [`Call::Presence`] 里的一台设备
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresenceDevice {
+    /// 控制码（用户看到的样子，允许空格 / 短横线）
+    code: String,
+    /// 以前连上它时得到的重连凭证（[`SessionInfo::resume`]）：没有它就问不了（不然就能拿来枚举控制码）
+    resume: ResumeToken,
 }
 
 /// 服务 → 控制台的文本消息
@@ -414,6 +432,28 @@ impl Console {
                 return;
             }
             Call::Ping => Ok(Value::Null),
+            Call::Presence { devices } => {
+                let svc = self.svc.clone();
+                let out = self.out.clone();
+                let id = req.id;
+                self.tasks.spawn(async move {
+                    let queries: Vec<(u32, ResumeToken)> = devices
+                        .iter()
+                        .filter_map(|d| {
+                            let code = nife_remote_proto::parse_code(&d.code)?;
+                            Some((code, d.resume))
+                        })
+                        .collect();
+                    let result = match svc.presence(&queries).await {
+                        Ok(Some(online)) => Ok(serde_json::json!({ "online": online })),
+                        // 服务器不懂这个问题（旧版本）：别让界面显示成"全部不在线"
+                        Ok(None) => Ok(serde_json::json!({ "online": Value::Null })),
+                        Err(e) => Err(e),
+                    };
+                    out.reply(id, result);
+                });
+                return;
+            }
             Call::Session(c) => self.svc.command(c).map(|()| Value::Null),
         };
         self.out.reply(req.id, result);
@@ -576,6 +616,17 @@ mod tests {
         ));
         let r: Request = serde_json::from_str(r#"{"id":4,"cmd":"ping"}"#).unwrap();
         assert!(matches!(r.call, Call::Ping));
+        // "我的设备"问哪几台在线：带上以前连上它时得到的重连凭证
+        let r: Request = serde_json::from_str(
+            r#"{"id":5,"cmd":"presence","devices":[{"code":"260 778","resume":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]}]}"#,
+        )
+        .unwrap();
+        let Call::Presence { devices } = r.call else {
+            panic!("{:?}", r.call)
+        };
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].code, "260 778");
+        assert_eq!(devices[0].resume[0], 1);
         assert!(serde_json::from_str::<Request>(r#"{"id":1,"cmd":"nope"}"#).is_err());
 
         // 和 Android 共用的命令样例

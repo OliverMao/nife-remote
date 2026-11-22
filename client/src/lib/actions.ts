@@ -106,6 +106,41 @@ export async function loadDevices() {
   if (list && now.length > 0) saveDevices();
 }
 
+// ── 在线状态（设备现在能不能连，见 nife_remote_proto::signal 的"在线状态"） ──
+
+/** 多久问一次（只在"我的设备"和设备的详情页开着时问） */
+export const PRESENCE_EVERY_MS = 15_000;
+
+/** 上一次问的时间：切来切去、好几个地方同时问时不用重复问 */
+let presenceAt = 0;
+
+/**
+ * 问服务器"这些设备现在能不能连"，更新 store 里的在线状态。
+ *
+ * 只问有重连凭证的（服务器只回答以前连上过的控制码，不然这个功能就能用来枚举控制码）；没登录、没连上服务器、
+ * 或者服务器还是旧版本时结果是 null，界面就不显示在线状态。`force`：用户手动刷新
+ */
+export async function refreshPresence(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - presenceAt < PRESENCE_EVERY_MS) return;
+  presenceAt = now;
+  const targets = store
+    .get()
+    .devices.filter((d) => d.resume)
+    .map((d) => ({ code: d.code, resume: d.resume! }));
+  if (targets.length === 0) {
+    store.setPresence(null);
+    return;
+  }
+  try {
+    const online = await api.presence(targets);
+    store.setPresence(online === null ? null : Object.fromEntries(online.map((c) => [c, true])));
+  } catch (e) {
+    console.warn("can't ask which devices are online", e);
+    store.setPresence(null);
+  }
+}
+
 /** 保存：一次只存一份，存的时候取最新的列表（连续几次变化只存最后一次，也不会旧的盖掉新的） */
 let saving: Promise<void> = Promise.resolve();
 let dirty = false;

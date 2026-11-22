@@ -2,9 +2,17 @@
 //
 // 这一版是界面稿：中间的预览区、下面那排工具（文件传输 / 观看模式 / 终端 / 端口映射）都是占位的，
 // 只有「显示远程窗口」是真的去连（开的还是原来的会话标签）。
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SavedDevice } from "../lib/api";
-import { defaultQuality, fmtCode, forgetDevice, loadDevices, openSession } from "../lib/actions";
+import {
+  defaultQuality,
+  fmtCode,
+  forgetDevice,
+  loadDevices,
+  openSession,
+  PRESENCE_EVERY_MS,
+  refreshPresence,
+} from "../lib/actions";
 import { deviceTitle } from "../lib/devices";
 import { useT } from "../lib/i18n";
 import { store, useStore } from "../lib/store";
@@ -23,7 +31,15 @@ export function DeviceView() {
   const code = useStore((s) => s.device);
   const devices = useStore((s) => s.devices);
   const sessions = useStore((s) => s.sessions);
+  const presence = useStore((s) => s.presence);
   const [menu, setMenu] = useState(false);
+
+  // 这台现在能不能连（进来问一次，之后隔一会儿再问）
+  useEffect(() => {
+    void refreshPresence();
+    const timer = window.setInterval(() => void refreshPresence(true), PRESENCE_EVERY_MS);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const device: SavedDevice | undefined = useMemo(
     () => devices.find((d) => d.code === code),
@@ -35,6 +51,9 @@ export function DeviceView() {
   const name = device ? deviceTitle(device) : fmtCode(code);
   const quality = device?.quality ?? defaultQuality();
   const live = session?.state === "live";
+  // 服务器的回答：true 在线、false 不在线、undefined 不知道（没连过这台、服务器旧、还没问完）
+  const online = presence && device?.resume ? presence[code] === true : undefined;
+  const reachable = online ?? live;
 
   const enter = () => void openSession(code, quality);
 
@@ -42,9 +61,9 @@ export function DeviceView() {
     <div className="device-page">
       {/* 照 UU：一行就够——状态 + 名字 + 更多菜单，操作都收进菜单里 */}
       <div className="dv-head">
-        <span className={`dv-pill ${live ? "online" : ""}`}>
+        <span className={`dv-pill ${reachable ? "online" : ""}`}>
           <span className="dot" />
-          {live ? t("device.online") : t("device.offline")}
+          {reachable ? t("device.online") : t("device.offline")}
         </span>
         <h1>{name}</h1>
         <span className="dv-spacer" />
@@ -58,7 +77,13 @@ export function DeviceView() {
         </button>
         {menu && (
           <div className="dv-menu" onMouseLeave={() => setMenu(false)}>
-            <button onClick={() => (setMenu(false), void loadDevices())}>
+            <button
+              onClick={() => {
+                setMenu(false);
+                void loadDevices();
+                void refreshPresence(true);
+              }}
+            >
               <IconRefresh size={15} />
               {t("device.refresh")}
             </button>

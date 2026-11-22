@@ -372,7 +372,10 @@ mod tests {
 
     fn temp() -> std::path::PathBuf {
         std::env::temp_dir()
-            .join(format!("nife-remote-codes-test-{:016x}", rand::random::<u64>()))
+            .join(format!(
+                "nife-remote-codes-test-{:016x}",
+                rand::random::<u64>()
+            ))
             .join("nife-remote.db")
     }
 

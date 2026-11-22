@@ -363,6 +363,11 @@ export interface Backend {
     onEvent: (ev: SessionEvent) => void,
     clipboard: boolean,
   ): Promise<SessionInfo>;
+  /**
+   * 这些设备现在能不能连（"我的设备"用）：每一项是控制码和以前连上它时得到的重连凭证。
+   * 返回现在在线的控制码；服务器不懂这个功能（旧版本）时返回 null，界面就不显示在线状态
+   */
+  presence(devices: { code: string; resume: ResumeToken }[]): Promise<string[] | null>;
   /** 在等的被控端（connect 返回过 hostOffline）重新上线了，参数是控制码（数字）。返回取消订阅的函数 */
   onHostOnline(cb: (code: number) => void): () => void;
   /** 对会话的操作（画面的确认由 Worker 在收到画面时自己发） */

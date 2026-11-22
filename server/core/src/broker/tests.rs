@@ -13,7 +13,8 @@ use nife_remote_link::wire::{read_msg, write_msg};
 use nife_remote_proto::handshake::PublicKey;
 use nife_remote_proto::session::{ByeReason, Codec, QualitySettings};
 use nife_remote_proto::signal::{
-    ClientMsg, ConnectError, Reclaim, ResumeToken, SessionGrant, connect_outcome,
+    ClientMsg, ConnectError, PresenceQuery, Reclaim, ResumeToken, ServerMsg, SessionGrant,
+    connect_outcome,
 };
 use nife_remote_proto::{CODE_MAX, CODE_MIN, SessionLane, datagram};
 use quinn::VarInt;
@@ -355,7 +356,11 @@ async fn blocked_video_lane_does_not_block_control_or_audio() {
     let mut buf = Vec::new();
     let msg: HostMsg = timeout(
         Duration::from_secs(2),
-        read_msg(&mut ctrl_control, nife_remote_proto::MAX_CONTROL_MSG, &mut buf),
+        read_msg(
+            &mut ctrl_control,
+            nife_remote_proto::MAX_CONTROL_MSG,
+            &mut buf,
+        ),
     )
     .await
     .unwrap()
@@ -539,6 +544,70 @@ async fn controller_service_waits_for_the_host() {
         .unwrap();
     assert_eq!(code, id.code);
     assert!(connect(token).await.is_ok());
+}
+
+/// 控制端服务问在线状态（"我的设备"用的那个）：连上之后能问到在线的设备，被控端掉线之后就不在里面了
+#[tokio::test]
+async fn controller_service_asks_which_devices_are_online() {
+    struct NoUi;
+    impl SessionUi for NoUi {
+        fn packet(&self, _: Vec<u8>) -> Result<(), UiClosed> {
+            Ok(())
+        }
+        fn event(&self, _: SessionEvent) -> Result<(), UiClosed> {
+            Ok(())
+        }
+    }
+
+    let (broker, cfg) = start().await;
+    let (host, id) = register(&cfg, None).await;
+    let host_conn = host.conn.clone();
+    let host = answer(host, id.code);
+    let svc = ControllerService::start(
+        Arc::new(cfg.clone()),
+        tokio::runtime::Handle::current(),
+        Arc::new(|_| {}),
+        Arc::new(|_| {}),
+        Identity::generate(),
+    );
+    let code = id.code.to_string();
+    let info = loop {
+        match svc
+            .connect(
+                &code,
+                ConnectOptions::default(),
+                Arc::new(NoUi),
+                Frontend::Browser,
+            )
+            .await
+        {
+            // 控制端服务还没连上服务器
+            Err(Problem::NotConnected) => tokio::time::sleep(Duration::from_millis(20)).await,
+            r => break r.unwrap(),
+        }
+    };
+    // 连上过才有凭证可问
+    let query = vec![(id.code, info.resume)];
+    let online = loop {
+        match svc.presence(&query).await {
+            // 还没有凭证 / 服务正在重连
+            Err(Problem::NotConnected) => tokio::time::sleep(Duration::from_millis(20)).await,
+            r => break r.unwrap(),
+        }
+    };
+    assert_eq!(online, Some(vec![id.code]));
+
+    host_conn.close(VarInt::from_u32(0), b"");
+    wait_until("the host is gone", || broker.stats().0 == 0).await;
+    host.abort();
+    assert_eq!(svc.presence(&query).await.unwrap(), Some(Vec::new()));
+
+    // 没连上过的控制码（凭证不是服务器为它签的）不会出现在回答里
+    let stranger = vec![(
+        if id.code == CODE_MAX { CODE_MIN } else { id.code + 1 },
+        [0; 16],
+    )];
+    assert_eq!(svc.presence(&stranger).await.unwrap(), Some(Vec::new()));
 }
 
 /// 未知视频编码仍经过真实控制端会话转发给界面并确认；后面的已知帧继续接收。
@@ -1357,7 +1426,10 @@ async fn controller_service_gets_audio_over_datagrams() {
     // 两端的安全码一样；控制端记下的是被控端真正的公钥；开始时的画质和声音在握手里就到了
     assert_eq!(info.safety, admitted.safety);
     assert_eq!((admitted.settings.fps, admitted.audio), (50, true));
-    assert_eq!(info.host_key, nife_remote_link::secure::hex(gate.0.public()));
+    assert_eq!(
+        info.host_key,
+        nife_remote_link::secure::hex(gate.0.public())
+    );
     assert!(broker.sessions.lock().contains_key(&sid));
     for seq in 1..=5u32 {
         let h = AudioHeader {
@@ -1765,4 +1837,70 @@ async fn video_takes_the_direct_path_and_falls_back_to_the_relay() {
     let frames = frames.load(Ordering::Relaxed);
     assert!(frames > 100, "{frames}");
     drop(svc);
+}
+
+/// 控制端问"这些控制码现在能不能连"：只有带有效凭证、被控端又在线的才回答
+#[tokio::test]
+async fn presence_needs_a_valid_resume_token() {
+    let (broker, cfg) = start().await;
+    let ip = limiter_key("127.0.0.1".parse().unwrap());
+    let (host, id) = register(&cfg, None).await;
+    let code = id.code;
+    let other = if code == CODE_MAX { CODE_MIN } else { code + 1 };
+    let mut ctrl = connect_signal(&cfg, Role::Controller, None).await.unwrap();
+    let token = ask(&mut ctrl, 1, code, None).await.unwrap().resume;
+    // 形式有效、但为别的控制码签的凭证
+    let elsewhere = broker.resume_token(other, &[0; 16]);
+
+    let presence = |req_id: u32, queries: Vec<PresenceQuery>| ClientMsg::Presence { req_id, queries };
+
+    // 在线的那台回答在，伪造的凭证、别的控制码的凭证都不回答
+    write_msg(
+        &mut ctrl.send,
+        &presence(
+            7,
+            vec![
+                PresenceQuery {
+                    code,
+                    resume: token,
+                },
+                PresenceQuery {
+                    code: other,
+                    resume: [0; 16],
+                },
+                PresenceQuery {
+                    code: other,
+                    resume: elsewhere,
+                },
+            ],
+        ),
+    )
+    .await
+    .unwrap();
+    match next(&mut ctrl).await {
+        ServerMsg::Presence { req_id, online } => assert_eq!((req_id, online), (7, vec![code])),
+        other => panic!("{other:?}"),
+    }
+    // 问在线状态不算猜码
+    assert_eq!(broker.failure_count(ip), 0);
+
+    // 被控端掉线后不在里面了（凭证仍然有效）
+    host.conn.close(VarInt::from_u32(0), b"");
+    wait_until("the host is gone", || broker.stats().0 == 0).await;
+    write_msg(
+        &mut ctrl.send,
+        &presence(
+            8,
+            vec![PresenceQuery {
+                code,
+                resume: token,
+            }],
+        ),
+    )
+    .await
+    .unwrap();
+    match next(&mut ctrl).await {
+        ServerMsg::Presence { req_id, online } => assert_eq!((req_id, online), (8, Vec::new())),
+        other => panic!("{other:?}"),
+    }
 }

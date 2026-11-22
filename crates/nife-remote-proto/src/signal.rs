@@ -48,6 +48,14 @@
 //! 重连凭证只决定**服务器**让不让这个请求通过（不算猜码）。被控端让不让这个控制端操作，由端到端握手决定
 //! （见 [`crate::handshake`]）：服务器知道所有控制码，不能只凭控制码放行。
 //!
+//! # 在线状态
+//!
+//! 界面需要知道"这些控制码现在能不能连"（我的设备里哪几台在线）。控制端用 [`ClientMsg::Presence`] 问，
+//! 每一项带一个重连凭证，服务器用同一套规则验证它：凭证有效、被控端已经准备好才回在 [`ServerMsg::Presence::online`]
+//! 里。没连上过这个控制码的人没有凭证，所以这个请求不能用来枚举控制码（和 [`ServerMsg::HostOnline`] 的可见性一样，
+//! 只告诉本来就知道这个控制码的人）。服务器不认识这个问题的话，它会在读消息时直接断开，所以控制端要先看
+//! [`crate::features::signal::PRESENCE`] 再问。
+//!
 //! # 密钥
 //!
 //! 密钥由服务器生成并签名（服务器自己的密钥做 HMAC），服务器重启之后也认得出是自己发的。被控端取回控制码时：
@@ -214,6 +222,19 @@ pub enum ClientMsg {
     /// 被控端放弃当前的控制码（托盘"更换控制码"）：解除绑定，之后断开连接、不带 `reclaim` 重新注册。
     #[n(3)]
     Release,
+    /// 控制端问服务器：这些控制码对应的被控端现在能不能连（界面上的"我的设备"想知道哪台机器在线）。
+    ///
+    /// 每一项都带一个重连凭证（[`ClientMsg::Connect::resume`]）：凭证证明控制端以前连上过这个控制码，
+    /// 所以这个请求不能用来枚举控制码。凭证不是本服务器为这个控制码发的、或者已经作废的不回答
+    /// （和不在线一样不出现在 [`ServerMsg::Presence::online`] 里），所以也看不出控制码存在与否。
+    /// 服务器认识这个请求要它先声明 [`crate::features::signal::PRESENCE`]。
+    #[n(5)]
+    Presence {
+        #[n(0)]
+        req_id: u32,
+        #[n(1)]
+        queries: Vec<PresenceQuery>,
+    },
     /// 被控端的用户断开了所有控制端：换一个密钥，之前发出的重连凭证全部作废（被断开的控制端不能带着凭证马上连回来）。
     /// 服务器回 [`ServerMsg::Rekeyed`]，被控端保存新的密钥，下次取回控制码时用它。
     /// `secret` 是本机已保存的密钥：同一把密钥的重复请求返回同一个结果；
@@ -227,6 +248,15 @@ pub enum ClientMsg {
 
 /// 重连凭证（见模块说明）。对客户端来说是不透明的，原样带回即可
 pub type ResumeToken = [u8; 16];
+
+/// [`ClientMsg::Presence`] 里的一项：问 `code` 现在能不能连，`resume` 是之前连上它时得到的重连凭证
+#[derive(Encode, Decode, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PresenceQuery {
+    #[n(0)]
+    pub code: u32,
+    #[cbor(n(1), with = "minicbor::bytes")]
+    pub resume: ResumeToken,
+}
 
 #[derive(Encode, Decode, Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reclaim {
@@ -284,6 +314,15 @@ pub enum ServerMsg {
     Rekeyed {
         #[cbor(n(0), with = "minicbor::bytes")]
         secret: [u8; 16],
+    },
+    /// 对 [`ClientMsg::Presence`] 的回答：这些控制码对应的被控端现在在线、而且问的人手里的凭证仍然有效。
+    /// 其余的一律不在里面（被控端不在线、正在上线、凭证作废、控制码不存在），几种情况回答得一样
+    #[n(6)]
+    Presence {
+        #[n(0)]
+        req_id: u32,
+        #[n(1)]
+        online: Vec<u32>,
     },
 }
 
@@ -358,6 +397,7 @@ open_enum! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::features;
 
     /// 版本握手冻结的部分：两条消息都是 map，0、1 号键是版本区间。这个测试守着它：
     /// 如果它失败了，说明改动会让其它版本的客户端 / 服务器连"版本不一致"都无法得知
@@ -383,6 +423,42 @@ mod tests {
         assert_eq!(wire[..5], [0xa4, 0x00, 0x09, 0x01, 0x09]);
         assert_eq!(answer.version, Some(9));
         assert_eq!(crate::ALPN, b"nife-remote/1");
+    }
+
+    /// "我的设备"问在线状态：两种消息各一个来回都还原得出原样
+    #[test]
+    fn presence_round_trips() {
+        let ask = ClientMsg::Presence {
+            req_id: 7,
+            queries: vec![
+                PresenceQuery {
+                    code: 260778,
+                    resume: [1; 16],
+                },
+                PresenceQuery {
+                    code: 260779,
+                    resume: [9; 16],
+                },
+            ],
+        };
+        let wire = minicbor::to_vec(&ask).unwrap();
+        let ClientMsg::Presence { req_id, queries } = minicbor::decode(&wire).unwrap() else {
+            panic!("not a presence request")
+        };
+        assert_eq!(req_id, 7);
+        assert_eq!(queries[1].code, 260779);
+        assert_eq!(queries[1].resume, [9; 16]);
+
+        let answer = ServerMsg::Presence {
+            req_id: 7,
+            online: vec![260779],
+        };
+        let wire = minicbor::to_vec(&answer).unwrap();
+        let ServerMsg::Presence { req_id, online } = minicbor::decode(&wire).unwrap() else {
+            panic!("not a presence answer")
+        };
+        assert_eq!((req_id, online), (7, vec![260779]));
+        assert!(features::signal::SUPPORTED.has(features::signal::PRESENCE));
     }
 
     /// 以后的版本在握手里加了字段、换了别的东西：照样读得出版本区间，照样能回答"不兼容"

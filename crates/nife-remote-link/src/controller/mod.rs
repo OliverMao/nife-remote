@@ -73,8 +73,10 @@ use nife_remote_proto::framing;
 use nife_remote_proto::handshake::SEAL_OVERHEAD;
 use nife_remote_proto::media;
 use nife_remote_proto::session::{ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, QualitySettings, Codec};
-use nife_remote_proto::signal::{ClientMsg, ResumeToken, ServerMsg, SessionGrant, connect_outcome};
-use nife_remote_proto::{MAX_SIGNAL_MSG, Role};
+use nife_remote_proto::signal::{
+    ClientMsg, PresenceQuery, ResumeToken, ServerMsg, SessionGrant, connect_outcome,
+};
+use nife_remote_proto::{Features, MAX_SIGNAL_MSG, Role};
 use anyhow::{Result, anyhow};
 use bytes::Bytes;
 use quinn::{Connection, Endpoint};
@@ -201,6 +203,9 @@ impl Command {
 
 type Pending = Arc<Mutex<HashMap<u32, oneshot::Sender<Result<SessionGrant, Problem>>>>>;
 
+/// 在等回答的 [`ClientMsg::Presence`]：`req_id` → 在线的控制码
+type PresencePending = Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<u32>>>>>;
+
 /// 怎样连这台被控端（除了控制码），开始时的画质和声音。界面保管这些，下次连时带上。
 ///
 /// JSON 是 camelCase，三种界面一样：`connect` 命令是它的字段加上 `code`（和各自的通道需要的，例如网页版的 `ch`）
@@ -237,6 +242,10 @@ struct Live {
     router: Arc<Router>,
     tx: mpsc::Sender<ClientMsg>,
     pending: Pending,
+    /// 在等回答的 [`ClientMsg::Presence`]
+    presence: PresencePending,
+    /// 和服务器商定的信令能力位：服务器懂不懂 [`ClientMsg::Presence`]（见 `nife_remote_proto::signal` 的"在线状态"）
+    features: Features,
 }
 
 struct SessionHandle {
@@ -585,6 +594,53 @@ impl ControllerService {
         Ok(())
     }
 
+    /// 问服务器：这些控制码现在能不能被连（界面上的"我的设备"用，见 `nife_remote_proto::signal` 的"在线状态"）。
+    ///
+    /// 参数是 `(控制码, 以前连上它时得到的重连凭证)`：只有带凭证才能问（不然就能拿来枚举控制码）。
+    /// 返回的只是现在在线的那些；没连上服务器、或者服务器不懂这个问题时返回 `None`
+    pub async fn presence(&self, queries: &[(u32, ResumeToken)]) -> Result<Option<Vec<u32>>, Problem> {
+        let live = self
+            .inner
+            .live
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or(Problem::NotConnected)?;
+        if !live
+            .features
+            .has(nife_remote_proto::features::signal::PRESENCE)
+        {
+            return Ok(None);
+        }
+        if queries.is_empty() {
+            return Ok(Some(Vec::new()));
+        }
+        let req_id = self.inner.next_req.fetch_add(1, Ordering::Relaxed);
+        let (otx, orx) = oneshot::channel();
+        live.presence.lock().unwrap().insert(req_id, otx);
+        // 请求发不出去、或者等回答时连接断了：把这个登记撤掉
+        struct Guard(PresencePending, u32);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                self.0.lock().unwrap().remove(&self.1);
+            }
+        }
+        let _guard = Guard(live.presence.clone(), req_id);
+        let msg = ClientMsg::Presence {
+            req_id,
+            queries: queries
+                .iter()
+                .map(|&(code, resume)| PresenceQuery { code, resume })
+                .collect(),
+        };
+        live.tx.try_send(msg).map_err(|_| server_gone())?;
+        match tokio::time::timeout(Duration::from_secs(5), orx).await {
+            Ok(Ok(online)) => Ok(Some(online)),
+            Ok(Err(_)) => Err(server_gone()),
+            Err(_) => Err(Problem::ServerTimeout),
+        }
+    }
+
     /// 断开会话（[`Command::Disconnect`]）
     pub fn disconnect(&self, sid: u32) {
         if let Some(s) = self.inner.sessions.lock().unwrap().remove(&sid) {
@@ -643,8 +699,9 @@ async fn run(inner: Arc<Inner>, report: Report) {
             .and_then(|()| Err(anyhow!("the server closed the control stream")));
         let live = inner.live.lock().unwrap().take();
         if let Some(live) = live {
-            // 让所有等待中的连接请求立即失败
+            // 让所有等待中的连接请求、在线状态的询问立即失败
             live.pending.lock().unwrap().clear();
+            live.presence.lock().unwrap().clear();
         }
         reconnect.end("controller", result).await;
     }
@@ -654,6 +711,7 @@ async fn connect_once(inner: &Arc<Inner>, report: &Report) -> Result<()> {
     let sig = net::connect_signal(&inner.cfg, Role::Controller, None).await?;
     let (tx, mut rx) = mpsc::channel::<ClientMsg>(64);
     let pending: Pending = Arc::default();
+    let presence: PresencePending = Arc::default();
     // 被控端的通道、数据报按会话 ID 交给会话（见模块说明的"通道和数据报"）
     let (router, _router): (_, OwnedTask<()>) = Router::start(&sig.conn);
     *inner.live.lock().unwrap() = Some(Live {
@@ -662,6 +720,8 @@ async fn connect_once(inner: &Arc<Inner>, report: &Report) -> Result<()> {
         router,
         tx,
         pending: pending.clone(),
+        presence: presence.clone(),
+        features: sig.features,
     });
     report(ServerState::Connected);
     info!("controller connected to the server");
@@ -691,6 +751,11 @@ async fn connect_once(inner: &Arc<Inner>, report: &Report) -> Result<()> {
                 ServerMsg::HostOnline { code } => {
                     info!(code, "a host we were waiting for is back");
                     (inner.host_online)(code);
+                }
+                ServerMsg::Presence { req_id, online } => {
+                    if let Some(tx) = presence.lock().unwrap().remove(&req_id) {
+                        let _ = tx.send(online);
+                    }
                 }
                 other => warn!("ignoring server message: {other:?}"),
             }

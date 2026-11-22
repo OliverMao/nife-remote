@@ -9,13 +9,13 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::time::{Duration, Instant};
 
+use anyhow::{Result, bail};
 use nife_remote_link::wire::read_msg;
 use nife_remote_proto::handshake::MAX_MSG;
 use nife_remote_proto::signal::{
-    ClientMsg, ConnectError, Peer, Reclaim, ResumeToken, ServerMsg, SessionGrant,
+    ClientMsg, ConnectError, Peer, PresenceQuery, Reclaim, ResumeToken, ServerMsg, SessionGrant,
 };
 use nife_remote_proto::{CODE_MAX, CODE_MIN, MAX_SIGNAL_MSG};
-use anyhow::{Result, bail};
 use quinn::{RecvStream, VarInt};
 use rand::Rng;
 use tracing::{debug, info, warn};
@@ -31,6 +31,9 @@ pub(super) const RESERVE_TTL: Duration = Duration::from_secs(10 * 60);
 
 /// 每条控制端连接最多同时等这么多个被控端上线，再多就忘掉最早的
 pub(super) const MAX_WAITING: usize = 32;
+
+/// 一次 [`ClientMsg::Presence`] 最多问这么多个控制码，多的不管
+pub(super) const MAX_PRESENCE: usize = 128;
 
 pub(super) struct HostEntry {
     conn_id: u64,
@@ -439,15 +442,23 @@ impl Broker {
         let mut waiting: Vec<u32> = Vec::new();
         let result = async {
             while let Some(msg) = read_msg::<_, ClientMsg>(&mut recv, MAX_SIGNAL_MSG, buf).await? {
-                let ClientMsg::Connect {
-                    req_id,
-                    code,
-                    resume,
-                    init,
-                } = msg
-                else {
-                    warn!(%peer, "invalid message from controller");
-                    continue;
+                let (req_id, code, resume, init) = match msg {
+                    ClientMsg::Connect {
+                        req_id,
+                        code,
+                        resume,
+                        init,
+                    } => (req_id, code, resume, init),
+                    // "我的设备"问哪几台在线（见 `nife_remote_proto::signal` 的"在线状态"）
+                    ClientMsg::Presence { req_id, queries } => {
+                        let online = self.presence(&queries);
+                        let _ = tx.send(ServerMsg::Presence { req_id, online });
+                        continue;
+                    }
+                    other => {
+                        warn!(%peer, "invalid message from controller: {other:?}");
+                        continue;
+                    }
                 };
                 // 握手的第一条消息原样交给被控端：太大的话被控端读不了通知（我们的客户端不会发这么大的）
                 if init.len() > MAX_MSG {
@@ -473,6 +484,30 @@ impl Broker {
             forget_waiter(&mut all, code, conn_id);
         }
         result
+    }
+
+    /// [`ClientMsg::Presence`] 的回答：这些控制码里现在能连的（见 `nife_remote_proto::signal` 的"在线状态"）。
+    ///
+    /// 只回答带有效凭证的，判定用 [`Broker::connect`] 拿凭证重连时那一套：服务器为这个控制码签的、
+    /// 而且对得上被控端现在的密钥。所以没连上过这个控制码的人问不出什么，也看不出控制码存在与否
+    /// （不在线、正在上线、凭证作废、控制码不存在全都一样）。
+    fn presence(&self, queries: &[PresenceQuery]) -> Vec<u32> {
+        let hosts = self.hosts.lock();
+        let mut online = Vec::new();
+        for q in queries.iter().take(MAX_PRESENCE) {
+            if !self.vouches(q.code, &q.resume) {
+                continue;
+            }
+            match hosts.get(&q.code) {
+                Some(h)
+                    if h.ready && ct_eq(&self.resume_token(q.code, &h.secrets.cur), &q.resume) =>
+                {
+                    online.push(q.code);
+                }
+                _ => {}
+            }
+        }
+        online
     }
 
     /// `resume` 是控制端带来的重连凭证（见 [`Broker::resume_token`]）。

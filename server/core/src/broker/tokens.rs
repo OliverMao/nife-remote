@@ -37,7 +37,10 @@ impl Secrets {
 
 /// 重连凭证的前一半：服务器为控制码 `code` 签的名（见 [`Broker::resume_token`]）
 fn token_proof(key: &[u8; 32], code: u32) -> [u8; 8] {
-    let mac = hmac_sha256(key, &[b"nife-remote resume proof v1\0", &code.to_le_bytes()]);
+    let mac = hmac_sha256(
+        key,
+        &[b"nife-remote resume proof v1\0", &code.to_le_bytes()],
+    );
     mac[..8].try_into().unwrap()
 }
 

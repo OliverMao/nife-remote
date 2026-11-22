@@ -306,8 +306,12 @@ pub mod features {
     pub mod signal {
         use crate::Features;
 
+        /// 0 号位：控制端能问服务器"这些控制码现在能不能被连"（见 [`crate::signal::ClientMsg::Presence`]、
+        /// [`crate::signal::ServerMsg::Presence`]）。不认识的服务器收到这个问题会直接断开，所以控制端要先看这一位
+        pub const PRESENCE: Features = Features::from_bits(1 << 0);
+
         /// 本端支持的
-        pub const SUPPORTED: Features = Features::NONE;
+        pub const SUPPORTED: Features = PRESENCE;
     }
 
     /// 会话层：被控端 ⇄ 控制端

@@ -48,6 +48,11 @@ interface State {
   devices: SavedDevice[];
   /** 我的设备能不能保存（桌面版：config.toml）；网页版只在本页面的内存里 */
   devicesSaved: boolean;
+  /**
+   * 我的设备里哪些现在能连（控制码 → 在线）：问服务器要的，见 lib/actions 的 refreshPresence。
+   * null = 问不出来（没连上服务器、或者服务器是旧版本还不懂这个问题），界面就不显示在线状态
+   */
+  presence: Record<string, boolean> | null;
   server: ServerState;
   /**
    * 最近一次连不上服务器的原因。断开后会自动重试（状态在 disconnected 和 connecting 之间来回），
@@ -132,6 +137,7 @@ let state: State = {
   accountLoaded: false,
   devices: [],
   devicesSaved: false,
+  presence: null,
   server: { state: "connecting" },
   serverProblem: null,
   app: null,
@@ -292,6 +298,8 @@ export const store = {
     if (v) store.setView(v);
   },
   setDevices: (devices: SavedDevice[], saved = state.devicesSaved) => set({ devices, devicesSaved: saved }),
+  /** 我的设备里哪些现在能连（null = 不知道） */
+  setPresence: (presence: Record<string, boolean> | null) => set({ presence }),
   /** 最近连接：删除一条或清空（只改内存，连上时会重新记） */
   setRecent: (recent: Recent[]) => set({ recent }),
   /** 桌面端从 profile.json 读到的偏好（网页版是内存里的默认值） */

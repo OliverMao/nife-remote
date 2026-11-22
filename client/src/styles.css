@@ -476,6 +476,24 @@ h3 {
 .nt-devices.compact .nt-empty {
   padding: 0 6px;
 }
+/* 紧凑版（左栏）没有副标题，用一个小圆点表示这台现在能不能连 */
+.device-reach {
+  display: none;
+}
+.nt-devices.compact .device-reach {
+  display: block;
+  margin-left: auto;
+  margin-right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+.nt-devices.compact .device-reach.on {
+  background: var(--good);
+  box-shadow: none;
+}
 
 /* ───────── 标签栏（窗口标题栏） ───────── */
 .titlebar {
@@ -1126,6 +1144,14 @@ kbd {
 }
 .dot.closed {
   background: var(--bad);
+}
+/* 我的设备：这台现在能不能连（服务器说的，不是本机连没连着） */
+.dot.online-true {
+  background: var(--good);
+}
+.dot.online-false {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
 }
 @keyframes pulse {
   50% {
@@ -1815,6 +1841,9 @@ kbd {
 }
 .dv-pill.online .dot {
   background: #37d399;
+}
+.dv-pill.online {
+  background: #16321f;
 }
 .dv-code {
   color: var(--text-3);
