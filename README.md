@@ -74,16 +74,21 @@ You need:
 
 ### 1. Deploy the relay server
 
+Images only carry the program; ports, volumes and environment variables live in `docker-compose.yml`, so the
+deployment machine needs **two files** (no git, no repository):
+
 ```bash
-git clone https://github.com/OliverMao/nife-remote.git
-cd nife-remote
-# the image is built on a machine with spare CPU / in CI and pushed to a registry; the host only pulls it
-# (see .env.example, and docker-compose.build.yml for the build side)
-cp .env.example .env          # already points at mirror.naig.us/nife-remote-server:0.0.1
-docker compose pull
+mkdir -p ~/nife-remote && cd ~/nife-remote
+base=https://raw.githubusercontent.com/OliverMao/nife-remote/main   # jsDelivr mirror: https://cdn.jsdelivr.net/gh/OliverMao/nife-remote@main
+curl -fsSLO $base/docker-compose.yml
+curl -fsSL  $base/.env.example -o .env      # or scp these two files from the build machine
+
+docker compose pull                          # images are built on a machine with spare CPU / in CI; here we only pull
 docker compose up -d
 docker compose logs nife-remote | grep fingerprint   # note the certificate's SHA-256 fingerprint
 ```
+
+Upgrades only change the tag in `.env` and re-run `docker compose pull && docker compose up -d`; these two files stay put.
 
 The certificate and the control-code database live in `data/`. **Keep that directory**: with a new certificate, clients you've already built can no longer connect. Server settings are in `docker-compose.yml`.
 
@@ -135,8 +140,11 @@ The full guide is in [Usage](docs/usage.md).
 Start the web console on any machine with Docker and use it from a browser:
 
 ```bash
-cd client/web
-NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<fingerprint> docker compose up -d
+mkdir -p client/web && cd client/web
+base=https://raw.githubusercontent.com/OliverMao/nife-remote/main
+curl -fsSLO $base/client/web/docker-compose.yml
+curl -fsSL  $base/client/web/.env.example -o .env     # image, relay address and fingerprint
+docker compose up -d
 ```
 
 Open `http://localhost:8080` on that machine, or `https://<its address>:8080` from other computers. The access password, the HTTPS certificate and the reverse proxy setup are all commented in `client/web/docker-compose.yml` and `client/web/.env.example`.

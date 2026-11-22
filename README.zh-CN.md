@@ -74,15 +74,20 @@ flowchart LR
 
 ### 1. 部署中转服务器
 
+镜像里只有程序，端口 / 卷 / 环境变量在 `docker-compose.yml` 里，所以部署机只要**两个文件**（不用 git、不用整个仓库）：
+
 ```bash
-git clone https://github.com/OliverMao/nife-remote.git
-cd nife-remote
-# 镜像在算力好的机器（或 CI）上构建好并推送到镜像仓库，部署机只拉取（见 .env.example，构建侧见 docker-compose.build.yml）
-cp .env.example .env          # 默认已指向 mirror.naig.us/nife-remote-server:0.0.1
-docker compose pull
+mkdir -p ~/nife-remote && cd ~/nife-remote
+base=https://raw.githubusercontent.com/OliverMao/nife-remote/main   # 国内不通可换 https://cdn.jsdelivr.net/gh/OliverMao/nife-remote@main
+curl -fsSLO $base/docker-compose.yml
+curl -fsSL  $base/.env.example -o .env      # 也可以从开发机 scp 这两个文件
+
+docker compose pull                          # 镜像在算力好的机器（或 CI）上构建并推送，部署机只拉
 docker compose up -d
 docker compose logs nife-remote | grep fingerprint   # 记下证书的 SHA-256 指纹
 ```
+
+以后升级只改 `.env` 里的 tag，再 `docker compose pull && docker compose up -d`，这两个文件不用再取。
 
 证书和控制码数据库都在 `data/` 目录里，**请保留这个目录**：证书换了，已经构建好的客户端就连不上了。服务器的配置项在 `docker-compose.yml` 里。
 
@@ -129,8 +134,11 @@ npm run tauri build            # 出安装包：bundle/nsis/Nife Remote_<版本>
 在任意一台装了 Docker 的机器上启动网页控制台，用浏览器操作：
 
 ```bash
-cd client/web
-NIFE_REMOTE_SERVER=relay.example.com:4433 NIFE_REMOTE_SERVER_FP=<指纹> docker compose up -d
+mkdir -p client/web && cd client/web
+base=https://raw.githubusercontent.com/OliverMao/nife-remote/main
+curl -fsSLO $base/client/web/docker-compose.yml
+curl -fsSL  $base/client/web/.env.example -o .env     # 填镜像、中转地址和指纹
+docker compose up -d
 ```
 
 在这台机器上打开 `http://localhost:8080`，从其它电脑打开 `https://<这台机器的地址>:8080`。访问密码、HTTPS 证书、反向代理的配置都在 `client/web/docker-compose.yml` 和 `client/web/.env.example` 的注释里。
