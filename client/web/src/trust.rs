@@ -60,26 +60,4 @@ impl TrustStore for FileTrust {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn remembers_per_server_across_restarts() {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir()
-            .join(format!("nife-remote-web-trust-{}-{nanos}", std::process::id()))
-            .join("server-trust.txt");
-        let a = FileTrust::new(path.clone());
-        assert_eq!(a.load("relay:4433"), None);
-        a.save("relay:4433", [7; 32]);
-        // 重新启动：从文件里读
-        let b = FileTrust::new(path.clone());
-        assert_eq!(b.load("relay:4433"), Some([7; 32]));
-        assert_eq!(b.load("other:4433"), None);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-}

@@ -92,7 +92,7 @@ function Console() {
       if (state.state === "disconnected" && !["serverUnreachable", "serverLost"].includes(state.reason.kind)) {
         return;
       }
-      if (!store.get().app?.auth) return;
+      if (!store.get().app) return;
       asking = true;
       void api
         .relayRefresh()

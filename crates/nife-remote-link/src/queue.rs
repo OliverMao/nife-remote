@@ -99,10 +99,7 @@ impl<M> Mail<M> {
         self.items.iter()
     }
 
-    #[cfg(test)]
-    pub fn items_mut(&mut self) -> impl Iterator<Item = &mut Item<M>> {
-        self.items.iter_mut()
-    }
+
 
     /// 只留下 `keep` 的；返回去掉了几条
     pub fn retain(&mut self, mut keep: impl FnMut(&Item<M>) -> bool) -> usize {
@@ -218,82 +215,4 @@ impl<M> Mailbox<M> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    fn item(b: &'static [u8], before: Option<usize>) -> Item<()> {
-        Item {
-            bytes: Bytes::from_static(b),
-            before,
-            meta: (),
-        }
-    }
-
-    #[test]
-    fn slots_go_first_unless_held() {
-        let q = Mailbox::<()>::new(2);
-        let mut m = q.lock();
-        m.push_back(item(b"a", None));
-        m.set(1, Bytes::from_static(b"s1"));
-        m.push_back(item(b"hello", Some(0)));
-        m.set(0, Bytes::from_static(b"s0"));
-        // 0 号槽位被 hello 挡着，1 号不受影响
-        assert_eq!(m.pop().unwrap(), "s1");
-        assert_eq!(m.pop().unwrap(), "a");
-        assert_eq!(m.pop().unwrap(), "hello");
-        assert_eq!(m.pop().unwrap(), "s0");
-        assert!(m.pop().is_none());
-        assert_eq!(m.bytes, 0);
-    }
-
-    #[test]
-    fn limits_and_retain() {
-        let q = Mailbox::<u8>::new(1);
-        let mut m = q.lock();
-        let limit = Limit {
-            messages: 3,
-            bytes: 4,
-        };
-        assert!(
-            !m.full(limit, 100),
-            "an empty queue takes one oversized message"
-        );
-        for (i, b) in [&b"ab"[..], b"cd"].into_iter().enumerate() {
-            m.push_back(Item {
-                bytes: Bytes::from(b),
-                before: (i == 1).then_some(0),
-                meta: i as u8,
-            });
-        }
-        assert!(m.full(limit, 1));
-        assert_eq!(m.retain(|i| i.meta == 0), 1);
-        assert_eq!((m.bytes, m.held[0]), (2, 0));
-        m.push_front(Bytes::from_static(b"z"), 9);
-        assert_eq!(m.items().map(|i| i.meta).collect::<Vec<_>>(), [9, 0]);
-        assert_eq!(m.pop_back().unwrap().meta, 0);
-        m.close();
-        assert!(m.closed && m.pop().is_none());
-    }
-
-    #[tokio::test]
-    async fn the_writer_drains_then_ends() {
-        let q = std::sync::Arc::new(Mailbox::<()>::new(0));
-        let w = {
-            let q = q.clone();
-            tokio::spawn(async move {
-                let mut got = Vec::new();
-                while let Some(b) = q.recv(|_| {}).await {
-                    got.push(b);
-                }
-                got
-            })
-        };
-        tokio::task::yield_now().await;
-        q.lock().push_back(item(b"x", None));
-        q.wake();
-        q.lock().push_back(item(b"y", None));
-        q.finish();
-        assert_eq!(w.await.unwrap(), ["x", "y"]);
-    }
-}

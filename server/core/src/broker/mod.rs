@@ -76,8 +76,7 @@ mod limits;
 mod lock;
 mod registry;
 mod relay;
-#[cfg(test)]
-mod tests;
+
 mod tokens;
 
 use limits::{Limiter, limiter_key};

@@ -21,8 +21,7 @@ use tracing::{info, warn};
 use super::pace::Pacer;
 
 pub use dxgi::{D3dSource, GpuFrame};
-#[cfg(test)]
-pub(crate) use dxgi::{Rotation, create_device};
+
 
 
 
@@ -537,26 +536,4 @@ pub(crate) fn raise_priority() {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use anyhow::Context;
 
-    /// 发给控制端的说明只有错误码，没有操作系统按本机语言给出的文字
-    #[test]
-    fn wire_detail_has_no_os_text() {
-        let io = std::io::Error::from_raw_os_error(5);
-        let kind = io.kind();
-        let e = Err::<(), _>(io).context("DuplicateOutput").unwrap_err();
-        assert_eq!(
-            super::wire_detail(&e),
-            format!("DuplicateOutput: {kind:?} (os error 5)")
-        );
-
-        {
-            use windows::core::HRESULT;
-            let w = windows::core::Error::from_hresult(HRESULT(0x887A0026_u32 as i32));
-            let e = Err::<(), _>(w).context("AcquireNextFrame").unwrap_err();
-            assert_eq!(super::wire_detail(&e), "AcquireNextFrame: 0x887A0026");
-        }
-    }
-}

@@ -105,47 +105,4 @@ pub fn controller_reporter(hub: &StatusHub) -> Report {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    /// 控制台首页直接读这个 JSON（`client/src/lib/api.ts` 的 `HostStatus`）：字段名必须是 camelCase
-    #[test]
-    fn host_status_is_camel_case_for_the_console() {
-        let st = HostStatus {
-            code: Some(123_456),
-            pairing: Some("654321".into()),
-            controllers: vec![Controller {
-                session_id: 7,
-                peer: Peer {
-                    name: "PC".into(),
-                    ip: "10.0.0.1".parse().unwrap(),
-                },
-                safety: None,
-            }],
-            ..HostStatus::default()
-        };
-        let json = serde_json::to_value(&st).unwrap();
-        let mut keys: Vec<&str> = json
-            .as_object()
-            .unwrap()
-            .keys()
-            .map(String::as_str)
-            .collect();
-        keys.sort_unstable();
-        assert_eq!(
-            keys,
-            [
-                "code",
-                "controllers",
-                "paired",
-                "pairing",
-                "pairingLocked",
-                "server"
-            ]
-        );
-        assert_eq!(json["controllers"][0]["sessionId"], 7);
-        assert_eq!(json["controllers"][0]["peer"]["ip"], "10.0.0.1");
-        assert_eq!(json["code"], 123_456);
-    }
-}

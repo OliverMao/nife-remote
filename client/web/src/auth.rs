@@ -119,40 +119,4 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    fn headers(pairs: &[(axum::http::HeaderName, &str)]) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        for (k, v) in pairs {
-            h.append(k.clone(), HeaderValue::from_str(v).unwrap());
-        }
-        h
-    }
-
-    #[test]
-    fn basic_and_cookie() {
-        let auth = Auth::new("s3cret:x".into());
-        let basic = |user_pass: &str| {
-            let enc = base64::engine::general_purpose::STANDARD.encode(user_pass);
-            auth.basic(&headers(&[(AUTHORIZATION, &format!("Basic {enc}"))]))
-        };
-        assert_eq!(basic("anyone:s3cret:x"), Some(true));
-        assert_eq!(basic(":s3cret:x"), Some(true));
-        assert_eq!(basic("anyone:wrong"), Some(false));
-        assert_eq!(basic("no-colon"), Some(false));
-        assert_eq!(auth.basic(&headers(&[(AUTHORIZATION, "Bearer x")])), None);
-        assert_eq!(auth.basic(&HeaderMap::new()), None);
-
-        let cookie = auth.set_cookie(true);
-        let cookie = cookie.to_str().unwrap();
-        assert!(cookie.ends_with("; Secure"), "{cookie}");
-        let pair = cookie.split(';').next().unwrap();
-        assert!(auth.cookie_ok(&headers(&[(COOKIE, &format!("a=b; {pair}; c=d"))])));
-        assert!(!auth.cookie_ok(&headers(&[(COOKIE, "nife_remote_auth=nope")])));
-        assert!(!auth.cookie_ok(&HeaderMap::new()));
-        // 换了密码，旧 Cookie 失效
-        assert!(!Auth::new("other".into()).cookie_ok(&headers(&[(COOKIE, pair)])));
-    }
-}

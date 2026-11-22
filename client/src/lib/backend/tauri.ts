@@ -64,10 +64,6 @@ class DesktopConsole extends ConsoleLink implements Backend {
     return invoke<void>("devices_save", { devices });
   }
 
-  saveAuth(auth: string) {
-    return invoke<string>("auth_save", { auth });
-  }
-
   relayRefresh() {
     return invoke<boolean>("relay_refresh");
   }
@@ -93,9 +89,6 @@ class DesktopConsole extends ConsoleLink implements Backend {
   }
   accountRefresh() {
     return invoke<AccountInfo | null>("account_refresh");
-  }
-  accountServer() {
-    return invoke<string>("account_server");
   }
   accountRegister(name: string, password: string) {
     return invoke<AccountInfo>("account_register", { name, password });

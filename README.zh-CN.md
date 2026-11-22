@@ -128,8 +128,10 @@ npm install
 npm run tauri build            # 出安装包：bundle/nsis/Nife Remote_<版本>_x64-setup.exe
 ```
 
-客户端只需要账号服务地址。装机即用就在构建前设 `NIFE_REMOTE_AUTH=https://auth.example.com`；装好的在
-右上角 ☰ → 中转服务器 → **修改** 里填，保存后重启。
+客户端连哪个账号服务**只由构建决定**，装好之后界面和配置文件都改不了、也看不到。构建时按
+环境变量 `NIFE_REMOTE_AUTH` → `client/.env` → 默认值（正式服务 `https://nife-remote-auth.naig.us`）取，
+所以 `npm run tauri build` 直接就是正式服务；自己另部署账号服务就设 `NIFE_REMOTE_AUTH`（或写进
+`client/.env`）。中转服务器的地址和指纹由账号服务分配，构建时不用管。
 
 ### 3. 连接
 

@@ -37,9 +37,8 @@ Everything Nife Remote saves is in one `config.toml` (with comments). The menu i
 
 | Key | Description |
 |---|---|
-| `server` | Relay server `host:port`; without it, the address built into the program |
-| `server_fp` | Relay certificate fingerprint; `""` means no fixed fingerprint: the server's certificate is remembered on the first connection (`[server_trust]`) and a different one is refused later; without it, the built-in fingerprint |
-| `[server_trust]` | Written by Nife Remote: the relay's certificate fingerprint remembered on the first connection (when no fingerprint is set). Delete it if the relay really gets a new certificate |
+| `[relay]` | Written by Nife Remote: the relay address and fingerprint assigned by the account service. Editing it has no effect — it is replaced the next time the account service answers |
+| `[server_trust]` | Written by Nife Remote: the relay's certificate fingerprint remembered on the first connection (when no fingerprint is pinned). Delete it if the relay really gets a new certificate |
 | `access` | Whether controllers that haven't paired may connect: `"pairing"` (default) needs the pairing code from the tray; `"open"` lets anyone with the control code in (which means trusting the relay server) |
 | `autostart` | Start with Windows (no UI switch; restart Nife Remote after editing) |; System Settings is what counts, so editing only this line has no effect. Without it, Open at login hasn't been turned on by default yet (see above) |
 | `[code]` | This computer's control code, and the secret that gets it back. Delete `code` and `secret` to get a new code |

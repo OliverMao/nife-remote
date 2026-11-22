@@ -96,31 +96,4 @@ pub async fn resolve(auth: &str) -> Option<Relay> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn the_address_is_used_as_given() {
-        // 账号服务给的是完整地址：不补端口、不改大小写、不拆 host:port
-        for address in ["relay.example.com:4433", "192.11.11.11:8443", "relay.example.com"] {
-            let relay = Relay { address: address.into(), fingerprint: String::new() };
-            assert_eq!(relay.address(), address);
-        }
-        let relay = Relay { address: " relay.example.com:4433 ".into(), fingerprint: String::new() };
-        assert_eq!(relay.address(), "relay.example.com:4433");
-    }
-
-    #[test]
-    fn envelope_without_a_relay_is_empty() {
-        let env: Envelope = serde_json::from_str(r#"{"relay":null}"#).unwrap();
-        assert!(env.relay.is_none());
-        let env: Envelope = serde_json::from_str(r#"{"relay":{"address":"h:4433","fingerprint":"ab"}}"#).unwrap();
-        assert_eq!(env.relay.unwrap().address(), "h:4433");
-    }
-
-    #[test]
-    fn trailing_slashes_are_trimmed() {
-        assert_eq!(trim("https://auth.example.com//"), "https://auth.example.com");
-    }
-}

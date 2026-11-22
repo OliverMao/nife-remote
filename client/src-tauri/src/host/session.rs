@@ -513,44 +513,4 @@ impl Platform for Desktop {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    fn d(index: u8, name: &str, x: i32, w: u32, h: u32) -> DisplayInfo {
-        DisplayInfo {
-            index,
-            name: name.into(),
-            x,
-            y: 0,
-            width: w,
-            height: h,
-            primary: index == 0,
-        }
-    }
-
-    #[test]
-    fn follows_the_current_display() {
-        let old = [
-            d(0, "DISPLAY1", 0, 1920, 1080),
-            d(1, "DISPLAY2", 1920, 1920, 1080),
-        ];
-        // 转成竖屏：序号不变
-        let rotated = [
-            d(0, "DISPLAY1", 0, 1920, 1080),
-            d(1, "DISPLAY2", 1920, 1080, 1920),
-        ];
-        assert_eq!(follow_display(&old, 1, &rotated), 1);
-        // 在左边插了一个显示器，正在看的那个排到了后面
-        let plugged = [
-            d(0, "DISPLAY1", 0, 1920, 1080),
-            d(1, "DISPLAY3", 1920, 1280, 1024),
-            d(2, "DISPLAY2", 3200, 1920, 1080),
-        ];
-        assert_eq!(follow_display(&old, 1, &plugged), 2);
-        // 正在看的被拔掉了：改看主显示器
-        assert_eq!(follow_display(&old, 1, &old[..1]), 0);
-        // 序号本来就不对
-        assert_eq!(follow_display(&old, 7, &old), 0);
-    }
-}

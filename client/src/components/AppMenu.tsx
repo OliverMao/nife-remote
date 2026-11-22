@@ -1,8 +1,8 @@
 // 标题栏右侧的齿轮按钮（SettingsButton）：网络状态、本机名称、语言、画质、快捷键说明都在这个弹层里。
 //
 // 弹层挂在按钮下面（以前挂在最左边的 Logo 上，和窗口按钮挤在一起）。
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { api, toProblem, type Problem } from "../lib/api";
+import { useCallback, useState, type ReactNode } from "react";
+import { api } from "../lib/api";
 import { focusActive } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
@@ -198,49 +198,13 @@ export function LangSwitch() {
 
 // ───────────────────────── 网络状态（详情层） ─────────────────────────
 
-/** 网络状态的详情：状态说明 + 账号服务地址（就在设置菜单里展开，不另开弹窗） */
+/** 网络状态的详情：只有状态说明，不显示任何地址（服务器是打包时定好的） */
 function NetworkDetails() {
   const t = useT();
   const status = useStore(serverStatus);
   const server = useStore((s) => s.server);
   const problem = useStore((s) => s.serverProblem);
   const app = useStore((s) => s.app);
-  // 服务器地址和指纹可以装机后再填（桌面版）；网页版是容器启动时的环境变量，改不了。
-  // 还没填过（`app.configured` 为 false）时直接进入编辑：不填就没法用
-  const [editing, setEditing] = useState(false);
-  const [auth, setAuth] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<Problem | null>(null);
-  const autoEdit = useRef(false);
-
-  const startEdit = () => {
-    setAuth(app?.auth ?? "");
-    setSaveError(null);
-    setEditing(true);
-  };
-
-  useEffect(() => {
-    if (autoEdit.current || api.kind !== "desktop" || !app || app.auth) return;
-    autoEdit.current = true;
-    startEdit();
-  }, [app]);
-
-  // 服务器地址在启动时读一次，所以保存完重启程序让它生效
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setSaveError(null);
-    try {
-      const saved = await api.saveAuth(auth);
-      // 账号服务地址立刻生效；中转服务器地址下次启动才用于连接
-      if (app) store.setApp({ ...app, auth: saved });
-      setEditing(false);
-      setBusy(false);
-    } catch (err) {
-      setSaveError(toProblem(err));
-      setBusy(false);
-    }
-  };
   return (
     <div className="am-net-body">
       {problem && status !== "connected" && (
@@ -253,57 +217,11 @@ function NetworkDetails() {
         </div>
       )}
 
-      {app && !app.configured && !editing && (
+      {app && !app.configured && (
         <div className="error-box left" role="status">
           <IconWarn size={15} />
           <span>{t("server.notSet")}</span>
         </div>
-      )}
-
-      {app && !editing && (
-        <div className="sp-field">
-          <div className="am-row-line">
-            <span className="am-label">{t("server.auth")}</span>
-            {api.kind === "desktop" && (
-              <button className="sp-edit" onClick={startEdit}>
-                {t("server.edit")}
-              </button>
-            )}
-          </div>
-          <div className="sp-addr mono">{app.auth || t("server.authNotSet")}</div>
-        </div>
-      )}
-
-      {app && editing && (
-        <form className="sp-field" onSubmit={save}>
-          <label className="am-label" htmlFor="sp-auth">
-            {t("server.auth")}
-          </label>
-          <input
-            id="sp-auth"
-            className="sp-input mono"
-            value={auth}
-            onChange={(e) => setAuth(e.target.value)}
-            placeholder={t("server.authHint")}
-            autoFocus
-            spellCheck={false}
-          />
-          <p className="sp-hint">{t("server.authAssigned")}</p>
-          {saveError && (
-            <div className="error-box left" role="alert">
-              <IconWarn size={15} />
-              <span>{problemText(saveError)}</span>
-            </div>
-          )}
-          <div className="sp-actions">
-            <button type="submit" className="primary" disabled={busy}>
-              {t("server.saveAndRestart")}
-            </button>
-            <button type="button" onClick={() => setEditing(false)} disabled={busy}>
-              {t("server.cancel")}
-            </button>
-          </div>
-        </form>
       )}
     </div>
   );

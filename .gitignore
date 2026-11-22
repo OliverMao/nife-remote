@@ -5,6 +5,7 @@ client/src-tauri/gen/
 *.log
 # docker compose 的 .env（镜像名等本机配置，不提交）
 /.env
+client/.env
 client/web/.env
 server/auth/.env
 # 部署文档（含内网镜像仓库地址等内部信息）：只在本机保留，不提交

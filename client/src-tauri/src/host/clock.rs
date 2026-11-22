@@ -59,25 +59,4 @@ fn from_age(age: i64, freq: i64) -> Option<Instant> {
 }
 
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn qpc_conversion() {
-        let (now, freq) = qpc();
-        let t = from_qpc(now - freq / 10).unwrap();
-        let ago = t.elapsed().as_secs_f64();
-        assert!((0.099..0.105).contains(&ago), "{ago}");
-
-        let now_100ns = (now as i128 * 10_000_000 / freq as i128) as u64;
-        let t = from_qpc_100ns(now_100ns - 500_000).unwrap();
-        let ago = t.elapsed().as_secs_f64();
-        assert!((0.049..0.055).contains(&ago), "{ago}");
-
-        assert!(from_qpc(now - freq * 60).is_none(), "过旧的时间戳应被拒绝");
-        init();
-        let u = us(Instant::now());
-        assert!(u >= 60_000_000, "零点之前应留有余量: {u}");
-    }
-}

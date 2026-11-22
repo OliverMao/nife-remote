@@ -8,9 +8,7 @@ export default {
 
   // 通用
   "login.subtitle": "登录后使用远程控制",
-  "login.authHint": "账号服务地址由管理员提供，保存后立即生效",
-  "login.authSave": "保存并继续",
-  "login.changeAuth": "切换账号服务",
+  "login.noAuthHint": "这个安装包没有连上服务，请联系管理员获取正式版本。",
   "web.subtitle": "浏览器里的控制台",
   "web.noAccountHint": "网页版不需要账号登录：中转服务器是启动容器时配好的（NIFE_REMOTE_SERVER），直接开始、输入对方的控制码就能连。",
   "web.localName": "网页控制台",
@@ -35,10 +33,6 @@ export default {
   "window.restore": "向下还原",
   "window.close": "关闭控制台",
   // 服务器状态（标签栏右侧）
-  "server.auth": "账号服务地址",
-  "server.authHint": "https://relay.example.com",
-  "server.authNotSet": "还没填",
-  "server.authAssigned": "中转服务器的地址由账号服务分配，填完保存即可",
   "server.title": "中转服务器",
   "server.connected": "服务器已连接",
   "server.connecting": "正在连接服务器…",
@@ -49,15 +43,9 @@ export default {
   "server.address": "服务器地址",
   "server.retrying": "正在自动重试…",
   "server.retryLater": "稍后会自动重试",
-  "server.notSet": "还没有填写中转服务器地址：填好并重启之后才会连接",
+  "server.notSet": "还没连上服务器：连上之后才能远程控制，这里不用设置",
   "server.unpinned": "首次连接时信任",
   "server.unpinnedHint": "未配置证书指纹：第一次连接时记住了服务器的证书，之后证书变了就拒绝连接",
-  "server.edit": "修改",
-  "server.addressHint": "host:port，例如 relay.example.com:4433",
-  "server.fp": "证书指纹",
-  "server.fpHint": "可留空：首次连接时信任，之后变了拒绝",
-  "server.saveAndRestart": "保存并重启",
-  "server.cancel": "取消",
 
   // 设置（标签栏右侧的齿轮）
   "menu.title": "设置",

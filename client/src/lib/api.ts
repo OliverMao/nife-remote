@@ -121,8 +121,8 @@ export type RemoteNotice =
 
 export interface AppInfo {
   version: string;
-  /** 账号服务地址（用户唯一要填的地址；中转服务器由它分配） */
-  auth: string;
+  /** 这个版本能不能登录（账号服务地址在打包时写死，界面不显示也改不了） */
+  accountReady: boolean;
   /** 中转服务器地址（由账号服务分配，界面上只显示） */
   server: string;
   /** 配置过中转服务器没有：false 时 `server` 只是占位的 127.0.0.1:4433，不连接也不重试 */
@@ -372,10 +372,6 @@ export interface Backend {
   onHostOnline(cb: (code: number) => void): () => void;
   /** 对会话的操作（画面的确认由 Worker 在收到画面时自己发） */
   command(c: Command): Promise<void>;
-  /** 保存中转服务器地址和证书指纹（只有桌面版；网页版由 `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` 决定）。
-   * `fp` 为空 = 首次连接时信任 */
-  /** 保存账号服务地址（中转服务器由它分配，用户不用填）；返回最终生效的地址，不用重启 */
-  saveAuth(auth: string): Promise<string>;
   /** 重新问一次中转服务器（连接失败时自动调用）；分配变了返回 true */
   relayRefresh(): Promise<boolean>;
   /** 重启程序，让新的服务器设置生效（只有桌面版） */
@@ -391,7 +387,6 @@ export interface Backend {
   /** 打开界面时刷新登录状态（凭证过期就变成没登录） */
   accountRefresh(): Promise<AccountInfo | null>;
   /** 账号服务的地址（显示 / 排查用） */
-  accountServer(): Promise<string>;
   /** 注册一个账号（注册完直接登录） */
   accountRegister(name: string, password: string): Promise<AccountInfo>;
   accountLogin(name: string, password: string): Promise<AccountInfo>;

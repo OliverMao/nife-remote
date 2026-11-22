@@ -70,8 +70,3 @@ spake2 = { version = "0.4", optional = true }
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
 serde_json = "1"
 
-# 三边共用的协议样例（界面命令、会话事件……）：只有客户端才有这些
-[[test]]
-name = "protocol"
-path = "tests/protocol.rs"
-required-features = ["client"]

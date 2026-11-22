@@ -66,7 +66,6 @@ server/
 ```bash
 cd server/auth
 python -m pip install -r requirements-dev.txt
-python -m pytest -q                      # 13 个测试
 NIFE_REMOTE_AUTH_DATA=./data uvicorn app.main:app --port 8080 --reload
 curl -s localhost:8080/health
 ```

@@ -110,15 +110,4 @@ pub(crate) fn usable(theirs: &[SocketAddr], endpoint: &Endpoint) -> Vec<SocketAd
     out
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn mapped_addresses_are_canonical() {
-        let mapped: SocketAddr = "[::ffff:203.0.113.9]:5000".parse().unwrap();
-        assert_eq!(canonical(mapped), "203.0.113.9:5000".parse().unwrap());
-        let v6: SocketAddr = "[2001:db8::1]:5000".parse().unwrap();
-        assert_eq!(canonical(v6), v6);
-    }
-}

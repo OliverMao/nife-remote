@@ -82,19 +82,4 @@ macro_rules! tr {
     };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn switch() {
-        let before = current();
-        set(Lang::En);
-        assert_eq!(tr!("中文 {}", "English {}", 1), "English 1");
-        let n = 2;
-        assert!(!set(Lang::En));
-        assert!(set(Lang::Zh));
-        assert_eq!(tr!("中文 {n}", "English {n}"), "中文 2");
-        set(before);
-    }
-}

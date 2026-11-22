@@ -1,7 +1,7 @@
 // 登录页：没登录的时候整个窗口就是这个页面（不显示左栏和里面的任何功能）。
 //
-// 账号在中转服务器旁边的账号服务里（server/auth）。第一次用这台电脑要先填账号服务地址
-// （打包时可以用 NIFE_REMOTE_AUTH 预置），之后这里只填账号名和密码。
+// 账号在中转服务器旁边的账号服务里（server/auth）。账号服务地址在打包时用 `NIFE_REMOTE_AUTH` 写进程序，
+// 这里只填账号名和密码；这个版本没配地址时直接说明，不给输入框。
 import { useState, type FormEvent } from "react";
 import { api, toProblem, type Problem } from "../lib/api";
 import { useT } from "../lib/i18n";
@@ -19,11 +19,8 @@ export function LoginView() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem | null>(null);
-  // 账号服务地址：还没配过时展开
-  const [auth, setAuth] = useState("");
-  const [editingAuth, setEditingAuth] = useState(false);
-  const shown = app?.auth ?? "";
-  const needsAuth = !shown;
+  // 账号服务是打包时定好的，界面不显示也不改；这个版本没配时（构建漏了）只提示一句话
+  const ready = app?.accountReady !== false;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,23 +30,6 @@ export function LoginView() {
       const info = mode === "login" ? await api.accountLogin(name, password) : await api.accountRegister(name, password);
       store.setAccount(info);
       void syncDevicesFromAccount();
-    } catch (err) {
-      setError(toProblem(err));
-      setBusy(false);
-    }
-  };
-
-  const saveAuth = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      // 保存后当前进程立刻用新地址（不重启、不关窗口），直接换成登录表单
-      const saved = await api.saveAuth(auth);
-      if (app) store.setApp({ ...app, auth: saved });
-      setAuth(saved);
-      setEditingAuth(false);
-      setBusy(false);
     } catch (err) {
       setError(toProblem(err));
       setBusy(false);
@@ -92,38 +72,7 @@ export function LoginView() {
           </div>
         </div>
 
-        {needsAuth || editingAuth ? (
-          <form className="login-form" onSubmit={saveAuth}>
-            <label className="login-label" htmlFor="login-auth">
-              {t("server.auth")}
-            </label>
-            <input
-              id="login-auth"
-              className="login-input mono"
-              value={auth}
-              onChange={(e) => setAuth(e.target.value)}
-              placeholder={t("server.authHint")}
-              autoFocus
-              spellCheck={false}
-              disabled={busy}
-            />
-            <p className="login-hint">{t("login.authHint")}</p>
-            <button className="login-btn" type="submit" disabled={busy || !auth.trim()}>
-              {t("login.authSave")}
-            </button>
-            {!needsAuth && (
-              <button className="login-link" type="button" onClick={() => setEditingAuth(false)} disabled={busy}>
-                {t("common.cancel")}
-              </button>
-            )}
-            {error && (
-              <div className="error-box left" role="alert">
-                <IconWarn size={15} />
-                <span>{problemText(error)}</span>
-              </div>
-            )}
-          </form>
-        ) : (
+        {ready ? (
           <>
             <div className="login-tabs" role="tablist">
               <button
@@ -172,16 +121,9 @@ export function LoginView() {
               )}
             </form>
           </>
+        ) : (
+          <p className="login-hint">{t("login.noAuthHint")}</p>
         )}
-
-        <div className="login-foot">
-          <span className="mono">{shown || t("server.authNotSet")}</span>
-          {!editingAuth && !needsAuth && (
-            <button className="login-link" onClick={() => (setAuth(shown), setEditingAuth(true))}>
-              {t("login.changeAuth")}
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

@@ -1,16 +1,13 @@
 //! 配置。
 //!
-//! * 中转服务器地址和证书指纹：装好之后在控制台里填/改（服务器面板 → 修改 → 保存并重启，见 [`save_server`]），
-//!   也可以直接改 `config.toml`。下面是**编译进去的默认值**，只在 `config.toml` 里没有时用；
-//!   想让安装包装机即用时，构建时用环境变量覆盖，或者修改下面的默认值：
+//! * 中转服务器地址和证书指纹：**只有一个来源**——账号服务的 `GET /relay`（见 [`crate::relay`]）。账号服务的地址
+//!   在**构建时**用 `NIFE_REMOTE_AUTH` 写进程序（见 [`crate::accounts`]），运行时不读环境变量、不读配置文件，
+//!   界面上也改不了。装好后发现中转服务器变了（迁移、换机器）由账号服务通知，客户端自己跟上。
 //!
-//!   ```powershell
-//!   $env:NIFE_REMOTE_SERVER="relay.example.com:4433"
-//!   $env:NIFE_REMOTE_SERVER_FP="<服务器日志中打印的证书 SHA-256 指纹>"
-//!   npm run tauri build
-//!   ```
+//!   不用账号服务、直连中转服务器的老办法（`NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP`）只作为构建期默认值保留，
+//!   写在这里的地址是"出厂值"，客户端不会因为 `config.toml` 里写了别的而改连别处。
 //!
-//! * **配置文件 `config.toml`**（见 [`Settings`]）：可以手动改服务器地址和指纹；还保存着服务器分配的控制码
+//! * **配置文件 `config.toml`**（见 [`Settings`]）：不是给用户改的配置文件，是程序自己的状态（服务器分配的控制码
 //!   （固定不变，见 `nife_remote_proto::signal` 的"固定控制码"）、控制台的"我的设备"（见 [`crate::devices`]），
 //!   还有开机自动启动。
 //!   所有数据都只在这一个文件里。位置（见 [`path`]）：程序所在目录（安装目录）。文件由系统服务里的被控端维护
@@ -33,7 +30,7 @@ use nife_remote_link::net::{MemoryTrust, Trust, TrustStore, format_fingerprint, 
 use nife_remote_link::secure::{Access, Identity};
 use nife_remote_proto::signal::Reclaim;
 use anyhow::Result;
-use toml_edit::{DocumentMut, Item, value};
+use toml_edit::{DocumentMut, Item};
 use tracing::{error, info, warn};
 
 /// 编译进程序的中转服务器地址 `host:port`（UDP），`config.toml` 里没有设置时使用。
@@ -47,13 +44,6 @@ pub const DEFAULT_SERVER: &str = match option_env!("NIFE_REMOTE_SERVER") {
 /// * 非空：严格校验，指纹不符直接拒绝连接（防中间人）。
 /// * 为空：第一次连上服务器时记下它的指纹（`[server_trust]`），之后只认它。
 pub const DEFAULT_SERVER_FP: &str = match option_env!("NIFE_REMOTE_SERVER_FP") {
-    Some(v) => v,
-    None => "",
-};
-
-/// 编译进程序的账号服务地址（`https://relay.example.com`）。配了它，客户端只要这一个地址：
-/// 中转服务器的地址和指纹由账号服务的 `GET /relay` 分配（见 [`crate::relay`]）。
-pub const DEFAULT_AUTH: &str = match option_env!("NIFE_REMOTE_AUTH") {
     Some(v) => v,
     None => "",
 };
@@ -82,7 +72,6 @@ const fn fingerprint_is_valid(s: &str) -> bool {
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// 配置文件名
-#[cfg_attr(test, allow(dead_code))]
 pub const FILE_NAME: &str = "config.toml";
 
 /// 卸载中（见 [`freeze`]）：不再写配置文件，删掉了也不再重新生成
@@ -98,9 +87,7 @@ const KEEP_CHECK: Duration = if cfg!(test) {
 /// 进程启动时读到的配置。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
-    /// 账号服务地址（`auth`）：填了就从中转服务器的 `GET /relay` 拿地址和指纹，用户不用自己填
-    pub auth: String,
-    /// 中转服务器地址（`server`）
+    /// 中转服务器地址（`[relay] address`）：账号服务分配的，不是用户配置
     pub server: String,
     /// 中转服务器证书指纹（`server_fp`），空字符串表示第一次连接时记下（见 [`FileTrust`]）
     pub server_fp: String,
@@ -115,7 +102,6 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            auth: DEFAULT_AUTH.to_string(),
             server: DEFAULT_SERVER.to_string(),
             server_fp: DEFAULT_SERVER_FP.to_string(),
             autostart: true,
@@ -148,23 +134,9 @@ impl Settings {
 ///
 /// 找不到程序目录时（极少见）返回 `None`：这次运行不保存任何东西
 pub fn path() -> Option<PathBuf> {
-    // 测试默认不读写配置文件（每次都是新的控制码）；测试配置文件本身时在那个测试的线程里指定一个临时路径
-    #[cfg(test)]
-    return TEST_PATH.with(|p| p.borrow().clone());
-    #[cfg(not(test))]
-    {
-        let exe = std::env::current_exe().ok()?;
-        Some(exe.parent()?.join(FILE_NAME))
-    }
+    let exe = std::env::current_exe().ok()?;
+    Some(exe.parent()?.join(FILE_NAME))
 }
-
-#[cfg(test)]
-thread_local! {
-    static TEST_PATH: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
-}
-/// 测试结束时让 [`keep_file`] 的线程退出
-#[cfg(test)]
-static STOP_KEEPING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// 配置文件现在的内容（不存在、读不了时为 `None`）
 pub fn read_text() -> Option<String> {
@@ -205,11 +177,21 @@ fn parse(text: &str) -> Result<Settings> {
     {
         s.server = v.trim().to_string();
     }
-    if let Some(v) = doc.get("auth").and_then(|v| v.as_str()) {
-        s.auth = v.trim().to_string();
+    if let Some(t) = doc.get("relay").and_then(|v| v.as_table_like()) {
+        if let Some(v) = t.get("address").and_then(|v| v.as_str())
+            && !v.trim().is_empty()
+        {
+            s.server = v.trim().to_string();
+        }
+        if let Some(v) = t.get("fingerprint").and_then(|v| v.as_str()) {
+            s.server_fp = v.to_string();
+        }
     }
-    if let Some(v) = doc.get("server_fp").and_then(|v| v.as_str()) {
-        s.server_fp = v.to_string();
+    // 旧版本写在顶层的这两个（那时是用户配置）：读出来用，下次写文件时搬进 [relay]
+    if doc.get("relay").is_none() {
+        if let Some(v) = doc.get("server_fp").and_then(|v| v.as_str()) {
+            s.server_fp = v.to_string();
+        }
     }
     if let Some(v) = doc.get("autostart").and_then(|v| v.as_bool()) {
         s.autostart = v;
@@ -276,17 +258,19 @@ pub fn server_configured() -> bool {
         text.parse::<DocumentMut>()
             .ok()
             .and_then(|doc| {
+                let relay = doc
+                    .get("relay")
+                    .and_then(|t| t.as_table_like())
+                    .and_then(|t| t.get("address"))
+                    .and_then(|v| v.as_str())
+                    .map(|v| !v.trim().is_empty())
+                    .unwrap_or(false);
                 let server = doc
                     .get("server")
                     .and_then(|v| v.as_str())
                     .map(|v| !v.trim().is_empty())
                     .unwrap_or(false);
-                let auth = doc
-                    .get("auth")
-                    .and_then(|v| v.as_str())
-                    .map(|v| !v.trim().is_empty())
-                    .unwrap_or(false);
-                Some(server || auth)
+                Some(relay || server)
             })
             .unwrap_or(false)
     });
@@ -349,6 +333,16 @@ fn put_trust(doc: &mut DocumentMut, server: &str, fp: &[u8; 32]) {
     item["fp"] = toml_edit::value(format_fingerprint(fp));
 }
 
+/// 写在 `[relay]` 前面的说明（这段是程序自己的状态，不是要用户改的配置）
+fn relay_comment() -> String {
+    tr!(
+        "# 账号服务分配的中转服务器（客户端自己写的：改了也没用，下次连上账号服务就换回来）
+",
+        "# The relay server assigned by the account service (written by the client; edits are overwritten at the next sign-in)
+"
+    )
+}
+
 /// 写在 `[server_trust]` 前面的说明
 fn trust_comment() -> String {
     tr!(
@@ -361,34 +355,16 @@ fn trust_comment() -> String {
 
 /// 新建配置文件时的内容（按系统语言写注释）
 fn template() -> String {
-    let fp = if DEFAULT_SERVER_FP.is_empty() {
-        tr!(
-            "（未设置，第一次连接时记住服务器的证书）",
-            "(none, the server's certificate is remembered on the first connection)"
-        )
-    } else {
-        DEFAULT_SERVER_FP.to_string()
-    };
-    let server = DEFAULT_SERVER;
-    {
-        template_windows(server, &fp)
-    }
+    template_windows()
 }
 
 /// Windows 的模板：文件在安装目录里，由系统服务维护
-fn template_windows(server: &str, fp: &str) -> String {
+fn template_windows() -> String {
     let access = access_comment();
     tr!(
-        r#"# Nife Remote 配置文件。修改后要重新启动 Nife Remote 才生效（托盘菜单"退出"，然后再打开 Nife Remote）。
-# 这个文件由 Nife Remote 维护（保存控制码、开机自动启动、控制台的"我的设备"），手动修改的内容和注释都会保留。
-# 不小心删掉了也没关系：Nife Remote 会按默认配置重新生成，控制码和我的设备不会丢。
-
-# 中转服务器地址 host:port（UDP）。不设置时使用编译进程序的地址：{server}
-# server = "relay.example.com:4433"
-
-# 中转服务器证书的 SHA-256 指纹（服务器日志里打印的 64 位十六进制，可以用 : 或空格分隔）。
-# 设为 "" 表示不固定指纹：第一次连接时记住服务器的证书（下面的 [server_trust]），之后证书变了就拒绝连接。不设置时使用编译进程序的指纹：{fp}
-# server_fp = ""
+        r#"# Nife Remote 的状态文件（不是配置文件：服务器地址在打包时写进程序、由账号服务分配，这里没有可以改的连接设置）。
+# 由 Nife Remote 自己维护（控制码、开机自动启动、控制台的"我的设备"），关机前不用管它。
+# 不小心删掉了也没关系：Nife Remote 会重新生成，控制码和我的设备不会丢。
 
 {access}
 
@@ -400,16 +376,9 @@ autostart = true
 # secret 是取回这个控制码的凭据，用 Windows DPAPI 加密过，只有这台电脑上的 Nife Remote 能解开
 [code]
 "#,
-        r#"# Nife Remote configuration. Restart Nife Remote after editing it (tray menu "Quit", then open Nife Remote again).
-# Nife Remote maintains this file (it saves the control code, the autostart setting and the console's "My devices"); your edits and comments are kept.
-# If it gets deleted by accident, Nife Remote recreates it with the default settings, keeping the control code and your devices.
-
-# Relay server address host:port (UDP). Without it the address built into the program is used: {server}
-# server = "relay.example.com:4433"
-
-# SHA-256 fingerprint of the relay server certificate (the 64 hex digits printed in the server log, `:` and spaces are allowed).
-# "" means no fixed fingerprint: the server's certificate is remembered on the first connection ([server_trust] below) and a different one is refused later. Without it the built-in fingerprint is used: {fp}
-# server_fp = ""
+        r#"# Nife Remote's state file (not a configuration file: the account service address is compiled in and the relay is assigned by it,
+# so there is no connection setting to edit here). Nife Remote maintains it (control code, autostart, the console's "My devices").
+# If it gets deleted by accident, Nife Remote recreates it, keeping the control code and your devices.
 
 {access}
 
@@ -517,6 +486,7 @@ fn edit_at(path: &Path, f: impl FnOnce(&mut DocumentMut) -> Result<()>) -> Resul
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => regenerate(last.as_deref())?,
         Err(e) => return Err(e.into()),
     };
+    migrate(&mut doc);
     f(&mut doc)?;
     let text = doc.to_string();
     write(path, &text)?;
@@ -569,10 +539,7 @@ pub fn keep_file() {
             let mut seen = None;
             loop {
                 std::thread::sleep(KEEP_CHECK);
-                #[cfg(test)]
-                if STOP_KEEPING.load(std::sync::atomic::Ordering::Relaxed) {
-                    return;
-                }
+
                 if FROZEN.load(std::sync::atomic::Ordering::Acquire) {
                     return;
                 }
@@ -664,59 +631,48 @@ pub fn check_pairing(code: &str) -> Result<()> {
     Ok(())
 }
 
-/// 把服务器地址和证书指纹写进配置文档；顺手删掉 `[server_trust]`（换了地址或清空指纹就重新信任，见 [`saved_trust`]）
+/// 把账号服务分配的中转服务器地址和指纹写进配置文档（`[relay]`，程序自己的状态，不是用户配置）；
+/// 顺手删掉 `[server_trust]`（换了地址或清空指纹就重新信任，见 [`saved_trust`]）和旧版本写在顶层的键
 fn put_server(doc: &mut DocumentMut, server: &str, fp: &str) {
-    doc["server"] = value(server);
-    doc["server_fp"] = value(fp);
+    let item = doc.entry("relay").or_insert_with(|| {
+        let mut t = toml_edit::Table::new();
+        t.decor_mut().set_prefix(format!("
+{}", relay_comment()));
+        Item::Table(t)
+    });
+    if !item.is_table() {
+        *item = Item::Table(toml_edit::Table::new());
+    }
+    item["address"] = toml_edit::value(server);
+    item["fingerprint"] = toml_edit::value(fp);
+    doc.remove("server");
+    doc.remove("server_fp");
+    doc.remove("auth");
     doc.remove("server_trust");
 }
 
-/// 运行时改过的账号服务地址（界面里换了地址，马上生效，不用重启）
-static AUTH_NOW: std::sync::LazyLock<std::sync::RwLock<Option<String>>> =
-    std::sync::LazyLock::new(|| std::sync::RwLock::new(None));
-
-/// 现在的账号服务地址：界面里刚改过的优先，其次是启动时读到的配置
-pub fn auth() -> String {
-    if let Some(url) = AUTH_NOW.read().ok().and_then(|g| g.clone()) {
-        return url;
+/// 旧版本把中转服务器和账号服务地址写成顶层配置（`server` / `server_fp` / `auth`）：搬进 `[relay]` 并删掉。
+/// 用户改过的那份不再有作用——地址只认账号服务给的
+fn migrate(doc: &mut DocumentMut) {
+    let has_old = ["server", "server_fp", "auth"]
+        .iter()
+        .any(|k| doc.get(*k).is_some());
+    if !has_old {
+        return;
     }
-    settings().auth.clone()
-}
-
-/// 记下界面里刚填的账号服务地址（配合 [`save_auth`]：写文件之后调一次，当前进程立刻用新的）
-pub fn set_auth_now(auth: &str) {
-    if let Ok(mut g) = AUTH_NOW.write() {
-        *g = Some(auth.trim().to_string());
+    let address = doc.get("server").and_then(Item::as_str).unwrap_or("").trim().to_string();
+    let fp = doc.get("server_fp").and_then(Item::as_str).unwrap_or("").to_string();
+    if !address.is_empty() && doc.get("relay").is_none() {
+        put_server(doc, &address, &fp);
+        // put_server 已经把旧的键删掉了
+        return;
+    }
+    for k in ["server", "server_fp", "auth"] {
+        doc.remove(k);
     }
 }
 
-/// 检查账号服务地址：`http(s)://host[:port]`，末尾斜杠去掉
-pub fn check_auth(auth: &str) -> Result<String> {
-    let mut auth = auth.trim().to_string();
-    anyhow::ensure!(!auth.is_empty(), "the account service address is empty");
-    let lower = auth.to_ascii_lowercase();
-    anyhow::ensure!(
-        lower.starts_with("http://") || lower.starts_with("https://"),
-        "the account service address must start with http:// or https://"
-    );
-    while auth.ends_with('/') {
-        auth.pop();
-    }
-    let rest = auth.splitn(2, "://").nth(1).unwrap_or("");
-    anyhow::ensure!(!rest.is_empty(), "the account service address is missing the host");
-    Ok(auth)
-}
-
-/// 保存控制台里填的账号服务地址（`auth`）。中转服务器的地址和指纹由账号服务分配，不在这里填
-pub fn save_auth(auth: &str) -> Result<()> {
-    let auth = check_auth(auth)?;
-    edit(move |doc| {
-        doc["auth"] = value(&auth);
-        Ok(())
-    })
-}
-
-/// 保存控制台里填的中转服务器地址和证书指纹（`fp` 为空表示首次连接时信任）。
+/// 保存账号服务分配的中转服务器地址和证书指纹（`fp` 为空表示首次连接时信任）。
 ///
 /// 服务器地址在启动时读一次（见 [`settings`]），所以保存后要重启 Nife Remote 才生效。
 pub fn save_server(server: &str, fp: &str) -> Result<()> {
@@ -1159,338 +1115,4 @@ pub(crate) mod secret {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    /// 第一次连上服务器时记下的指纹：跟着服务器地址走，再记只改值，文件被删掉重新生成时接着用
-    #[test]
-    fn server_trust_roundtrip_and_survives_regeneration() {
-        let mut doc: DocumentMut = template().parse().unwrap();
-        put_trust(&mut doc, "relay.example.com:4433", &[0xab; 32]);
-        let text = doc.to_string();
-        assert!(text.contains(&trust_comment()));
-        assert_eq!(
-            saved_trust(&text, "relay.example.com:4433"),
-            Some([0xab; 32])
-        );
-        assert_eq!(saved_trust(&text, "other:4433"), None);
-        put_trust(&mut doc, "other:4433", &[1; 32]);
-        let text = doc.to_string();
-        assert_eq!(text.lines().filter(|l| *l == "[server_trust]").count(), 1);
-        assert_eq!(text.matches(trust_comment().as_str()).count(), 1);
-        assert_eq!(saved_trust(&text, "other:4433"), Some([1; 32]));
-        let again = regenerate(Some(&text)).unwrap().to_string();
-        assert_eq!(saved_trust(&again, "other:4433"), Some([1; 32]));
-        assert!(parse(&again).is_ok());
-    }
-
-    #[test]
-    fn fingerprint_check_matches_the_parser() {
-        let hex = "ab".repeat(32);
-        for s in [
-            String::new(),
-            hex.clone(),
-            ["AB"; 32].join(":"),
-            format!(" {hex}\n"),
-            "ab".repeat(31),
-            format!("sha256: {hex}"),
-            "é".into(),
-        ] {
-            assert_eq!(
-                super::fingerprint_is_valid(&s),
-                nife_remote_link::net::parse_fingerprint(&s).is_ok(),
-                "{s:?}"
-            );
-        }
-    }
-
-    /// 首页里填的配对码：只收 6 位数字（可以以 0 开头，和服务器分配的控制码不一样）
-    #[test]
-    fn pairing_code_edit_is_validated() {
-        for code in ["000000", "654321", " 123456 "] {
-            assert!(check_pairing(code).is_ok(), "{code:?}");
-        }
-        for code in ["", "12345", "1234567", "12345a", "１２３４５６"] {
-            assert!(check_pairing(code).is_err(), "{code:?}");
-        }
-    }
-
-    /// 控制台里填的服务器：校验地址/指纹，写进去能读回来，保存会忘掉记住的证书
-    #[test]
-    fn server_edit_validates_and_forgets_trust() {
-        assert!(check_server("relay.example.com:4433", "").is_ok());
-        assert!(check_server(" 1.2.3.4:4433 ", &"ab".repeat(32)).is_ok());
-        for (server, fp) in [
-            ("", ""),
-            ("relay.example.com", ""),
-            (":4433", ""),
-            ("host:notaport", ""),
-            ("host:4433", "abc"),
-        ] {
-            assert!(check_server(server, fp).is_err(), "{server:?} {fp:?}");
-        }
-
-        let mut doc: DocumentMut = template().parse().unwrap();
-        put_trust(&mut doc, "old.example.com:4433", &[0xab; 32]);
-        put_server(&mut doc, "relay.example.com:4433", "");
-        let text = doc.to_string();
-        // 换了地址：记住的证书不再适用
-        assert_eq!(saved_trust(&text, "old.example.com:4433"), None);
-        let s = parse(&text).unwrap();
-        assert_eq!(s.server, "relay.example.com:4433");
-        assert_eq!(s.server_fp, "");
-
-        // 固定指纹
-        let mut doc: DocumentMut = text.parse().unwrap();
-        put_server(&mut doc, "relay.example.com:4433", &"ab".repeat(32));
-        let s = parse(&doc.to_string()).unwrap();
-        assert_eq!(s.server, "relay.example.com:4433");
-        assert_eq!(s.server_fp, "ab".repeat(32));
-    }
-
-    /// 模板就是默认配置；保存控制码、开关自动启动之后能读回来，用户的修改和注释都还在
-    #[test]
-    fn template_and_edits_roundtrip() {
-        let mut text = template();
-        assert_eq!(parse(&text).unwrap(), Settings::default());
-
-        // 用户改了服务器地址，加了自己的注释
-        text = text.replacen(
-            "# server = \"relay.example.com:4433\"",
-            "# 我的服务器\nserver = \"relay.example.com:4433\"",
-            1,
-        );
-        let edit = |text: &str, f: &dyn Fn(&mut DocumentMut) -> Result<()>| {
-            let mut doc: DocumentMut = text.parse().unwrap();
-            f(&mut doc).unwrap();
-            doc.to_string()
-        };
-        let code = Reclaim {
-            code: 123_456,
-            secret: [7; 16],
-        };
-        text = edit(&text, &|doc| {
-            let t = doc["code"].as_table_mut().unwrap();
-            t["code"] = toml_edit::value(i64::from(code.code));
-            t["secret"] = toml_edit::value(secret::seal(&code.secret)?);
-            doc["autostart"] = toml_edit::value(false);
-            Ok(())
-        });
-        let s = parse(&text).unwrap();
-        assert_eq!(s.server, "relay.example.com:4433");
-        assert_eq!(s.code(), Some(code));
-        assert!(!s.autostart);
-        assert!(text.contains("# 我的服务器"));
-
-        // 放弃控制码：表还在（注释也在），只是没有内容
-        text = edit(&text, &|doc| {
-            let t = doc["code"].as_table_mut().unwrap();
-            t.remove("code");
-            t.remove("secret");
-            Ok(())
-        });
-        assert_eq!(parse(&text).unwrap().code(), None);
-        assert!(text.contains("[code]"));
-
-        // 别的账户 / 别的电脑加密的密钥打不开：当作没有控制码
-        let foreign = "[code]\ncode = 123456\nsecret = \"AAAA\"\n";
-        assert_eq!(parse(foreign).unwrap().code(), None);
-    }
-
-    fn device(code: &str) -> crate::devices::Device {
-        crate::devices::Device {
-            code: code.into(),
-            alias: None,
-            name: format!("PC-{code}"),
-            os: "Windows 11 Pro".into(),
-            resume: None,
-            last_used: 1_762_597_230_000,
-            quality: None,
-            host_key: None,
-        }
-    }
-
-    /// 被控端的身份、配对码、配对过的控制端、控制台的身份：保存之后读得回来，文件被删掉重新生成时接着用
-    #[test]
-    fn security_state_roundtrip_and_survives_regeneration() {
-        let mut doc: DocumentMut = template().parse().unwrap();
-        let key = [9u8; 32];
-        host_table(&mut doc).unwrap()["key"] =
-            toml_edit::value(secret::seal_bytes(&key, secret::Kind::HostKey).unwrap());
-        let t = host_table(&mut doc).unwrap();
-        t["pairing"] =
-            toml_edit::value(secret::seal_bytes(b"482913", secret::Kind::Pairing).unwrap());
-        t["pairing_locked"] = toml_edit::value(true);
-        let paired = vec![Paired {
-            key: "cd".repeat(32),
-            name: "DESIGN-PC".into(),
-            since: 1_762_597_230_000,
-        }];
-        put_paired(&mut doc, &paired);
-        let text = doc.to_string();
-        assert!(text.contains(&host_comment()));
-        assert!(text.contains(&paired_comment()));
-        let s = host_security_in(&text.parse().unwrap());
-        assert_eq!(s.key, Some(key));
-        assert_eq!(s.pairing.as_deref(), Some("482913"));
-        assert!(s.pairing_locked);
-        assert_eq!(s.paired, paired);
-        // 设置不受影响
-        assert_eq!(parse(&text).unwrap(), Settings::default());
-        // 文件被删掉之后重新生成：身份和配对都还在
-        let again = regenerate(Some(&text)).unwrap();
-        let s = host_security_in(&again);
-        assert_eq!(s.key, Some(key));
-        assert_eq!(s.paired, paired);
-
-        // access：只有写明了 open 才不要配对码
-        assert_eq!(parse("access = \"open\"").unwrap().access, Access::Open);
-        assert_eq!(parse("access = \"opne\"").unwrap().access, Access::Pairing);
-        assert_eq!(parse("").unwrap().access, Access::Pairing);
-    }
-
-    /// 我的设备写在 [code] 后面，带一段说明；再次保存时整个换掉，说明只有一份；删光了就没有 [[device]]
-    #[test]
-    fn devices_in_the_file() {
-        let mut doc: DocumentMut = template().parse().unwrap();
-        put_devices(&mut doc, &[device("482913"), device("731205")]);
-        let text = doc.to_string();
-        assert_eq!(text.matches("[[device]]").count(), 2);
-        assert!(text.find("[code]").unwrap() < text.find("[[device]]").unwrap());
-        let comment = devices_comment();
-        let first_line = comment.lines().next().unwrap();
-        assert!(text.contains(first_line));
-        let reread: DocumentMut = text.parse().unwrap();
-        assert_eq!(
-            crate::devices::entries(&reread),
-            vec![device("482913"), device("731205")]
-        );
-        // 设置不受影响
-        assert_eq!(parse(&text).unwrap(), Settings::default());
-
-        let mut doc = reread;
-        put_devices(&mut doc, &[device("731205")]);
-        let text = doc.to_string();
-        assert_eq!(text.matches("[[device]]").count(), 1);
-        assert_eq!(text.matches(first_line).count(), 1);
-
-        let mut doc: DocumentMut = text.parse().unwrap();
-        put_devices(&mut doc, &[]);
-        assert!(!doc.to_string().contains("[[device]]"));
-        assert!(doc.to_string().contains("[code]"));
-    }
-
-    /// 文件被删掉后重新生成：服务器等设置回到默认，控制码、开机自动启动、我的设备接着用
-    #[test]
-    fn regenerate_keeps_state() {
-        let mut doc: DocumentMut = template().parse().unwrap();
-        doc["server"] = toml_edit::value("relay.example.com:4433");
-        doc["autostart"] = toml_edit::value(false);
-        let code = Reclaim {
-            code: 654_321,
-            secret: [9; 16],
-        };
-        let t = doc["code"].as_table_mut().unwrap();
-        t["code"] = toml_edit::value(i64::from(code.code));
-        t["secret"] = toml_edit::value(secret::seal(&code.secret).unwrap());
-        put_devices(&mut doc, &[device("482913")]);
-        let before = doc.to_string();
-
-        let after = regenerate(Some(&before)).unwrap().to_string();
-        let s = parse(&after).unwrap();
-        assert_eq!(s.server, DEFAULT_SERVER);
-        assert_eq!(s.code(), Some(code));
-        // 开机自动启动接着用
-        assert_eq!(s.autostart, parse(&before).unwrap().autostart);
-        assert_eq!(
-            crate::devices::entries(&after.parse().unwrap()),
-            vec![device("482913")]
-        );
-        // 模板的注释都还在，而且在原来的位置
-        let tpl = template();
-        let secret_note = tpl.lines().find(|l| l.starts_with("# secret")).unwrap();
-        assert!(after.lines().next().unwrap().starts_with("# Nife Remote"));
-        assert!(after.find(secret_note).unwrap() < after.find("[code]").unwrap());
-
-        // 之前的文件是手写的、没有注释：生成的文件照样有说明
-        let bare = format!(
-            "[code]\ncode = 654321\nsecret = \"{}\"\n",
-            secret::seal(&code.secret).unwrap()
-        );
-        let after = regenerate(Some(&bare)).unwrap().to_string();
-        assert!(after.contains(secret_note));
-        assert_eq!(parse(&after).unwrap().code(), Some(code));
-
-        // 不知道之前的内容（或者之前的内容坏了）：就是默认配置
-        assert_eq!(regenerate(None).unwrap().to_string(), template());
-        assert_eq!(regenerate(Some("[code")).unwrap().to_string(), template());
-    }
-
-    /// 真正的文件：
-    /// * 没有时按默认配置生成，保存的控制码和设备读得回来；
-    /// * 运行中文件、或者整个目录被删掉，很快就按默认配置重新生成，控制码和设备还在，删之前手动改过的也在
-    #[test]
-    fn file_lifecycle() {
-        use std::time::Instant;
-        let root = std::env::temp_dir().join(format!(
-            "nife-remote-config-test-{:016x}",
-            rand::random::<u64>()
-        ));
-        let dir = root.join("nife-remote");
-        let file = dir.join(FILE_NAME);
-        TEST_PATH.with(|p| *p.borrow_mut() = Some(file.clone()));
-        let wait_for = |what: &str, ok: &dyn Fn() -> bool| {
-            let deadline = Instant::now() + Duration::from_secs(5);
-            while !ok() {
-                assert!(Instant::now() < deadline, "timed out waiting for {what}");
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        };
-
-        // 第一次运行：目录和文件都没有
-        ensure_file().unwrap();
-        assert_eq!(std::fs::read_to_string(&file).unwrap(), template());
-
-        let code = Reclaim {
-            code: 654_321,
-            secret: [3; 16],
-        };
-        save_code(Some(code)).unwrap();
-        let mut d = device("482913");
-        save_devices(&crate::devices::for_file(vec![d.clone()]).unwrap()).unwrap();
-        assert_eq!(crate::devices::load(), vec![d.clone()]);
-        assert_eq!(parse(&read_text().unwrap()).unwrap().code(), Some(code));
-        // Windows：文件里没有明文的控制码
-        assert!(!read_text().unwrap().contains("code = \"482913\""));
-
-        keep_file();
-        std::fs::remove_file(&file).unwrap();
-        wait_for("the file to be recreated", &|| file.exists());
-        let text = read_text().unwrap();
-        assert!(text.starts_with("# Nife Remote"));
-        assert_eq!(parse(&text).unwrap().code(), Some(code));
-        assert_eq!(crate::devices::load(), vec![d.clone()]);
-
-        // 手动给设备起了个名字，然后整个目录被删掉
-        let edited = text.replace(
-            "name = \"PC-482913\"",
-            "name = \"PC-482913\"\nalias = \"书房\"",
-        );
-        assert_ne!(edited, text);
-        std::fs::write(&file, edited).unwrap();
-        d.alias = Some("书房".into());
-        wait_for("the edit to be noticed", &|| {
-            last().as_deref().is_some_and(|t| t.contains("书房"))
-        });
-        std::fs::remove_dir_all(&dir).unwrap();
-        wait_for("the directory to be recreated", &|| file.exists());
-        assert_eq!(crate::devices::load(), vec![d]);
-        assert_eq!(parse(&read_text().unwrap()).unwrap().code(), Some(code));
-
-        STOP_KEEPING.store(true, std::sync::atomic::Ordering::Relaxed);
-        std::thread::sleep(KEEP_CHECK * 4);
-        std::fs::remove_dir_all(&root).unwrap();
-    }
-
-}

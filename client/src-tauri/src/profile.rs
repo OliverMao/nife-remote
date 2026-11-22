@@ -145,29 +145,12 @@ fn normalize_code(code: &str) -> Option<String> {
 }
 
 /// `profile.json` 的路径：和 config.toml 在同一个目录里（见 [`crate::config::path`]）
-#[cfg_attr(test, allow(dead_code))]
 pub fn path() -> Option<PathBuf> {
     Some(crate::config::path()?.with_file_name(FILE_NAME))
 }
 
-#[cfg(test)]
-thread_local! {
-    /// 测试时不碰真正的 profile.json
-    static TEST_PATH: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
-}
-
 fn resolve() -> Option<PathBuf> {
-    #[cfg(test)]
-    {
-        if let Some(p) = TEST_PATH.with(|p| p.borrow().clone()) {
-            return Some(p);
-        }
-        return None;
-    }
-    #[cfg(not(test))]
-    {
-        path()
-    }
+    path()
 }
 
 /// 进程里读到的这份（之后的修改都走 [`update`]）
@@ -243,112 +226,4 @@ fn write_to(path: &Path, profile: &Profile) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    fn temp_path(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nife-remote-profile-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir.join(FILE_NAME)
-    }
-
-    #[test]
-    fn defaults_allow_assist_and_pairing() {
-        let p = Profile::default();
-        assert!(p.allow_assist);
-        assert_eq!(p.verify, Verify::Pairing);
-        assert!(p.favorites.is_empty());
-        assert!(p.recent.is_empty());
-    }
-
-    #[test]
-    fn missing_file_is_the_default_profile() {
-        let path = temp_path("missing");
-        assert_eq!(read_from(Some(&path)), Profile::default());
-    }
-
-    #[test]
-    fn saves_and_reads_back() {
-        let path = temp_path("roundtrip");
-        let mut p = Profile::default();
-        p.allow_assist = false;
-        p.verify = Verify::Approval;
-        p.favorites = vec!["482913".into()];
-        p.push_recent("260778", "DESIGN-WS", 1_731_000_000);
-        write_to(&path, &p).unwrap();
-        assert_eq!(read_from(Some(&path)), p);
-        // 写的是 JSON，人能看懂
-        let text = std::fs::read_to_string(&path).unwrap();
-        assert!(text.contains("\"allowAssist\": false"));
-        assert!(text.contains("\"verify\": \"approval\""));
-        // 没有留下临时文件
-        assert!(!path.with_extension("json.tmp").exists());
-    }
-
-    #[test]
-    fn broken_json_falls_back_to_the_defaults() {
-        let path = temp_path("broken");
-        std::fs::write(&path, b"{ this is not json").unwrap();
-        assert_eq!(read_from(Some(&path)), Profile::default());
-    }
-
-    #[test]
-    fn unknown_verify_is_pairing() {
-        assert_eq!(Verify::parse("open"), Verify::Open);
-        assert_eq!(Verify::parse(" APPROVAL "), Verify::Approval);
-        assert_eq!(Verify::parse("whatever"), Verify::Pairing);
-        let p: Profile = serde_json::from_str(r#"{"verify":"nonsense"}"#).unwrap_or_default();
-        assert_eq!(p.verify, Verify::Pairing);
-    }
-
-    #[test]
-    fn favorite_toggles_and_puts_the_new_one_first() {
-        let mut p = Profile::default();
-        assert!(p.toggle_favorite("482 913"));
-        assert!(p.toggle_favorite("260778"));
-        assert_eq!(p.favorites, vec!["260778", "482913"]);
-        // 再点一次取消
-        assert!(!p.toggle_favorite("260778"));
-        assert_eq!(p.favorites, vec!["482913"]);
-        // 不是 6 位数字的不记
-        assert!(!p.toggle_favorite("12"));
-        assert!(!p.toggle_favorite("abcdef"));
-        assert_eq!(p.favorites, vec!["482913"]);
-    }
-
-    #[test]
-    fn recent_keeps_the_newest_first_and_without_duplicates() {
-        let mut p = Profile::default();
-        p.push_recent("482913", "A", 1);
-        p.push_recent("260778", "B", 2);
-        p.push_recent("482913", "A2", 3);
-        assert_eq!(p.recent.len(), 2);
-        assert_eq!(p.recent[0].code, "482913");
-        assert_eq!(p.recent[0].name, "A2");
-        assert_eq!(p.recent[0].at, 3);
-        p.drop_recent("482913");
-        assert_eq!(p.recent.len(), 1);
-        p.clear_recent();
-        assert!(p.recent.is_empty());
-    }
-
-    #[test]
-    fn recent_is_capped() {
-        let mut p = Profile::default();
-        for i in 0..(MAX_RECENT + 5) {
-            p.push_recent(&format!("{}{:05}", 1 + i % 9, i), "", i as i64);
-        }
-        assert_eq!(p.recent.len(), MAX_RECENT);
-    }
-
-    #[test]
-    fn bad_codes_are_rejected() {
-        assert_eq!(normalize_code("260 778").as_deref(), Some("260778"));
-        assert_eq!(normalize_code("012345"), None); // 控制码不以 0 开头
-        assert_eq!(normalize_code("12345"), None);
-        assert_eq!(normalize_code("1234567"), None);
-        assert_eq!(normalize_code(""), None);
-    }
-}

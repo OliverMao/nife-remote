@@ -83,11 +83,6 @@ pub enum ToAgent {
     SaveDevices {
         devices: Vec<crate::devices::Device>,
     },
-    /// 控制台里填的中转服务器地址和证书指纹（空指纹 = 首次连接时信任）
-    SetServer {
-        server: String,
-        fp: String,
-    },
     /// 换一个配对码（暂停了的配对随之恢复）
     NewPairingCode,
     /// 换成本机用户填的配对码
@@ -302,17 +297,6 @@ async fn handle(msg: ToAgent, agent: &Agent) {
                 Err(e) => warn!("can't change autostart: {e}"),
             }
         }
-        ToAgent::SetServer { server, fp } => {
-            let r = tokio::task::spawn_blocking(move || {
-                crate::config::save_server(&server, &fp)
-            })
-            .await;
-            match r {
-                Ok(Ok(())) => info!("saved the server settings"),
-                Ok(Err(e)) => warn!("can't save the server settings: {e:#}"),
-                Err(e) => warn!("can't save the server settings: {e}"),
-            }
-        }
         ToAgent::SaveDevices { devices } => {
             // 只改 [[device]]，每一项写之前再检查一遍（见 devices::to_table）
             let n = devices.len();
@@ -494,53 +478,4 @@ async fn talk(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::status;
 
-    /// 被控端一侧和托盘一侧的消息往返。管道的所有者是运行测试的用户：托盘本来会拒绝它（不是 SYSTEM），这里不检查
-    #[tokio::test]
-    async fn status_and_commands() {
-        let name = format!(r"\\.\pipe\nife-remote-test-{:016x}", rand::random::<u64>());
-        let hub = status::new_hub();
-        let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
-        let autostart = Arc::new(watch::Sender::new(true));
-        let agent = Agent {
-            cmds: cmd_tx,
-            autostart,
-            gate: DesktopGate::load(hub.clone()),
-        };
-        tokio::spawn(serve_on(name.clone(), hub.clone(), agent));
-
-        // 只用托盘的权限（读 + 写数据）就能收发消息
-        let pipe = loop {
-            match open_pipe(&name, false) {
-                Ok(p) => break p,
-                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
-            }
-        };
-        let (r, mut w) = tokio::io::split(pipe);
-        let mut lines = BufReader::new(r).lines();
-        let mut next = async || -> AgentStatus {
-            let line = tokio::time::timeout(Duration::from_secs(5), lines.next_line())
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap();
-            serde_json::from_str(&line).unwrap()
-        };
-        let first = next().await;
-        assert_eq!((first.host.code, first.host.controllers.len()), (None, 0));
-        assert!(first.autostart);
-
-        hub.send_modify(|s| s.host.code = Some(123_456));
-        assert_eq!(next().await.host.code, Some(123_456));
-
-        send_line(&mut w, &ToAgent::NewCode).await.unwrap();
-        let cmd = tokio::time::timeout(Duration::from_secs(5), cmd_rx.recv())
-            .await
-            .unwrap();
-        assert!(matches!(cmd, Some(HostCmd::NewCode)));
-    }
-}

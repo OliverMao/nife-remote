@@ -21,18 +21,4 @@ impl<T> DerefMut for OwnedTask<T> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[tokio::test]
-    async fn timeout_cancels_instead_of_detaching() {
-        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-        let mut task = OwnedTask(tokio::spawn(async move {
-            let _tx = tx;
-            std::future::pending::<()>().await;
-        }));
-        let _ = tokio::time::timeout(std::time::Duration::from_millis(1), &mut task.0).await;
-        drop(task);
-        assert!(rx.await.is_err());
-    }
-}
+

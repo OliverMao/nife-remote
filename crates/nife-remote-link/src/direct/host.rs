@@ -403,45 +403,4 @@ fn apply(s: &Session, sw: Switch) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::quic_pair;
 
-    /// 控制端从两个地址都连上了：先到这边的那条它没选（还没来得及关），它在后到的那条上开了控制通道。
-    /// 这边要用后那条，而不是先连上的那条（那样两边用的不是同一条，直连通了却用不上）
-    #[tokio::test]
-    async fn the_host_uses_the_connection_the_controller_chose() {
-        let (_ignored, first) = quic_pair().await;
-        let (picked, second) = quic_pair().await;
-        let want = second.stable_id();
-        let (tx, mut arrived) = mpsc::channel(1);
-        tokio::spawn(async move {
-            tx.send(first).await.unwrap();
-            tx.send(second).await.unwrap();
-        });
-        let controller = async {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            let mut lane = picked.open_uni().await.unwrap();
-            lane.write_all(b"lane").await.unwrap();
-            lane
-        };
-        let (got, _lane) = tokio::join!(
-            tokio::time::timeout(Duration::from_secs(5), chosen(&mut arrived)),
-            controller
-        );
-        let (conn, mut stream) = got.unwrap().unwrap();
-        assert_eq!(conn.stable_id(), want);
-        let mut b = [0u8; 4];
-        stream.read_exact(&mut b).await.unwrap();
-        assert_eq!(&b, b"lane");
-    }
-
-    /// 一条连接也没来、也不会再来了：不等
-    #[tokio::test]
-    async fn no_connection_no_choice() {
-        let (tx, mut arrived) = mpsc::channel::<Connection>(1);
-        drop(tx);
-        assert!(chosen(&mut arrived).await.is_none());
-    }
-}

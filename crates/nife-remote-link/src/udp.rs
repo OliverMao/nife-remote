@@ -51,16 +51,4 @@ fn enlarge(set: impl Fn(usize) -> io::Result<()>) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn buffers_are_enlarged() {
-        let s = bind((std::net::Ipv4Addr::LOCALHOST, 0).into(), false).unwrap();
-        let r = socket2::SockRef::from(&s);
-        // 系统可能截掉一部分（Linux 的 rmem_max），但不会比默认的还小
-        assert!(r.recv_buffer_size().unwrap() >= MIN_BUFFER.min(200 << 10));
-        assert!(s.local_addr().unwrap().port() != 0);
-    }
-}

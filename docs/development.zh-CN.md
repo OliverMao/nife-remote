@@ -2,45 +2,6 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](development.md)
 
-## 测试
-
-```bash
-# 仓库根目录：协议 + 链路库 + 服务器（调试构建里服务器的每次加锁都检查先后，见 server/core/src/broker/lock.rs）
-cargo test
-# 服务器只用 nife-remote-link 的 wire（关掉了默认的 client）：上面的 cargo test 总是带着 client 编译它，这里单独检查一下
-cargo test -p nife-remote-link --no-default-features
-
-# crates/nife-remote-proto/fuzz/：服务器在认证之前就要解析的东西（版本握手、信令消息、会话头），需要 nightly 和 cargo-fuzz
-cargo +nightly fuzz run signal    # 还有 hello、session_header
-
-# client/web/：网页控制台（WebSocket 协议、访问密码、HTTPS 证书）
-cargo test
-
-# client/：界面（抖动缓冲和音画同步仿真、H.264 格式转换、界面文案）
-npm test
-
-# client/src-tauri/：客户端 Rust 部分（编码器含硬件探测、Opus 打包、格式转换等）
-cargo test --lib
-# 声音环回采集（需要声音输出设备，会以 -60 dBFS 播放 1.5 秒测试音，几乎听不见）
-cargo test --lib loopback_captures_tone -- --ignored --nocapture
-# Windows：控制端的麦克风写进 Steam Streaming Microphone（这台电脑上要有它），从它的录音端录回 1 kHz 的声音
-cargo test --lib mic_reaches_steam_streaming_microphone -- --ignored --nocapture
-```
-
-
-端到端测试（真实服务器、带屏幕采集和编码的真实被控端、协议级控制端）：
-
-```bash
-# 仓库根目录：启动一个不固定证书的服务器
-cargo build -p nife-remote-server
-NIFE_REMOTE_CERT=target/e2e/cert.pem NIFE_REMOTE_KEY=target/e2e/key.pem ./target/debug/nife-remote-server &
-
-# client/src-tauri/
-cargo test --lib e2e_roundtrip -- --ignored --nocapture   # 画面 / 编码切换 / 剪贴板 / 声音 / Ping / 断开
-cargo test --lib e2e_reconnect -- --ignored --nocapture   # 服务器重启后取回控制码、更换控制码
-cargo test --lib e2e_mic -- --ignored --nocapture         # Windows：控制端的麦克风经过中转放进 Steam Streaming Microphone
-```
-
 ## 调试工具
 
 ```bash
@@ -99,15 +60,11 @@ cd client/web && cargo run
 - 带字段的枚举加变体：只有三个地方能跳过：整条消息、标了 `crate::cbor::opt` 的 `Option` 字段、标了 `crate::cbor::open_vec` 的列表元素。别的地方遇到不认识的变体故意是解码错误。不要把带字段的枚举直接放进派生的 `Option<…>`（也不要放进结构体、结构体再放进 `Option`）：minicbor 派生会把里面任何深度的不认识的变体当成 `None`，再从错的位置跳过（见 `cbor.rs` 的说明）
 - 编号一旦发布就不能改、不能复用；只有改不下去（例如要删掉必填字段）才加版本号
 
-版本握手里的版本区间（`ClientHello` / `ServerHello` 这两个 CBOR map 的 0、1 号键，`signal::Versions`）和 ALPN **永远不能改**，否则不同版本之间连“版本不一致”都无法告诉对方；`version_handshake_is_frozen` 测试守着这一点。`nife-remote-proto` 的测试里有“新版本的对方”发来新消息、新字段、新枚举值的例子，加兼容规则时照着写一个。
+版本握手里的版本区间（`ClientHello` / `ServerHello` 这两个 CBOR map 的 0、1 号键，`signal::Versions`）和 ALPN **永远不能改**，否则不同版本之间连“版本不一致”都无法告诉对方。
 
 ### 一份协议，两份实现
 
-`crates/nife-remote-proto/tests/v9.rs` 保存 v9 的 CBOR 字节样例。v9 发布之后它们就固定了，不能随着实现重新生成：现有消息的编号和字段位置必须保持兼容，新增消息另加样例。光标接收测试覆盖两个通道的乱序；服务器测试经过真实 QUIC 和控制端会话检查未知视频格式仍能确认、后续帧继续接收。
-
-Rust 和控制台（TypeScript）用同一套格式：媒体包（`crates/nife-remote-proto/src/media.rs`）、输入事件、界面命令、连接选项（`nife_remote_link::controller::Command`、`ConnectOptions`）。界面和 Rust 之间的 JSON 全都是 camelCase：字段名、枚举值（`"h264"`、`"android"`、`"quickSettings"`），带字段的联合类型用一个字段标明是哪一种（命令 `cmd`、事件和输入 `type`、问题和提示 `kind`）。`crates/nife-remote-link/tests/protocol.json` 是 Rust 测试生成的样例；`npm test`（`tests/protocol.test.ts`）用同一个文件检查解析和拼装。改了格式之后用 `NIFE_REMOTE_UPDATE_FIXTURES=1 cargo test -p nife-remote-link --test protocol` 重新生成，再让 TypeScript 的测试通过。
-
-`client/tests/protocol-contract.ts` 由同一 Rust 测试生成字面量，并用 `satisfies` 和正式的 TypeScript 类型检查每个字段；`npm test` 会先运行 `tsc`。它不能替换成 `JSON.parse()` 后的类型标注，因为 `any` 会绕过检查。
+v9 发布之后，消息的编号和字段位置就固定了，不能随着实现重新生成：现有消息保持兼容，新增消息用新的编号。Rust 和控制台（TypeScript）用同一套格式：媒体包（`crates/nife-remote-proto/src/media.rs`）、输入事件、界面命令、连接选项（`nife_remote_link::controller::Command`、`ConnectOptions`）。界面和 Rust 之间的 JSON 全都是 camelCase：字段名、枚举值（`"h264"`、`"android"`、`"quickSettings"`），带字段的联合类型用一个字段标明是哪一种（命令 `cmd`、事件和输入 `type`、问题和提示 `kind`）。改 Rust 那边的格式时，同一次改动里把 TypeScript 的类型和解析一起改：`npm run typecheck` 是唯一的检查。
 
 ### 消息是类型，不是文字
 
@@ -115,7 +72,7 @@ Rust 和控制台（TypeScript）用同一套格式：媒体包（`crates/nife-r
 
 - 控制台的文案在 `client/src/locales/zh.ts`（全部词条以它为准）和 `en.ts`
 - 托盘的文案用 `tray.rs` 里的 `tr!`（`client/src-tauri/src/tray.rs`）
-- 某个 Rust 的 `Problem` / `NoticeView` 在任一语言里没有文案时，`npm test` 会失败
+- 新增 Rust 的 `Problem` / `NoticeView` 时，两种语言的词条一起加（`zh.ts` 是全部词条的准）
 - 日志和内部错误一律用英文
 
 ### 图标

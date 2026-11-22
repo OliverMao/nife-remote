@@ -128,8 +128,10 @@ npm install
 npm run tauri build            # installer: bundle/nsis/Nife Remote_<version>_x64-setup.exe
 ```
 
-The client only needs the account service address. For a preconfigured build set `NIFE_REMOTE_AUTH=https://auth.example.com`
-before building; otherwise set it after installing under ☰ → relay status → **Change**.
+Which account service the client talks to is decided **at build time only** — neither the UI nor the config file can
+change it, and the UI never shows it. At build time it comes from `NIFE_REMOTE_AUTH`, then `client/.env`, then the
+official default `https://nife-remote-auth.naig.us`, so `npm run tauri build` works as is; set the variable (or
+`client/.env`) to use your own. The relay address and fingerprint are handed out by the account service.
 
 ### 3. Connect
 

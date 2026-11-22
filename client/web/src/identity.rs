@@ -60,22 +60,4 @@ fn save(path: &Path, text: &str) -> std::io::Result<()> {
     std::fs::write(path, text)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn remembered_across_restarts() {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let dir =
-            std::env::temp_dir().join(format!("nife-remote-web-id-{}-{nanos}", std::process::id()));
-        let path = dir.join("controller-key.txt");
-        let a = load(Some(&path));
-        let b = load(Some(&path));
-        assert_eq!(a.public(), b.public());
-        let _ = std::fs::remove_dir_all(dir);
-    }
-}

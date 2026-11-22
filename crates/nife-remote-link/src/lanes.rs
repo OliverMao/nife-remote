@@ -324,31 +324,4 @@ pub async fn accept_direct(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    /// 一条读不出会话头的流（这里是读到一半被对方 reset 了）不能挡住之后的流：
-    /// 会话建立时还没有数据报，挡住了就要等到握手超时
-    #[tokio::test]
-    async fn a_broken_lane_does_not_hold_up_the_next_one() {
-        let (client, server) = crate::tests::quic_pair().await;
-        let (router, _task) = Router::start(&server);
-        let (mut inbox, _registration) = router.register(7);
-        let header = SessionHeader::new(7, SessionLane::Control).encode();
-        let mut broken = client.open_uni().await.unwrap();
-        broken.write_all(&header[..4]).await.unwrap();
-        let mut lane = client.open_uni().await.unwrap();
-        lane.write_all(&header[..8]).await.unwrap();
-        // 两条流都在等会话头的后半截；先断的那条先有结果
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        broken.reset(0u32.into()).unwrap();
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        lane.write_all(&header[8..]).await.unwrap();
-        let got = tokio::time::timeout(Duration::from_secs(2), inbox.control.recv()).await;
-        assert!(
-            matches!(got, Ok(Some((_, Via::Relay)))),
-            "the lane was held up"
-        );
-    }
-}

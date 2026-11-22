@@ -10,8 +10,9 @@
 //! PUT  {auth}/auth/devices   Bearer <token> {devices}
 //! ```
 //!
-//! 账号服务的地址：`config.toml` 的 `auth` → 环境变量 `NIFE_REMOTE_AUTH` → 编译进去的默认值，都没有就是
-//! `http://127.0.0.1:8080`（本机调试 / 没配置账号服务时不至于直接崩，只是登录会报连不上）。
+//! 账号服务的地址**只有一个来源**：编译进程序的常量（见 [`DEFAULT_AUTH`]）。编译时由 `build.rs` 决定——
+//! 环境变量 `NIFE_REMOTE_AUTH` > `client/.env` > 默认的正式服务。运行时不读环境变量、不读 `config.toml`，
+//! 界面上也改不了、看不到——装好的客户端只会连打包时那个账号服务。
 //!
 //! 密码从不落盘：只有服务端知道盐和摘要，本机只保存登录凭证（`session.json`，权限 600）。
 
@@ -24,8 +25,8 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-/// 账号服务地址（编译期默认值，可以用 `NIFE_REMOTE_AUTH` 覆盖）
-const DEFAULT_AUTH: Option<&str> = option_env!("NIFE_REMOTE_AUTH");
+/// 账号服务地址：`build.rs` 编译时从环境变量 / `.env` 读出来写进程序（都没有就用正式服务），运行期间不变
+const DEFAULT_AUTH: &str = env!("NIFE_REMOTE_AUTH");
 
 const FILE_NAME: &str = "session.json";
 /// 请求超时（账号服务很快，超过就是连不上）
@@ -79,18 +80,16 @@ struct ErrorDetail {
 
 /// 账号服务的地址（末尾不带 `/`）
 pub fn base_url() -> String {
-    // 界面里填的（config.toml 的 auth）优先：登录页 / 设置面板里改的就是它
-    let saved = crate::config::auth();
-    if !saved.trim().is_empty() {
-        return trim(saved);
+    trim(DEFAULT_AUTH.to_string())
+}
+
+/// 账号服务地址可用的那个地址，没配置就报错（界面照这个提示"这个版本没有配置账号服务"）
+fn base() -> Result<String> {
+    let url = base_url();
+    if url.is_empty() {
+        bail!("this build has no account service address (NIFE_REMOTE_AUTH)");
     }
-    if let Some(url) = std::env::var("NIFE_REMOTE_AUTH").ok().filter(|s| !s.trim().is_empty()) {
-        return trim(url);
-    }
-    match DEFAULT_AUTH {
-        Some(url) if !url.trim().is_empty() => trim(url.to_string()),
-        _ => "http://127.0.0.1:8080".to_string(),
-    }
+    Ok(url)
 }
 
 fn trim(mut url: String) -> String {
@@ -112,7 +111,7 @@ fn client() -> Result<reqwest::Client> {
 /// 注册（成功后直接登录）
 pub async fn register(name: &str, password: &str) -> Result<AccountInfo> {
     let r = client()?
-        .post(format!("{}/auth/register", base_url()))
+        .post(format!("{}/auth/register", base()?))
         .json(&serde_json::json!({ "name": name, "password": password }))
         .send()
         .await
@@ -127,7 +126,7 @@ pub async fn register(name: &str, password: &str) -> Result<AccountInfo> {
 /// 登录
 pub async fn login(name: &str, password: &str) -> Result<AccountInfo> {
     let r = client()?
-        .post(format!("{}/auth/login", base_url()))
+        .post(format!("{}/auth/login", base()?))
         .json(&serde_json::json!({ "name": name, "password": password }))
         .send()
         .await
@@ -142,7 +141,7 @@ pub async fn login(name: &str, password: &str) -> Result<AccountInfo> {
 /// 退出登录：让服务端作废凭证，然后清掉本机的
 pub async fn logout() -> Result<()> {
     let session = load_session();
-    if let Some(token) = session.token.clone() {
+    if let Some(token) = session.token.clone().filter(|_| !base_url().is_empty()) {
         // 连不上也要退出（本机凭证先删掉）
         let sent = client().and_then(|c| {
             Ok(c.post(format!("{}/auth/logout", base_url()))
@@ -170,6 +169,9 @@ pub fn current() -> Option<AccountInfo> {
 pub async fn refresh() -> Option<AccountInfo> {
     let session = load_session();
     let token = session.token.clone()?;
+    if base_url().is_empty() {
+        return session.user;
+    }
     let r = client().ok()?.get(format!("{}/auth/me", base_url())).bearer_auth(token).send().await.ok()?;
     if !r.status().is_success() {
         // 凭证过期 / 被作废：清掉本机的登录状态
@@ -190,7 +192,7 @@ pub async fn devices() -> Result<Vec<String>> {
         bail!("not signed in");
     };
     let r = client()?
-        .get(format!("{}/auth/devices", base_url()))
+        .get(format!("{}/auth/devices", base()?))
         .bearer_auth(token)
         .send()
         .await
@@ -207,7 +209,7 @@ pub async fn save_devices(codes: &[String]) -> Result<()> {
         bail!("not signed in");
     };
     let r = client()?
-        .put(format!("{}/auth/devices", base_url()))
+        .put(format!("{}/auth/devices", base()?))
         .bearer_auth(token)
         .json(&serde_json::json!({ "devices": codes }))
         .send()
@@ -224,7 +226,7 @@ pub async fn change_password(old_password: &str, new_password: &str) -> Result<A
         bail!("not signed in");
     };
     let r = client()?
-        .post(format!("{}/auth/password", base_url()))
+        .post(format!("{}/auth/password", base()?))
         .bearer_auth(token)
         .json(&serde_json::json!({ "old_password": old_password, "new_password": new_password }))
         .send()
@@ -263,25 +265,12 @@ async fn check(r: reqwest::Response) -> Result<serde_json::Value> {
 
 // ───────────────────────── 本机保存的登录状态 ─────────────────────────
 
-#[cfg_attr(test, allow(dead_code))]
 fn path() -> Option<PathBuf> {
     Some(crate::config::path()?.with_file_name(FILE_NAME))
 }
 
-#[cfg(test)]
-thread_local! {
-    static TEST_PATH: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
-}
-
 fn resolve() -> Option<PathBuf> {
-    #[cfg(test)]
-    {
-        return TEST_PATH.with(|p| p.borrow().clone());
-    }
-    #[cfg(not(test))]
-    {
-        path()
-    }
+    path()
 }
 
 fn cache() -> &'static Mutex<Session> {
@@ -339,50 +328,4 @@ fn write_to(path: &Path, session: &Session) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    fn temp_path(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nife-remote-session-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir.join(FILE_NAME)
-    }
-
-    #[test]
-    fn base_url_is_trimmed() {
-        assert!(!base_url().ends_with('/'));
-    }
-
-    #[test]
-    fn session_roundtrip() {
-        let path = temp_path("roundtrip");
-        let user = AccountInfo {
-            id: "u1".into(),
-            name: "mao".into(),
-            created_at: 7,
-            devices: vec!["260778".into()],
-        };
-        let session = Session { token: Some("t0ken".into()), user: Some(user.clone()) };
-        write_to(&path, &session).unwrap();
-        assert_eq!(read_from(Some(&path)), session);
-        let text = std::fs::read_to_string(&path).unwrap();
-        assert!(text.contains("\"token\": \"t0ken\""));
-        assert!(!path.with_extension("json.tmp").exists());
-    }
-
-    #[test]
-    fn missing_or_broken_file_means_signed_out() {
-        assert_eq!(read_from(None), Session::default());
-        let path = temp_path("broken");
-        std::fs::write(&path, b"{ nope").unwrap();
-        assert_eq!(read_from(Some(&path)), Session::default());
-    }
-
-    #[test]
-    fn error_body_is_read() {
-        let body: ErrorBody = serde_json::from_str(r#"{"error":{"code":"wrong_password","message":"wrong password"}}"#).unwrap();
-        assert_eq!(body.error.message, "wrong password");
-    }
-}

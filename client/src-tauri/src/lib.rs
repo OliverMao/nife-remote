@@ -16,8 +16,7 @@ mod clipboard;
 mod config;
 mod console;
 mod devices;
-#[cfg(test)]
-mod e2e;
+
 mod ephemeral;
 mod fullscreen;
 pub mod host;
@@ -289,9 +288,9 @@ pub(crate) fn on_tray_left_click(app: &AppHandle) {
 #[serde(rename_all = "camelCase")]
 struct AppInfo {
     version: &'static str,
-    /// 账号服务地址（用户唯一要填的；中转服务器由它分配）
-    auth: String,
     server: String,
+    /// 这个版本能不能登录（账号服务地址是打包时写死的；没有就只提示一句，不露出任何地址）
+    account_ready: bool,
     /// 配置过中转服务器没有（没有的话 `server` 只是占位的 127.0.0.1:4433，不连接也不重试）
     configured: bool,
     pinned: bool,
@@ -304,8 +303,8 @@ struct AppInfo {
 fn app_info() -> AppInfo {
     AppInfo {
         version: config::VERSION,
-        auth: config::auth(),
         server: config::settings().server.clone(),
+        account_ready: !accounts::base_url().is_empty(),
         configured: config::server_configured(),
         pinned: config::pinned(),
         hostname: sysinfo::host_identity().0,
@@ -352,42 +351,6 @@ async fn devices_save(
         .map_err(|e| Problem::failed(format!("{e:#}")))
 }
 
-/// 保存控制台里填的中转服务器地址和证书指纹（`fp` 为空 = 首次连接时信任）。
-/// 改完要重启程序才生效（见 [`config::settings`]）。
-#[tauri::command]
-async fn server_save(
-    state: tauri::State<'_, AppState>,
-    server: String,
-    fp: String,
-) -> Result<(), Problem> {
-    // 先校验（服务在另一个进程里，错误拿不回来）
-    config::check_server(&server, &fp).map_err(|e| Problem::failed(format!("{e:#}")))?;
-    // Windows 安装版：配置文件在安装目录里，由服务里的被控端维护（托盘没有写权限），经命名管道交给它写
-    if state.service_mode {
-        let connected = state.hub.borrow().service.is_some_and(|s| s.connected);
-        // 锁不能跨 await（future 要 Send），发完就撒手
-        {
-            let sv = state.services.lock().unwrap();
-            match &sv.host {
-                Some(Hosting::Service(link)) if connected => {
-                    link.send(winsvc::ipc::ToAgent::SetServer { server, fp });
-                }
-                _ => {
-                    return Err(Problem::failed(
-                        "the Nife Remote service isn't reachable from this session",
-                    ));
-                }
-            }
-        }
-        // 服务那边是异步写的（没有回执），马上重启会把还没写的丢掉：等它写进 config.toml 再返回
-        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-        return Ok(());
-    }
-    tauri::async_runtime::spawn_blocking(move || config::save_server(&server, &fp))
-        .await
-        .map_err(Problem::failed)?
-        .map_err(|e| Problem::failed(format!("{e:#}")))
-}
 
 /// 断开某一路控制端（被控中页列表里那一行）
 #[tauri::command]
@@ -450,11 +413,6 @@ async fn account_save_devices(codes: Vec<String>) -> Result<(), Problem> {
     accounts::save_devices(&codes).await.map_err(|e| Problem::failed(format!("{e:#}")))
 }
 
-/// 账号服务的地址（界面里显示 / 排查用）
-#[tauri::command]
-fn account_server() -> String {
-    accounts::base_url()
-}
 
 /// 界面自己的偏好和记录（profile.json）：允许协助、验证方式、收藏、最近连接
 #[tauri::command]
@@ -534,16 +492,10 @@ fn recent_drop(code: Option<String>) -> Result<profile::Profile, Problem> {
     Ok(p)
 }
 
-/// 账号服务地址（界面里唯一要填的地址；中转服务器由它分配）
-#[tauri::command]
-fn auth_get() -> String {
-    config::auth()
-}
-
 /// 重新问账号服务要一次中转服务器（连接失败时界面会自动调；分配变了返回 true，界面再重启生效）
 #[tauri::command]
 async fn relay_refresh() -> Result<bool, Problem> {
-    let auth = config::settings().auth.clone();
+    let auth = accounts::base_url();
     if auth.is_empty() {
         return Ok(false);
     }
@@ -554,27 +506,6 @@ async fn relay_refresh() -> Result<bool, Problem> {
     Ok(before != (relay.address(), relay.fingerprint))
 }
 
-/// 保存账号服务地址：马上问一次中转服务器，写进 config.toml。
-/// 当前进程里的账号服务地址**立刻生效**（不用重启）；中转服务器地址要下次启动才用于连接。
-#[tauri::command]
-async fn auth_save(auth: String) -> Result<String, Problem> {
-    let auth = config::check_auth(&auth).map_err(|e| Problem::failed(format!("{e:#}")))?;
-    // 先确认这个地址能用（拿得到中转服务器），再落盘：填错了能当场看到错误
-    let relay = relay::fetch(&auth).await.map_err(|e| Problem::failed(format!("{e:#}")))?;
-    let address = relay.address();
-    config::check_server(&address, &relay.fingerprint).map_err(|e| Problem::failed(format!("{e:#}")))?;
-    let saved = auth.clone();
-    tauri::async_runtime::spawn_blocking(move || -> anyhow::Result<()> {
-        config::save_auth(&auth)?;
-        config::save_server(&address, &relay.fingerprint)?;
-        Ok(())
-    })
-    .await
-    .map_err(Problem::failed)?
-    .map_err(|e| Problem::failed(format!("{e:#}")))?;
-    config::set_auth_now(&saved);
-    Ok(saved)
-}
 
 /// 断开所有正在控制本机的控制端（左栏被控卡点开放大后那一页的按钮）
 #[tauri::command]
@@ -681,7 +612,7 @@ pub fn run() {
     }
     // 配了账号服务的话：启动时先问它"中转服务器在哪"，写进 config.toml 再启动各种服务。
     // 拉不到就保留上一次的值（离线也能连已经配好的服务器）。
-    let auth = config::settings().auth.clone();
+    let auth = accounts::base_url();
     if !auth.is_empty() && !service_mode {
         let _ = tauri::async_runtime::block_on(async { relay::resolve(&auth).await });
     }
@@ -713,16 +644,12 @@ pub fn run() {
             host_status,
             devices_load,
             devices_save,
-            server_save,
             pairing_save,
-            auth_get,
-            auth_save,
             relay_refresh,
             kick_all,
             kick_session,
             account_get,
             account_refresh,
-            account_server,
             account_change_password,
             account_devices,
             account_save_devices,

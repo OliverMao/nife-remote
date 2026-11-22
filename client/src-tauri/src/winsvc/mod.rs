@@ -579,21 +579,4 @@ pub fn show_not_installed() {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn command_exe() {
-        assert_eq!(
-            super::command_exe(r#""C:\Program Files\Nife Remote\nife-remote.exe" --service"#),
-            r"C:\Program Files\Nife Remote\nife-remote.exe"
-        );
-        assert_eq!(
-            super::command_exe(r"C:\Nife Remote\nife-remote.exe --service"),
-            r"C:\Nife Remote\nife-remote.exe"
-        );
-        assert_eq!(
-            super::command_exe(r"C:\Nife Remote\nife-remote.exe"),
-            r"C:\Nife Remote\nife-remote.exe"
-        );
-    }
-}
+

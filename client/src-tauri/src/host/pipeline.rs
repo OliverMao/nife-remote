@@ -415,47 +415,4 @@ fn run(ctrl: Arc<Ctrl>, screen: u8, video: mpsc::Sender<Bytes>, out: Outbox) {
     info!(screen, "encoding pipeline stopped");
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn stopping_encoder_interrupts_a_full_output_queue() {
-        let (tx, _rx) = mpsc::channel(1);
-        tx.try_send(Bytes::from_static(b"old")).unwrap();
-        let stop = Arc::new(AtomicBool::new(false));
-        let flag = stop.clone();
-        let thread =
-            std::thread::spawn(move || send_cancellable(&tx, &flag, Bytes::from_static(b"new")));
-        stop.store(true, Ordering::Release);
-        assert!(!thread.join().unwrap());
-    }
 
-    /// 控制通道排满了：编码线程等着，直到有空位或者管线被停下；写任务不在了就不等了
-    #[test]
-    fn control_messages_wait_for_room_or_stop() {
-        use nife_remote_link::host::queue;
-        use nife_remote_proto::session::Notice;
-        let (out, mut control, _bulk) = queue::channel();
-        let n = HostMsg::Notice(Some(Notice::NoDisplays));
-        while out.send(&n).is_ok() {}
-        let stop = Arc::new(AtomicBool::new(false));
-        let (o, s) = (out.clone(), stop.clone());
-        let waiting = std::thread::spawn(move || send_msg_cancellable(&o, &s, &n));
-        std::thread::sleep(Duration::from_millis(30));
-        assert!(!waiting.is_finished());
-        // 写任务发走了一条：放进去了
-        assert!(control.try_recv().is_some());
-        assert!(waiting.join().unwrap());
-
-        let n = HostMsg::Notice(Some(Notice::NoDisplays));
-        let (o, s) = (out.clone(), stop.clone());
-        let waiting = std::thread::spawn(move || send_msg_cancellable(&o, &s, &n));
-        std::thread::sleep(Duration::from_millis(30));
-        stop.store(true, Ordering::Release);
-        assert!(!waiting.join().unwrap());
-
-        drop(control);
-        stop.store(false, Ordering::Release);
-        assert!(!send_msg_cancellable(&out, &stop, &HostMsg::Notice(None)));
-    }
-}

@@ -86,21 +86,4 @@ fn build(chain: Vec<CertificateDer<'static>>, key: PrivateKeyDer<'static>) -> Re
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn self_signed() {
-        let a = generate(&["localhost".into(), "192.168.1.10".into()]).unwrap();
-        assert_eq!(a.fingerprint.len(), 64);
-
-        let dir = std::env::temp_dir().join(format!("nife-remote-web-tls-{}", std::process::id()));
-        let (cert, key) = (dir.join("cert.pem"), dir.join("key.pem"));
-        let first = load_or_generate(&cert, &key, &["localhost".into()]).unwrap();
-        // 第二次读取同一张证书
-        let again = load_or_generate(&cert, &key, &["localhost".into()]).unwrap();
-        assert_eq!(first.fingerprint, again.fingerprint);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-}

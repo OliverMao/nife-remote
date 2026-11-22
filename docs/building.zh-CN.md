@@ -2,7 +2,7 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](building.md)
 
-客户端**只支持 Windows**（macOS / Linux 的实现已删除）。客户端**不需要**编译时就知道中转服务器：装好之后在客户端里填就行，所以构建前不必先去部署服务器。想做成装机即用的安装包时，再把地址和指纹编译进去作为默认值（见[服务器地址和证书指纹](#服务器地址和证书指纹)）。
+客户端**只支持 Windows**（macOS / Linux 的实现已删除）。客户端连哪个账号服务**由构建决定**（见[账号服务地址](#账号服务地址)），所以发布版要先有账号服务地址；中转服务器的地址和指纹由账号服务分配，构建时不用管。
 
 ## 桌面客户端
 
@@ -15,18 +15,25 @@
 | Node.js 20+ | 构建控制台界面 |
 | CMake | 编译 libopus |
 
-### 服务器地址和证书指纹
+### 账号服务地址
 
-客户端**构建时不需要知道服务器**：这两项都不填直接构建，装好之后在客户端里填（右上角服务器状态 → **修改** → 地址 + 可选的指纹 → **保存并重启**）。
+客户端连哪里**只由构建决定**，装好之后界面和配置文件都改不了、也看不到。地址在编译时由 `client/src-tauri/build.rs`
+读出来：环境变量 `NIFE_REMOTE_AUTH` → `client/.env` → 默认的正式服务 `https://nife-remote-auth.naig.us`。
+什么都不设直接构建就是正式服务：
 
-想做成装机即用的安装包，就用环境变量 `NIFE_REMOTE_SERVER` 和 `NIFE_REMOTE_SERVER_FP` 把默认值编译进去，或者直接改 `client/src-tauri/src/config.rs` 里的默认值：
+```powershell
+npm run tauri build
+```
 
-- 不设置 `NIFE_REMOTE_SERVER` 时，在装好的客户端里设之前用 `127.0.0.1:4433`
-- 指纹的格式不对（不是 64 位十六进制，允许用 `:` 或空格分隔）时构建会直接报错
-- 它们只是默认值，装好之后 `config.toml` 里的 `server`、`server_fp` 优先（见[配置文件](usage.zh-CN.md#配置文件)）。那里的 `server_fp` 写错了会拒绝所有连接，而不是不校验
+自己另外部署了账号服务（见[部署](../deploy/deploy.zh-CN.md)）时，构建前设环境变量，或者写进 `client/.env`
+（从 `client/.env.example` 复制）：
 
-> [!NOTE]
-> `NIFE_REMOTE_SERVER_FP` 留空时，客户端第一次连上服务器时记住它的证书（`config.toml` 里的 `[server_trust]`），之后证书变了就拒绝连接（首次连接时信任，控制台左上角显示“首次连接时信任”）。只有第一次连接防不了中间人，正式发布时请固定指纹。服务器有意换了证书时，删掉 `config.toml` 里的 `[server_trust]`。
+```powershell
+$env:NIFE_REMOTE_AUTH="https://auth.example.com"     # 反代域名，不写端口
+npm run tauri build
+```
+
+中转服务器的地址和指纹不用编译：账号服务的 `GET /relay` 分配，客户端自己跟上（见[配置文件](usage.zh-CN.md#配置文件)）。
 
 ### 构建
 
@@ -38,7 +45,7 @@ npm install
 npm run tauri build            # 只要 exe：npm run tauri build -- --no-bundle
 ```
 
-服务器地址不用编译进去（装好后在客户端里填，见[服务器地址和证书指纹](#服务器地址和证书指纹)）。打包要几分钟的话，可以先把 `client/src-tauri/Cargo.toml` 里 `[profile.release]` 的 `incremental` 打开（现在已经打开），或者只在本地验证时用 `--debug`。
+中转服务器不用编译进去（由账号服务分配，见[账号服务地址](#账号服务地址)）。打包要几分钟的话，可以先把 `client/src-tauri/Cargo.toml` 里 `[profile.release]` 的 `incremental` 打开（现在已经打开），或者只在本地验证时用 `--debug`。
 
 生成的文件都在 `client/src-tauri/target/release/` 下：
 
