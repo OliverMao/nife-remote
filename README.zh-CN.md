@@ -69,33 +69,32 @@ flowchart LR
 
 需要准备：
 
-- 一台两端都能访问到的机器，装好 Docker，开放 **UDP 4433**
+- 一台两端都能访问到的机器，装好 Docker，开放 **UDP 4433**（中转）和 **TCP 443**（Caddy）
 - 构建客户端用的 Windows 机器，以及 Rust、Node.js 20+、CMake（见[构建](docs/building.zh-CN.md#依赖)）
 
-### 1. 部署中转服务器
+### 1. 部署服务端
 
-镜像里只有程序，端口 / 卷 / 环境变量在 `docker-compose.yml` 里，所以部署机只要**两个文件**（不用 git、不用整个仓库）：
+一台装好 Docker 的机器，开放 **UDP 4433**（中转）和 **TCP 443**（Caddy，账号服务）。
+
+**1）取两个文件**（镜像里只有程序，端口 / 卷 / 环境变量在 compose 里；不用 clone 仓库）
 
 ```bash
 mkdir -p ~/nife-remote && cd ~/nife-remote
 base=https://raw.githubusercontent.com/OliverMao/nife-remote/main   # 国内不通可换 https://cdn.jsdelivr.net/gh/OliverMao/nife-remote@main
 curl -fsSLO $base/docker-compose.yml
-curl -fsSL  $base/.env.example -o .env      # 也可以从开发机 scp 这两个文件
-
-docker compose pull                          # 镜像在算力好的机器（或 CI）上构建并推送，部署机只拉
-docker compose up -d
-docker compose logs nife-remote | grep fingerprint   # 记下证书的 SHA-256 指纹
+curl -fsSL  $base/.env.example -o .env
 ```
 
-以后升级只改 `.env` 里的 tag，再 `docker compose pull && docker compose up -d`，这两个文件不用再取。
+**2）填 `.env`**
 
-证书和控制码数据库都在 `data/` 目录里，**请保留这个目录**：证书换了，已经构建好的客户端就连不上了。服务器的配置项在 `docker-compose.yml` 里。
+```ini
+NIFE_REMOTE_IMAGE=mirror.naig.us/nife-remote-server:0.0.1
+NIFE_REMOTE_AUTH_IMAGE=mirror.naig.us/nife-remote-auth:0.0.1
+NIFE_REMOTE_AUTH_RELAY_HOST=relay.example.com:4433   # 客户端直连的中转地址（原样交给客户端）
+NIFE_REMOTE_AUTH_RELAY_FP=                           # 留空 = 客户端第一次连接时记下指纹
+```
 
-### 1.5 账号服务（可选：登录、我的设备）
-
-同一份 `docker-compose.yml` 和 `.env` 里就有：填 `NIFE_REMOTE_AUTH_IMAGE`，再填 `NIFE_REMOTE_AUTH_RELAY_HOST`
-（中转服务器的 `host:port`，**原样**交给客户端）和可选的 `NIFE_REMOTE_AUTH_RELAY_FP`，`docker compose up -d`
-会把它一起起来。账号服务默认只绑 `127.0.0.1:8080`，由反向代理用 HTTPS 对外：
+**3）Caddy 反代账号服务**（客户端和网页控制台都用 `https://auth.example.com`）
 
 ```caddyfile
 auth.example.com {
@@ -103,13 +102,23 @@ auth.example.com {
 }
 ```
 
-客户端只填账号服务地址（`https://auth.example.com`），中转地址和指纹由它分配。
+写进 `/etc/caddy/Caddyfile`（和已有站点并列），然后 `systemctl reload caddy`。域名要解析到这台机器，
+`80` / `443` 要放行，Caddy 会自动申请证书。
 
-* **中转服务器不能走反代**：它是裸 QUIC（UDP 4433，ALPN 不是 HTTP），Caddy / nginx 都代理不了。客户端按
-  证书**指纹**校验、不看域名，所以 `NIFE_REMOTE_AUTH_RELAY_HOST` 填客户端能直接访问到的地址（放行 UDP 4433）
-* 账号服务可以和中转服务器不在同一台机器上：它只把地址和指纹交给客户端，两者之间没有网络依赖
-* 想要裸 HTTP 直连：`.env` 里 `NIFE_REMOTE_AUTH_BIND=0.0.0.0`，并把 `NIFE_REMOTE_AUTH_FORWARDED_ALLOW_IPS` 设空
-  （否则客户端能伪造 `X-Forwarded-For` 绕过登录限速）
+**4）启动**
+
+```bash
+docker compose pull && docker compose up -d
+curl -s https://auth.example.com/health        # {"ok":true,...,"relay":"relay.example.com:4433"}
+curl -s https://auth.example.com/relay         # {"relay":{"address":"...","fingerprint":""}}
+```
+
+首次启动自动建账号 `niferemote` / `niferemote`，登录后立刻改密码。
+
+- 中转服务器**不要**放进 Caddy：它是 UDP 4433 的 QUIC，代理不了，客户端直连
+- 数据在 `data/`（证书、控制码数据库、`auth/accounts.json`），**保留这个目录**
+- 升级：改 `.env` 里的 tag → `docker compose pull && docker compose up -d`
+- 账号服务也可以和中转服务器分在两台机器上：它只把地址和指纹交给客户端
 
 ### 2. 构建客户端（Windows）
 
@@ -119,7 +128,8 @@ npm install
 npm run tauri build            # 出安装包：bundle/nsis/Nife Remote_<版本>_x64-setup.exe
 ```
 
-服务器地址不用编译进去：装好之后在控制台的服务器面板里填（也可以写进 [`config.toml`](docs/usage.zh-CN.md#配置文件)）。想做成装机即用，构建前设 `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` 当默认值。
+客户端只需要账号服务地址。装机即用就在构建前设 `NIFE_REMOTE_AUTH=https://auth.example.com`；装好的在
+右上角 ☰ → 中转服务器 → **修改** 里填，保存后重启。
 
 ### 3. 连接
 
@@ -137,11 +147,24 @@ npm run tauri build            # 出安装包：bundle/nsis/Nife Remote_<版本>
 mkdir -p client/web && cd client/web
 base=https://raw.githubusercontent.com/OliverMao/nife-remote/main
 curl -fsSLO $base/client/web/docker-compose.yml
-curl -fsSL  $base/client/web/.env.example -o .env     # 填镜像、中转地址和指纹
-docker compose up -d
+curl -fsSL  $base/client/web/.env.example -o .env
 ```
 
-在这台机器上打开 `http://localhost:8080`，从其它电脑打开 `https://<这台机器的地址>:8080`。访问密码、HTTPS 证书、反向代理的配置都在 `client/web/docker-compose.yml` 和 `client/web/.env.example` 的注释里。
+`.env` 填三项：
+
+```ini
+NIFE_REMOTE_WEB_PORT=3000                            # 8080 被账号服务占了
+NIFE_REMOTE_SERVER=relay.example.com:4433            # 中转地址
+NIFE_REMOTE_SERVER_FP=<中转服务器的证书指纹>
+```
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+本机打开 `http://localhost:3000`，其它电脑 `https://<这台机器的地址>:3000`（自签证书，浏览器提示“不安全”，
+继续即可）。要正规证书就在 Caddyfile 里加 `web.example.com { reverse_proxy 127.0.0.1:3000 }`；访问密码
+`NIFE_REMOTE_WEB_PASSWORD=...`。
 
 ## 文档
 

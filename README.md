@@ -69,35 +69,32 @@ The host connects to the relay server and gets a 6-digit control code; the contr
 
 You need:
 
-- A machine both sides can reach, with Docker and **UDP 4433** open
+- A machine both sides can reach, with Docker and **UDP 4433** (relay) plus **TCP 443** (Caddy) open
 - A Windows build machine, plus Rust, Node.js 20+ and CMake (see [Building](docs/building.md#requirements))
 
-### 1. Deploy the relay server
+### 1. Deploy the server
 
-Images only carry the program; ports, volumes and environment variables live in `docker-compose.yml`, so the
-deployment machine needs **two files** (no git, no repository):
+One machine with Docker, **UDP 4433** (relay) and **TCP 443** (Caddy, account service) open.
+
+**1) Fetch two files** (images only carry the program; ports, volumes and environment variables live in the compose file — no repository needed)
 
 ```bash
 mkdir -p ~/nife-remote && cd ~/nife-remote
 base=https://raw.githubusercontent.com/OliverMao/nife-remote/main   # jsDelivr mirror: https://cdn.jsdelivr.net/gh/OliverMao/nife-remote@main
 curl -fsSLO $base/docker-compose.yml
-curl -fsSL  $base/.env.example -o .env      # or scp these two files from the build machine
-
-docker compose pull                          # images are built on a machine with spare CPU / in CI; here we only pull
-docker compose up -d
-docker compose logs nife-remote | grep fingerprint   # note the certificate's SHA-256 fingerprint
+curl -fsSL  $base/.env.example -o .env
 ```
 
-Upgrades only change the tag in `.env` and re-run `docker compose pull && docker compose up -d`; these two files stay put.
+**2) Fill in `.env`**
 
-The certificate and the control-code database live in `data/`. **Keep that directory**: with a new certificate, clients you've already built can no longer connect. Server settings are in `docker-compose.yml`.
+```ini
+NIFE_REMOTE_IMAGE=mirror.naig.us/nife-remote-server:0.0.1
+NIFE_REMOTE_AUTH_IMAGE=mirror.naig.us/nife-remote-auth:0.0.1
+NIFE_REMOTE_AUTH_RELAY_HOST=relay.example.com:4433   # relay clients connect to (passed through as-is)
+NIFE_REMOTE_AUTH_RELAY_FP=                           # empty = trust on first use
+```
 
-### 1.5 Account service (optional: sign in, My devices)
-
-It lives in the same `docker-compose.yml` and `.env`: set `NIFE_REMOTE_AUTH_IMAGE`, plus
-`NIFE_REMOTE_AUTH_RELAY_HOST` (the relay's `host:port`, handed to clients **verbatim**) and optionally
-`NIFE_REMOTE_AUTH_RELAY_FP`; `docker compose up -d` starts it along with the relay. The account service binds
-to `127.0.0.1:8080` only and is exposed over HTTPS by a reverse proxy:
+**3) Caddy proxies the account service** (clients and the web console use `https://auth.example.com`)
 
 ```caddyfile
 auth.example.com {
@@ -105,17 +102,23 @@ auth.example.com {
 }
 ```
 
-Clients only need the account service address (`https://auth.example.com`); the relay address and fingerprint
-come from it.
+Put it in `/etc/caddy/Caddyfile` next to your other sites, then `systemctl reload caddy`. The domain must resolve
+to this machine and `80` / `443` must be open; Caddy obtains the certificate.
 
-* **The relay cannot be proxied**: it is raw QUIC (UDP 4433, ALPN is not HTTP), so neither Caddy nor nginx can
-  front it. Clients verify the certificate **fingerprint**, not the host name, so `NIFE_REMOTE_AUTH_RELAY_HOST`
-  must be an address clients can reach directly (allow UDP 4433)
-* The account service can live on a different machine than the relay: it only hands out the address and
-  fingerprint, there is no network dependency between the two
-* Plain HTTP, no proxy: set `NIFE_REMOTE_AUTH_BIND=0.0.0.0` in `.env` and set
-  `NIFE_REMOTE_AUTH_FORWARDED_ALLOW_IPS` to empty (otherwise clients can spoof `X-Forwarded-For` to dodge the
-  login rate limit)
+**4) Start**
+
+```bash
+docker compose pull && docker compose up -d
+curl -s https://auth.example.com/health        # {"ok":true,...,"relay":"relay.example.com:4433"}
+curl -s https://auth.example.com/relay         # {"relay":{"address":"...","fingerprint":""}}
+```
+
+An account `niferemote` / `niferemote` is created on first start — change the password after signing in.
+
+- The relay **must not** go through Caddy: it is QUIC on UDP 4433, clients connect to it directly
+- Data lives in `data/` (certificate, control-code database, `auth/accounts.json`) — **keep it**
+- Upgrade: change the tag in `.env` → `docker compose pull && docker compose up -d`
+- The account service may run on a different machine than the relay: it only hands out the address and fingerprint
 
 ### 2. Build the client (Windows)
 
@@ -125,7 +128,8 @@ npm install
 npm run tauri build            # installer: bundle/nsis/Nife Remote_<version>_x64-setup.exe
 ```
 
-The server address doesn't have to be compiled in: set it in the console's server panel after installing (or in [`config.toml`](docs/usage.md#configuration-file)). To ship it preconfigured, set `NIFE_REMOTE_SERVER` / `NIFE_REMOTE_SERVER_FP` as defaults before building.
+The client only needs the account service address. For a preconfigured build set `NIFE_REMOTE_AUTH=https://auth.example.com`
+before building; otherwise set it after installing under ☰ → relay status → **Change**.
 
 ### 3. Connect
 
@@ -143,11 +147,24 @@ Start the web console on any machine with Docker and use it from a browser:
 mkdir -p client/web && cd client/web
 base=https://raw.githubusercontent.com/OliverMao/nife-remote/main
 curl -fsSLO $base/client/web/docker-compose.yml
-curl -fsSL  $base/client/web/.env.example -o .env     # image, relay address and fingerprint
-docker compose up -d
+curl -fsSL  $base/client/web/.env.example -o .env
 ```
 
-Open `http://localhost:8080` on that machine, or `https://<its address>:8080` from other computers. The access password, the HTTPS certificate and the reverse proxy setup are all commented in `client/web/docker-compose.yml` and `client/web/.env.example`.
+Three values in `.env`:
+
+```ini
+NIFE_REMOTE_WEB_PORT=3000                            # 8080 is taken by the account service
+NIFE_REMOTE_SERVER=relay.example.com:4433            # relay address
+NIFE_REMOTE_SERVER_FP=<relay certificate fingerprint>
+```
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Open `http://localhost:3000` on that machine, or `https://<its address>:3000` from other computers (self-signed
+certificate, accept the warning). For a real certificate add `web.example.com { reverse_proxy 127.0.0.1:3000 }` to
+the Caddyfile; access password: `NIFE_REMOTE_WEB_PASSWORD=...`.
 
 ## Documentation
 
