@@ -2,7 +2,7 @@
 //
 // 只在显示时调用（组件渲染时），所以切换语言后已经显示的问题和提示也会跟着变。
 // 词条在 i18n.ts 的 problem.* / notice.*；每种 kind 都必须有词条（下面的 `as const` 让 TypeScript 检查）。
-import { toProblem, type Problem, type RemoteNotice } from "./api";
+import { toProblem, type OpenSessionState, type Problem, type RemoteNotice } from "./api";
 import { t } from "./i18n";
 import type { RemoteSession } from "./session";
 
@@ -25,6 +25,8 @@ export const RECOVERS: Record<RecoveredNotice["kind"], SessionNotice["kind"]> = 
 export type SessionNotice = Exclude<RemoteNotice, RecoveredNotice> | LocalNotice;
 
 export function problemText(p: Problem): string {
+  // 第一次连一台电脑要配对码：窗口里只有一个"配对码"输入框，不是一句状态说明，这里不写文字
+  if (p.kind === "pairingRequired") return "";
   const { kind, ...params } = p;
   return t(`problem.${kind}` as const, params);
 }
@@ -34,7 +36,7 @@ export function noticeText(n: SessionNotice): string {
   return t(`notice.${kind}` as const, params);
 }
 
-/** 会话现在的状态（标签的提示、多屏总览、全屏时的切换菜单）：连着时是帧率和延迟 */
+/** 会话现在的状态（工具栏上、等待/重连时的提示）：连着时是帧率和延迟 */
 export function sessionStateText(s: RemoteSession): string {
   switch (s.state) {
     case "live":
@@ -49,6 +51,24 @@ export function sessionStateText(s: RemoteSession): string {
       return t("common.connecting");
     case "closed":
       return s.closedReason ? problemText(s.closedReason) : t("common.disconnected");
+  }
+}
+
+/** 开着的远程窗口现在的样子（左栏"会话中"、设备列表）：控制台只看得到状态名，看不到帧率 */
+export function openStateText(state: OpenSessionState): string {
+  switch (state) {
+    case "live":
+      return t("devices.open");
+    case "reconnecting":
+      return t("common.reconnecting");
+    case "waiting":
+      return t("common.waiting");
+    case "approving":
+      return t("common.approving");
+    case "connecting":
+      return t("common.connecting");
+    case "closed":
+      return t("common.disconnected");
   }
 }
 

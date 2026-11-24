@@ -14,16 +14,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
-use nife_remote_proto::session::{CursorShape, CursorVisibility, DisplayInfo, Notice, QualitySettings};
 use anyhow::{Result, anyhow};
+use nife_remote_proto::session::{
+    CursorShape, CursorVisibility, DisplayInfo, Notice, QualitySettings,
+};
 use tracing::{info, warn};
 
 use super::pace::Pacer;
 
 pub use dxgi::{D3dSource, GpuFrame};
-
-
-
 
 /// 每打开一次采集换一个编号（[`GpuFrame::source`]）：GPU 上的画面只能交给同一个设备上建的编码器
 pub(crate) fn next_source() -> u64 {
@@ -330,7 +329,15 @@ struct CaptureShared {
     stop: AtomicBool,
     /// 订阅者 -> 期望帧率
     subs: Mutex<HashMap<u64, u8>>,
+    /// 最后一个订阅者离开的时刻：采集线程看到没人要了，再留 [`IDLE_GRACE`] 才真的退出
+    idle: Mutex<Option<Instant>>,
 }
+
+/// 最后一个订阅者走了之后，采集再留这么久。
+///
+/// 在显示器的标签之间来回切时（见 `host::session` 的换屏）不用重新打开桌面复制：每次打开都要新建
+/// D3D 设备、重新 `DuplicateOutput`，是几百毫秒的卡顿。留着的这段时间里画面静止，几乎不占资源。
+const IDLE_GRACE: Duration = Duration::from_secs(60);
 
 impl CaptureShared {
     fn max_fps(&self) -> u8 {
@@ -364,12 +371,12 @@ impl Subscription {
 impl Drop for Subscription {
     fn drop(&mut self) {
         // 先拿 hub 锁，保证与 subscribe 的"复用判断"互斥
-        let mut hub = HUB.lock().unwrap();
+        let _hub = HUB.lock().unwrap();
         let mut subs = self.shared.subs.lock().unwrap();
         subs.remove(&self.id);
         if subs.is_empty() {
-            self.shared.stop.store(true, Ordering::Release);
-            hub.remove(&self.shared.key);
+            // 不马上停：留 [IDLE_GRACE] 让下一个订阅直接接上（见那个常量的说明）
+            *self.shared.idle.lock().unwrap() = Some(Instant::now());
         }
     }
 }
@@ -390,6 +397,8 @@ pub fn subscribe(index: u8, fps: u8, output: Output) -> Subscription {
     if let Some(shared) = hub.get(&key).and_then(Weak::upgrade)
         && !shared.stop.load(Ordering::Acquire)
     {
+        // 还在（上一个订阅者刚走、线程还在待命）：直接接上，不用重新打开
+        *shared.idle.lock().unwrap() = None;
         shared.subs.lock().unwrap().insert(id, fps);
         return Subscription { shared, id };
     }
@@ -398,6 +407,7 @@ pub fn subscribe(index: u8, fps: u8, output: Output) -> Subscription {
         slot: FrameSlot::new(),
         stop: AtomicBool::new(false),
         subs: Mutex::new(HashMap::from([(id, fps)])),
+        idle: Mutex::new(None),
     });
     hub.insert(key, Arc::downgrade(&shared));
     let thread_shared = shared.clone();
@@ -428,6 +438,17 @@ fn capture_loop(shared: Arc<CaptureShared>) {
     let mut fps = shared.max_fps();
     let mut pacer = Pacer::new(fps);
     while !shared.stop.load(Ordering::Acquire) {
+        // 没人要了：留一会儿再退（在显示器之间来回切时不用重新打开，见 [IDLE_GRACE]）
+        if shared.subs.lock().unwrap().is_empty()
+            && shared
+                .idle
+                .lock()
+                .unwrap()
+                .is_some_and(|t| t.elapsed() >= IDLE_GRACE)
+        {
+            info!(screen = index, "capture idle, stopping");
+            break;
+        }
         let c = match cap.as_mut() {
             Some(c) => c,
             None => match open(index, shared.max_fps(), output) {
@@ -512,14 +533,9 @@ fn open(index: u8, _fps: u8, _output: Output) -> anyhow::Result<Box<dyn Capturer
     Ok(Box::new(dxgi::DxgiCapturer::open(index)?))
 }
 
-
-
-
 /// 列出所有显示器。
 pub fn displays() -> Vec<DisplayInfo> {
-    {
-        super::dpi_aware(|| dxgi::displays().unwrap_or_default())
-    }
+    super::dpi_aware(|| dxgi::displays().unwrap_or_default())
 }
 
 /// 被控端运行环境需要让控制端知道的情况（Windows 上没有）。
@@ -535,5 +551,3 @@ pub(crate) fn raise_priority() {
         let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     }
 }
-
-

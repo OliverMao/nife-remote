@@ -247,6 +247,3 @@ impl nife_remote_link::controller::ClipboardSync for ClipSync {
         ClipSync::apply(self, text)
     }
 }
-
-
-

@@ -75,7 +75,15 @@ impl Place {
             | HostMsg::Bye(_)
             | HostMsg::Direct(_)
             // 麦克风的状态很少变，跟在 Hello 后面按顺序发
-            | HostMsg::Mic { .. } => queued(None),
+            | HostMsg::Mic { .. }
+            // 文件传输的回答：按顺序发（大块通道上的数据也要保持顺序）
+            | HostMsg::FsRoots { .. }
+            | HostMsg::FsList { .. }
+            | HostMsg::FsExists { .. }
+            | HostMsg::FsOpened { .. }
+            | HostMsg::FsData { .. }
+            | HostMsg::FsWritten { .. }
+            | HostMsg::FsError { .. } => queued(None),
         }
     }
 

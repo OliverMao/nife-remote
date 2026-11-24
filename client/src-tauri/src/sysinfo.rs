@@ -62,10 +62,3 @@ fn os_name() -> String {
         None => product,
     }
 }
-
-
-
-
-
-
-

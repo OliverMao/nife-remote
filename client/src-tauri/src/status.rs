@@ -104,5 +104,3 @@ pub fn controller_reporter(hub: &StatusHub) -> Report {
         });
     })
 }
-
-

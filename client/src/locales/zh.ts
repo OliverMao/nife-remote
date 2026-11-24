@@ -14,6 +14,8 @@ export default {
   "web.localName": "网页控制台",
   "web.start": "开始使用",
   "common.cancel": "取消",
+  "common.back": "返回",
+  "common.delete": "删除",
   "common.connecting": "连接中…",
   "common.disconnected": "已断开",
   "common.disconnect": "断开",
@@ -22,12 +24,7 @@ export default {
   "common.approving": "等待对方同意",
   "common.thisComputer": "本机",
 
-  // 标签栏（也是窗口的标题栏）
-  "tabs.new": "新建连接",
-  "tabs.newTip": "新建连接（Ctrl+T）",
-  "tabs.grid": "多屏总览",
-  "tabs.closeSession": "断开连接（Ctrl+W）",
-  "tabs.closeDraft": "关闭（Ctrl+W）",
+  // 窗口按钮（标题栏右侧）
   "window.minimize": "最小化",
   "window.maximize": "最大化",
   "window.restore": "向下还原",
@@ -44,8 +41,6 @@ export default {
   "server.retrying": "正在自动重试…",
   "server.retryLater": "稍后会自动重试",
   "server.notSet": "还没连上服务器：连上之后才能远程控制，这里不用设置",
-  "server.unpinned": "首次连接时信任",
-  "server.unpinnedHint": "未配置证书指纹：第一次连接时记住了服务器的证书，之后证书变了就拒绝连接",
 
   // 设置（标签栏右侧的齿轮）
   "menu.title": "设置",
@@ -57,13 +52,9 @@ export default {
   "menu.network": "网络状态",
   "menu.quality": "画质",
   "menu.qualityHint": "新连接用这个画质；连上之后可以在会话工具栏里单独调",
-  "menu.shortcuts": "键盘快捷键",
-  "menu.shortcutsHint": "没有在操作远程电脑时可用",
-  "shortcut.newTab": "新建连接",
-  "shortcut.closeTab": "关闭当前标签",
-  "shortcut.nextTab": "切换到下一个 / 上一个标签",
-  "shortcut.reopen": "重新打开刚关闭的连接",
-  "shortcut.nthTab": "切换到第 1~9 个标签",
+  "menu.clearCache": "清理本地缓存",
+  "menu.clearCacheHint": "临时文件和这台电脑上的显示偏好",
+  "menu.cleared": "已清理 {size}",
 
   // 关闭控制台之前确认（被控端不受影响，别人还是能连本机）
 
@@ -136,9 +127,6 @@ export default {
   "assist.partnerPlaceholder": "请输入设备ID",
   "assist.connect": "连接",
   "assist.connecting": "连接中…",
-  "assist.partnerPairing": "配对码（对方托盘菜单里）",
-  "assist.partnerPairingHint": "第一次连这台电脑要配对：输完配对码再点连接，之后就不用输了",
-  "assist.connectPaired": "配对并连接",
   "assist.recent": "最近连接",
   "assist.clearRecent": "清除记录",
   "assist.soon": "还没做（界面稿）",
@@ -151,6 +139,7 @@ export default {
   "device.open": "打开",
   "device.more": "更多",
   "device.online": "在线",
+  "device.unknownState": "状态未知",
   "device.offline": "不在线",
   "device.close": "关闭",
   "device.show": "显示远程窗口",
@@ -188,15 +177,18 @@ export default {
   "sidebar.sessions": "会话中",
   "devices.title": "我的设备",
   "devices.refresh": "刷新我的设备",
-  "devices.hint": "连接过的电脑自动保存在这里，点一下就连",
-  "devices.hintWeb": "网页版不保存，刷新页面后清空",
-  "devices.empty": "连接过的电脑会自动保存在这里，下次点一下就能连上",
+  "devices.hint": "同一账号下的设备",
+  "devices.hintWeb": "网页版不显示账号设备",
+  "devices.empty": "本账号下还没有其他设备",
+  "devices.signIn": "登录后显示同一账号下的设备",
+  "devices.thisDevice": "本机",
+  "devices.unnamed": "未命名设备",
   "devices.search": "搜索名称或控制码",
-  "devices.noMatch": "没有匹配的设备",
+  "devices.noMatch": "未找到匹配的设备",
   "devices.rename": "重命名",
-  "devices.forget": "从我的设备中移除",
-  "devices.removed": "已移除 {name}",
-  "devices.undo": "撤销",
+  "devices.forget": "删除",
+  "devices.removeTitle": "删除设备",
+  "devices.removeAsk": "确定把 {name} 从“我的设备”里移除？它下次登录会重新出现。",
   "devices.open": "已打开",
   "devices.known": "我的设备：{name}",
 
@@ -214,12 +206,7 @@ export default {
 
   "codec.hint.h264": "兼容性最好",
   "codec.hint.h265": "同画质省 30~40% 带宽",
-  "codec.hint.av1": "同画质省 40~50% 带宽",
-
-  // 多屏总览
-  "grid.summary": "共 {n} 台设备 · 点击画面进入控制",
-  "grid.add": "添加设备",
-  "grid.open": "进入控制",
+  "codec.hint.av1": "同画质省 40~50% 带宽（实验：有的电脑解不出来，会是黑屏）",
 
   // 画质面板
   "quality.title": "画质与带宽",
@@ -261,28 +248,84 @@ export default {
   "session.direct": "直连",
   "session.relayed": "中转",
   "session.pathTitle": "画面走的路：直连是两台设备之间打通的路，不经过服务器；中转经过服务器。两条路都通时自动选延迟低的那条",
-  "session.switchSession": "切换到其它连接",
   "session.switchDisplay": "切换显示器",
   "session.display": "显示器 {n}",
   "session.primary": "（主）",
   "session.quality": "画质",
+  "session.controlCenter": "控制中心",
+  "session.remoteComputer": "远程电脑",
+  // 文件传输窗口（components/FileTransfer.tsx）
+  "files.title": "文件传输",
+  "files.local": "本机",
+  "files.remote": "远程",
+  "files.thisComputer": "本机",
+  "files.send": "发送",
+  "files.unsupported": "对方电脑的版本不支持文件传输，请对方更新 Nife Remote",
+  "files.name": "名称",
+  "files.modified": "修改日期",
+  "files.type": "类型",
+  "files.size": "大小",
+  "files.folder": "文件夹",
+  "files.up": "上一级",
+  "files.home": "默认目录",
+  "files.refresh": "刷新",
+  "files.empty": "这个文件夹是空的",
+  "files.waitServer": "正在连接服务器…",
+  "files.waitHost": "正在连接对方电脑…",
+  "files.tooMany": "还有 {n} 项没显示（进入子目录查看）",
+  "files.jobs": "传输列表",
+  "files.jobsCount": "已传输 {n} 个文件",
+  "files.cancelAll": "全部取消",
+  "files.clearDone": "清除完结任务",
+  "files.status": "状态",
+  "files.from": "发送路径",
+  "files.to": "接收路径",
+  "files.state.done": "已发送",
+  "files.state.failed": "失败",
+  "files.state.skipped": "已跳过",
+  "files.state.running": "传输中",
+  "files.places": "位置",
+  "files.thisPc": "此电脑",
+  "files.desktop": "桌面",
+  "files.documents": "文档",
+  "files.downloads": "下载",
+  "files.pictures": "图片",
+  "files.videos": "视频",
+  "files.music": "音乐",
+  "files.recent": "最近使用",
+  "files.goPath": "输入路径或搜索",
+  "files.pauseAll": "全部暂停",
+  "files.startAll": "全部开始",
+  "files.cancel": "取消",
+  "files.remove": "移除",
+  "files.state.paused": "已暂停",
+  "files.state.cancelled": "已取消",
+  "files.op": "操作",
+  "files.select": "选择",
+  "files.conflictTitle": "提示",
+  "files.conflictAsk": "{name} 已存在，是否替换？",
+  "files.skip": "跳过",
+  "files.replace": "替换",
+  "files.keepBoth": "保留两者",
+  "session.noPicture": "对方还没有发送画面",
+  "session.noPictureHint": "对方电脑可能锁屏、没有接显示器，或者采集失败",
+  "session.scale": "画面大小",
+  "session.fit": "适应窗口",
+  "session.native": "原始大小",
+  "session.pullOutHint": "松开：显示 {n} 单独开一个窗口",
+  "session.mouseLockHint": "可在游戏里转视角时用 · 快捷键 Ctrl+Alt+Shift+M",
   "session.shortcuts": "发送快捷键",
   "session.clipboard": "剪贴板",
   "session.clipSync": "双向同步剪贴板",
-  "session.clipSyncHint": "复制的文本自动出现在另一端",
-  "session.clipSyncHintWeb": "对方复制的文本会复制到这里；这里复制的文本在回到本页面时发过去（浏览器询问时请允许访问剪贴板）",
-  "session.clipType": "以键盘输入方式发送剪贴板",
-  "session.clipTypeHint": "适用于登录框等禁止粘贴的地方",
+  "session.clipType": "发送剪贴板",
+  "session.clipTypeHint": "禁止粘贴的地方用",
   "session.sound": "声音",
   "session.soundMuted": "声音（已静音）",
   "session.playSound": "播放远程声音",
   "session.avSync": "音画同步",
-  "session.avSyncHint": "画面等声音对齐，适合看视频；操作会变慢",
-  "session.mic": "麦克风",
-  "session.micOn": "麦克风（正在发给对方）",
-  "session.mouseLock": "锁定鼠标（游戏里转视角时用，Ctrl+Alt+Shift+M）",
-  "session.mouseUnlock": "解除鼠标锁定（Ctrl+Alt+Shift+M，或长按 Esc）",
-  "session.mouseLocked": "鼠标已锁定在画面上，长按 Esc 或按 Ctrl+Alt+Shift+M 解除",
+  "session.mouseLock": "锁定鼠标",
+  "session.mouseUnlock": "解除鼠标锁定",
+  "session.mouseLocked": "鼠标已锁定，长按 Esc 解除",
   "session.toNative": "切换为原始大小（1:1）",
   "session.toFit": "切换为适应窗口",
   "session.fullscreen": "全屏",
@@ -292,7 +335,6 @@ export default {
   "session.lost": "连接已断开",
   "session.ended": "会话已结束",
   "session.reconnect": "重新连接",
-  "session.pairAndReconnect": "配对并重新连接",
   "session.safety": "安全码 {code}",
   "session.safetyHint": "端到端加密。对方电脑的托盘里显示的安全码相同，就说明中间没有人",
   "session.close": "关闭",
@@ -318,10 +360,8 @@ export default {
   "session.typed": "已键入 {n} 个字符",
 
   // 声音 / 音画同步提示
-  "audio.muted": "已静音，被控端停止采集声音",
   "audio.jitter": "抖动缓冲 {ms} ms",
   "audio.remote": "对方电脑正在播放的声音",
-  "sync.needSound": "需要先打开声音",
   "sync.waiting": "等待对方播放声音后开始测量",
   "sync.audioLate": "未同步：声音比画面晚约 {ms} ms",
   "sync.videoLate": "未同步：画面比声音晚约 {ms} ms",
@@ -331,11 +371,12 @@ export default {
   "sync.videoDelayed": "已同步：画面推迟 {ms} ms（{before}）",
 
   // 麦克风：把本机的麦克风发给对方（对方电脑上是虚拟麦克风 Steam Streaming Microphone）
-  "mic.send": "把本机麦克风发给对方",
-  "mic.ready": "在对方电脑的程序里把录音设备选成 Steam Streaming Microphone（或者在那台电脑的声音设置里设为默认），就能听到你说话。只在正在查看这个连接时发送",
-  "mic.live": "正在发送：对方电脑上的 Steam Streaming Microphone 里就是你的声音",
-  "mic.noDevice": "对方电脑上没有 Steam Streaming Microphone：在那台电脑上安装 Steam，用一次 Steam 远程同乐（Remote Play），就会装上这个虚拟麦克风",
-  "mic.busy": "另一个控制端正在用对方的麦克风，它关掉之后自动换成你",
+  "mic.send": "本机麦克风",
+  "mic.ready": "只在正在查看这个连接时发送",
+  "mic.live": "正在发送",
+  "mic.noDevice": "对方没有虚拟麦克风",
+  "mic.busy": "另一个控制端正在用",
+  "mic.noDeviceTip": "对方电脑要装 Steam 并用过一次 Steam 远程同乐（Remote Play）才会有这个虚拟麦克风",
   "mic.failed": "对方电脑打不开 Steam Streaming Microphone，正在重试：{detail}",
   "mic.local.unsupported": "这里不能采集麦克风（需要较新的 Chrome、Edge 或 Firefox）",
   "mic.local.denied": "没有允许使用麦克风：请在浏览器的网站设置或系统的隐私设置里允许",
@@ -388,12 +429,12 @@ export default {
   "web.unsupported.body": "控制台需要 WebCodecs 视频解码，请使用较新版本的 Chrome、Edge、Safari 或 Firefox。",
 
   // 问题（类型，见 Rust 的 problem.rs）：与中转服务器的连接
-  "problem.serverUnreachable": "无法连接服务器：{detail}",
-  "problem.certMismatch": "服务器证书与固定的指纹（或第一次连接时记住的证书）不一致，连接可能被人拦截。服务器确实换了证书的话，更新指纹或删掉记住的证书（config.toml 里的 server_fp / [server_trust]；网页控制台是 NIFE_REMOTE_SERVER_FP / server-trust.txt）",
+  "problem.serverUnreachable": "无法连接服务器，请检查网络后重试",
+  "problem.certMismatch": "无法验证服务器身份，连接已中断。请稍后重试，问题持续请联系管理员",
   "problem.incompatible": (p) =>
     Number(p.server) > Number(p.client) ? "与服务器版本不兼容：服务器较新，请更新 Nife Remote" : "与服务器版本不兼容：服务器较旧，请更新服务器",
-  "problem.serverLost": "与服务器的连接已断开：{detail}",
-  "problem.noServer": "还没有填写中转服务器地址（点右上角的服务器状态 → 修改）",
+  "problem.serverLost": "与服务器的连接已断开，正在重新连接",
+  "problem.noServer": "尚未获取到服务器地址，请稍后重试",
   // 连接被控端
   "problem.notConnected": "尚未连接到服务器，请稍候重试",
   "problem.invalidCode": "控制码应为 6 位数字",
@@ -403,11 +444,9 @@ export default {
   "problem.serverTimeout": "服务器响应超时",
   "problem.hostOffline": "对方已离线",
   // 端到端加密（见 Rust 的 nife_remote_proto::handshake）
-  "problem.hostKeyChanged":
-    "对方电脑的身份和上次连接时不一样：可能是对方重装了 Nife Remote，也可能有人在冒充它。确认是对方重装之后，输入对方现在的配对码重新配对（手机没有配对码：在我的设备里删掉它再连）",
-  "problem.pairingRequired": "第一次连接这台电脑，需要配对码：在对方电脑的 Nife Remote 托盘菜单里可以看到",
+  "problem.hostKeyChanged": "对方设备的安全凭据已变化，可能是重装了 Nife Remote。确认是对方本人操作后，输入对方当前的配对码重新连接",
   "problem.pairingFailed": "配对码不对，请核对对方托盘菜单里的配对码",
-  "problem.pairingUnavailable": "对方暂停了配对（有人多次输错配对码）：请对方在托盘菜单里换一个配对码",
+  "problem.pairingUnavailable": "对方已暂时停止配对，请对方更换配对码后重试",
   "problem.peerIncompatible": (p) =>
     Number(p.peer) > Number(p.ours) ? "与对方电脑的版本不兼容：对方较新，请更新本机的 Nife Remote" : "与对方电脑的版本不兼容：对方较旧，请对方更新 Nife Remote",
   // 会话
@@ -421,7 +460,27 @@ export default {
   // 其它
   "problem.noSession": "会话不存在",
   "problem.noClipboardText": "本机剪贴板没有文本",
-  "problem.failed": "出错了：{detail}",
-  "problem.consoleLost": "与 Nife Remote 控制端服务的连接断开了",
-  "problem.clipboardBlocked": "浏览器不允许读取剪贴板，请在地址栏的网站设置里允许访问剪贴板",
+  "problem.failed": "操作失败，请稍后重试",
+  "problem.account": (p) => {
+    switch (p.code) {
+      case "wrong_password":
+        return "密码不正确";
+      case "no_such_user":
+        return "账号不存在";
+      case "name_taken":
+        return "该账号名已被使用";
+      case "bad_name":
+        return "账号名只能包含字母、数字和 _ - .";
+      case "bad_token":
+        return "登录状态已失效，请重新登录";
+      case "not_signed_in":
+        return "请先登录";
+      case "no_service":
+        return "当前版本无法登录，请联系管理员";
+      default:
+        return "操作失败，请稍后重试";
+    }
+  },
+  "problem.consoleLost": "与控制台服务的连接已断开，请重新打开控制台",
+  "problem.clipboardBlocked": "浏览器未授权剪贴板权限，请在网站设置中允许",
 } satisfies Record<string, Msg>;

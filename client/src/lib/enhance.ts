@@ -30,7 +30,7 @@ export interface Area {
 /**
  * 画面 `fw`×`fh` 显示在 `area`（设备像素；null = 1:1 显示）里时 canvas 画多大、要不要增强。
  * 增强时 canvas 就是显示的大小（浏览器不再缩放，见 session.ts 的 layout）；要缩小时（多半是窗口刚变小、
- * 新尺寸的画面还没到，或者多屏总览的缩略图）交给浏览器，不增强。与主线程的 fitSize 用同一套算法
+ * 新尺寸的画面还没到）交给浏览器，不增强。与主线程的 fitSize 用同一套算法
  */
 export function renderPlan(fw: number, fh: number, area: Area | null, level: EnhanceLevel): { w: number; h: number; enhance: boolean } {
   if (level === "off" || !(fw > 0 && fh > 0)) return { w: fw, h: fh, enhance: false };

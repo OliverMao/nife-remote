@@ -1,13 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { Codec, QualitySettings, VideoPriority } from "../lib/api";
 import { useT } from "../lib/i18n";
-import { CODEC_PRIORITY, codecUsable } from "../lib/codec";
+import { CODEC_ORDER, codecUsable } from "../lib/codec";
 import { ENHANCE_LEVELS } from "../lib/enhance";
 import { CODEC_LABEL, PRESETS, codecHint, matchPreset, presetDesc, presetName, presetSettings } from "../lib/presets";
 import type { RemoteSession } from "../lib/session";
 import { store, useSession, useStore } from "../lib/store";
-import { IconInfo } from "./Icons";
-import { Popover } from "./Popover";
+import { IconChevron, IconInfo } from "./Icons";
 
 const FPS = [15, 24, 30, 60, 90, 120];
 /** 没有 label 的是"原始分辨率"（文字随界面语言） */
@@ -50,7 +49,7 @@ function Label({ text, hint, htmlFor }: { text: string; hint?: string; htmlFor?:
  * 画质面板：预设一行，下面是发给对方的各项设置（左名称 / 右控件，一项一行），最后是只影响本机显示的画面增强、本地光标。
  * 标题与底部的编码器信息固定，中间放不下时滚动（高度上限见 Popover 的 --pop-max-h）
  */
-export function QualityPanel({ s, onClose }: { s: RemoteSession; onClose: () => void }) {
+export function QualityPanelBody({ s, onBack }: { s: RemoteSession; onBack?: () => void }) {
   const t = useT();
   useSession(s);
   const decoders = useStore((st) => st.decoders);
@@ -80,8 +79,15 @@ export function QualityPanel({ s, onClose }: { s: RemoteSession; onClose: () => 
     });
 
   return (
-    <Popover className="quality-panel" onClose={onClose}>
-      <div className="qp-head pop-title">{t("quality.title")}</div>
+    <div className="quality-panel">
+      <div className="qp-head pop-title">
+        {onBack && (
+          <button className="pop-back" onClick={onBack} aria-label={t("common.back")} title={t("common.back")}>
+            <IconChevron size={15} />
+          </button>
+        )}
+        {t("quality.title")}
+      </div>
 
       <div className="qp-body">
         <div className="segmented wrap" role="group" aria-label={t("quality.preset")}>
@@ -149,7 +155,7 @@ export function QualityPanel({ s, onClose }: { s: RemoteSession; onClose: () => 
 
           <Label text={t("quality.codec")} />
           <div className="segmented">
-            {CODEC_PRIORITY.map((c) => {
+            {CODEC_ORDER.map((c) => {
               const ok = codecOk(c);
               const why = !decoders.includes(c) ? t("quality.noDecoder") : t("quality.noEncoder");
               return (
@@ -207,6 +213,6 @@ export function QualityPanel({ s, onClose }: { s: RemoteSession; onClose: () => 
           {encoderLine}
         </div>
       )}
-    </Popover>
+    </div>
   );
 }

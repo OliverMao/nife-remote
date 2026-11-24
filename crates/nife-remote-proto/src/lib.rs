@@ -323,8 +323,12 @@ pub mod features {
         /// 是 `HostMsg::Mic` 里的状态，不是能力位
         pub const MIC: Features = Features::from_bits(1 << 0);
 
+        /// 1 号位：文件传输（见 [`crate::session`] 的 `Fs*` 消息）。控制端只在被控端也有这一位时
+        /// 才提供文件传输窗口
+        pub const FILES: Features = Features::from_bits(1 << 1);
+
         /// 本端支持的
-        pub const SUPPORTED: Features = MIC;
+        pub const SUPPORTED: Features = MIC.with(FILES);
     }
 }
 

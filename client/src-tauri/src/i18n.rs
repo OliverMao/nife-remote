@@ -71,8 +71,6 @@ pub fn system() -> Lang {
     }
 }
 
-
-
 /// 与 gettext 相同的规则：`LC_ALL` > `LC_MESSAGES` > `LANG` 决定区域设置；
 /// 区域设置不是 C/POSIX 时，`LANGUAGE`（冒号分隔的优先列表）优先，取第一个。
 /// 按当前界面语言二选一并格式化，写法同 `format!`：`tr!("显示器 {n}", "Display {n}")`。
@@ -81,5 +79,3 @@ macro_rules! tr {
         if $crate::i18n::is_zh() { format!($zh $(, $($args)*)?) } else { format!($en $(, $($args)*)?) }
     };
 }
-
-

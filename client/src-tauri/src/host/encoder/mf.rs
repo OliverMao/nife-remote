@@ -12,8 +12,8 @@ use std::mem::ManuallyDrop;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use nife_remote_proto::session::{Codec, EncoderInfo};
 use anyhow::{Context, Result, anyhow, bail};
+use nife_remote_proto::session::{Codec, EncoderInfo};
 use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
@@ -905,5 +905,3 @@ impl Drop for MfEncoder {
         }
     }
 }
-
-

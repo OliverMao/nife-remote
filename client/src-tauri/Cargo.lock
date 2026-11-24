@@ -2375,7 +2375,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nife-remote"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "anyhow",
  "arboard",
@@ -2391,6 +2391,7 @@ dependencies = [
  "quinn",
  "rand 0.9.5",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
@@ -4491,7 +4492,11 @@ checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite",
 ]
 
@@ -4751,6 +4756,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.5",
+ "rustls",
+ "rustls-pki-types",
  "sha1",
  "thiserror 2.0.21",
 ]

@@ -1,17 +1,17 @@
-// 全局状态：标签（会话 / 新建连接 / 多屏总览）、我的设备、服务器状态等。
+// 全局状态：远程窗口里的会话、开着的远程窗口、我的设备、服务器状态等。
 // "我的设备"保存在 config.toml 里（见 actions.ts 的 saveDevices）；画面增强、本地光标是这台电脑自己显示的偏好，
-// 和对方无关，存在 WebView / 浏览器的 localStorage 里；其余只在控制台打开期间有效。
+// 和对方无关，存在 WebView / 浏览器的 localStorage 里；其余只在窗口打开期间有效。
 import { useCallback, useSyncExternalStore } from "react";
-import type { AccountInfo, AppInfo, Codec, HostStatus, Problem, Profile, QualitySettings, SavedDevice, ServerState } from "./api";
-import { fmtCode } from "./devices";
+import type { AccountInfo, AppInfo, Codec, HostStatus, OpenSession, Problem, Profile, SavedDevice, ServerState } from "./api";
+import { t } from "./i18n";
 import { ENHANCE_LEVELS, type EnhanceLevel } from "./enhance";
 import { DEFAULT_PRESET, PRESETS, type PresetId } from "./presets";
 import type { RemoteSession } from "./session";
 
-/** "new" = 新建连接标签，"grid" = 多屏总览，其余为会话 id */
-export type View = "new" | "grid" | string;
+/** 管理界面显示哪一页："new" / "assist" = 远程协助，"host" = 被控中，"device" = 设备详情 */
+export type View = string;
 
-/** 新建连接标签里正在输入的内容（切到别的标签再回来时还在） */
+/** 新建连接页里正在输入的内容 */
 export interface Draft {
   digits: string[];
   preset: PresetId;
@@ -22,22 +22,19 @@ export interface Draft {
   error: Problem | null;
 }
 
-/** 本次关闭的会话（Ctrl+Shift+T 重新打开最近关闭的一个） */
-export interface Recent {
-  code: string;
-  name: string;
-  settings: QualitySettings;
-}
-
 interface State {
-  /** 顺序就是标签的顺序 */
+  /** 远程窗口里的那一个会话（管理界面不连别人，它一直是空的，见 components/SessionWindow.tsx） */
   sessions: RemoteSession[];
+  /**
+   * 开着的远程窗口（桌面版：一个控制码一个窗口，见 src-tauri/src/viewer.rs）。
+   * 远程画面不在这个窗口里，所以管理与被控窗口各一份状态；网页版是浏览器的标签页，一直是空的
+   */
+  open: OpenSession[];
   view: View;
-  /** 新建连接标签（总在会话标签后面）；没有会话时一定有 */
+  /** 新建连接页（显示发起协助 / 输入控制码的那一页） */
   draft: Draft | null;
   /** 设备页显示的是哪台（`view === "device"` 时有效，见 DeviceView） */
   device: string | null;
-  recent: Recent[];
   /** 本机偏好和记录（profile.json，见 Rust 的 profile 模块） */
   profile: Profile;
   /** 现在登录的账号（账号服务里，没登录是 null） */
@@ -75,7 +72,6 @@ interface State {
   localCursor: boolean;
 }
 
-const MAX_RECENT = 8;
 const ENHANCE_KEY = "nife-remote.enhance";
 const QUALITY_KEY = "nife-remote.quality";
 const LOCAL_CURSOR_KEY = "nife-remote.localCursor";
@@ -84,7 +80,8 @@ const LOCAL_CURSOR_KEY = "nife-remote.localCursor";
 export function loadEnhance(): EnhanceLevel {
   try {
     const v = globalThis.localStorage?.getItem(ENHANCE_KEY);
-    return ENHANCE_LEVELS.find((l) => l === v) ?? "off";
+    // 默认"弱"：画面放大显示时更清楚，代价很小（用户可以在设置里关掉）
+    return ENHANCE_LEVELS.find((l) => l === v) ?? "low";
   } catch {
     return "off";
   }
@@ -128,10 +125,10 @@ export const emptyDraft = (): Draft => ({
 
 let state: State = {
   sessions: [],
+  open: [],
   view: "new",
   draft: emptyDraft(),
   device: null,
-  recent: [],
   profile: { allowAssist: true, verify: "pairing", favorites: [], recent: [] },
   account: null,
   accountLoaded: false,
@@ -157,16 +154,13 @@ function set(patch: Partial<State>) {
   for (const l of listeners) l();
 }
 
-/** 只有正在显示的会话保持全帧率；只有当前查看的会话（不含多屏总览）播放声音 */
+/** 只有正在显示的会话保持全帧率；只有当前查看的会话播放声音（远程窗口里只有一个，见 components/SessionWindow.tsx） */
 function syncVisibility() {
   for (const s of state.sessions) {
-    s.setVisible(state.view === "grid" || state.view === s.id);
+    s.setVisible(state.view === s.id);
     s.setForeground(state.view === s.id);
   }
 }
-
-/** 多屏总览标签：两台以上才有意义；正在看的时候不消失 */
-export const showGrid = (st: State) => st.sessions.length >= 2 || (st.view === "grid" && st.sessions.length > 0);
 
 /**
  * 给用户看的服务器状态：连不上之后在重试的，连上之前都算离线（不在「离线」和「连接中」之间来回跳）；
@@ -175,11 +169,6 @@ export const showGrid = (st: State) => st.sessions.length >= 2 || (st.view === "
 export type ServerStatus = "connected" | "connecting" | "offline";
 export const serverStatus = (st: State): ServerStatus =>
   st.server.state === "connected" ? "connected" : st.serverProblem ? "offline" : "connecting";
-
-/** 标签栏从左到右的顺序 */
-export function tabOrder(st: State = state): View[] {
-  return [...(showGrid(st) ? ["grid"] : []), ...st.sessions.map((s) => s.id), ...(st.draft ? ["new"] : [])];
-}
 
 export const store = {
   get: () => state,
@@ -202,9 +191,11 @@ export const store = {
   /** 本机连接码变了（连上服务器、换了码、有人连上来、有人断开） */
   setHost: (host: HostStatus) => set({ host }),
   setDecoders: (decoders: Codec[]) => set({ decoders }),
+  /** 开着的远程窗口变了（打开、关掉、里面的会话状态变了） */
+  setOpen: (open: OpenSession[]) => set({ open }),
   setView: (view: View) => {
     if (view === "new" && !state.draft) return store.newTab();
-    set({ view, immersive: view === "new" || view === "grid" ? false : state.immersive });
+    set({ view, immersive: false });
   },
   /** 打开一台设备的详情页（照 UU：点左栏的设备先进这个页面） */
   showDevice: (code: string) => set({ view: "device", device: code, immersive: false }),
@@ -234,74 +225,26 @@ export const store = {
     for (const s of state.sessions) s.refreshCursor();
   },
 
-  // ── 标签 ──
+  // ── 远程窗口里的会话 ──
 
-  /** 打开新建连接标签（已经有了就切过去） */
+  /** 新建连接页（显示发起协助 / 输入控制码的那一页） */
   newTab: () => set({ draft: state.draft ?? emptyDraft(), view: "new", immersive: false }),
   patchDraft: (patch: Partial<Draft>) => {
     if (state.draft) set({ draft: { ...state.draft, ...patch } });
   },
-  /** 关闭新建连接标签。没有会话时它是唯一的标签，不能关 */
-  closeDraft: () => {
-    if (!state.draft || state.sessions.length === 0) return;
-    // 它在最右边：关掉后显示左边那个
-    const view = state.view === "new" ? state.sessions[state.sessions.length - 1].id : state.view;
-    set({ draft: null, view });
-  },
-  /** 连上了：新建连接标签变成这个会话的标签 */
-  add: (s: RemoteSession) =>
-    set({
-      sessions: [...state.sessions, s],
-      view: s.id,
-      draft: null,
-      recent: state.recent.filter((r) => r.code !== s.code),
-    }),
-  /** 关闭会话标签（断开连接）。和浏览器一样，关掉当前标签后显示右边的，没有就显示左边的 */
+  /** 连上了（远程窗口里的那一个）：显示它 */
+  add: (s: RemoteSession) => set({ sessions: [s], view: s.id }),
+  /** 断开并移除（远程窗口关掉时用，见 actions.ts 的 closeTab） */
   remove: (id: string) => {
-    const idx = state.sessions.findIndex((s) => s.id === id);
-    if (idx < 0) return;
-    const s = state.sessions[idx];
+    const s = state.sessions.find((x) => x.id === id);
+    if (!s) return;
     s.dispose();
     const sessions = state.sessions.filter((x) => x.id !== id);
-    const recent = [
-      { code: s.code, name: s.hostName, settings: s.settings },
-      ...state.recent.filter((r) => r.code !== s.code),
-    ].slice(0, MAX_RECENT);
-    let { view, draft } = state;
-    if (sessions.length === 0) {
-      draft = draft ?? emptyDraft();
-      view = "new";
-    } else if (view === id) {
-      view = sessions[idx]?.id ?? (draft ? "new" : sessions[idx - 1].id);
-    }
-    set({ sessions, view, draft, recent, immersive: view === state.view ? state.immersive : false });
-  },
-  /** 拖动标签：把会话移到第 `to` 个（只在会话之间排序） */
-  move: (id: string, to: number) => {
-    const from = state.sessions.findIndex((s) => s.id === id);
-    if (from < 0 || from === to || to < 0 || to >= state.sessions.length) return;
-    const sessions = [...state.sessions];
-    const [s] = sessions.splice(from, 1);
-    sessions.splice(to, 0, s);
-    set({ sessions });
-  },
-  /** 切到相邻的标签（循环） */
-  cycle: (delta: number) => {
-    const tabs = tabOrder();
-    const i = tabs.indexOf(state.view);
-    store.setView(tabs[(i + delta + tabs.length) % tabs.length]);
-  },
-  /** Ctrl+1…8 切到第 n 个标签，Ctrl+9 切到最后一个（和浏览器一样） */
-  selectTab: (n: number) => {
-    const tabs = tabOrder();
-    const v = n >= 9 ? tabs[tabs.length - 1] : tabs[n - 1];
-    if (v) store.setView(v);
+    set({ sessions, view: sessions[0]?.id ?? "new", immersive: false });
   },
   setDevices: (devices: SavedDevice[], saved = state.devicesSaved) => set({ devices, devicesSaved: saved }),
   /** 我的设备里哪些现在能连（null = 不知道） */
   setPresence: (presence: Record<string, boolean> | null) => set({ presence }),
-  /** 最近连接：删除一条或清空（只改内存，连上时会重新记） */
-  setRecent: (recent: Recent[]) => set({ recent }),
   /** 桌面端从 profile.json 读到的偏好（网页版是内存里的默认值） */
   setProfile: (profile: Profile) => set({ profile }),
   setAccount: (account: AccountInfo | null) => set({ account, accountLoaded: true }),
@@ -312,10 +255,10 @@ export function useStore<T>(select: (s: State) => T): T {
   return useSyncExternalStore(store.subscribe, () => select(state));
 }
 
-/** 会话显示的名字：在我的设备里起过名字就用它，否则用对方的设备名，都没有就是控制码 */
+/** 会话显示的名字：在我的设备里起过名字就用它，否则用对方的设备名（界面上不显示控制码） */
 export function useSessionTitle(s: RemoteSession): string {
   const alias = useStore((st) => st.devices.find((d) => d.code === s.code)?.alias ?? null);
-  return alias || s.hostName || fmtCode(s.code);
+  return alias || s.hostName || t("devices.unnamed");
 }
 
 /** 订阅单个会话的变化 */

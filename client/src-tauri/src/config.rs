@@ -15,8 +15,8 @@
 //! * 文件由 Nife Remote 维护，手动修改的内容和注释都会保留；改了设置要重新启动 Nife Remote 才生效。
 //! * 文件不存在时（第一次运行、被删掉了）按默认配置重新生成：启动时检查一次，运行中每隔几秒检查一次（[`keep_file`]），
 //!   控制码、开机自动启动、我的设备、记下的服务器指纹从删掉之前的内容接着用，不会丢。
-//! * 没有设置服务器证书指纹时，第一次连上服务器时记下它的指纹（`[server_trust]`，见 [`FileTrust`]），
-//!   之后证书变了就拒绝连接。
+//! * 中转服务器的证书指纹同样来自账号服务（`[relay] fingerprint`），客户端不自己记：账号服务没给指纹时，
+//!   本次运行信任第一次连上的那个证书（不落盘）。
 //! * 端到端加密（见 `nife_remote_proto::handshake`）：本机作为被控端的身份密钥和配对码（`[host]`）、配对过的控制端
 //!   （`[[paired]]`）、控制台的身份密钥（`[controller]`，Windows 上每个账户一把），也都在这个文件里，
 //!   密钥和配对码加密保存（见 [`secret`]）。
@@ -25,11 +25,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 
+use anyhow::Result;
 use nife_remote_link::LinkConfig;
-use nife_remote_link::net::{MemoryTrust, Trust, TrustStore, format_fingerprint, parse_fingerprint};
+use nife_remote_link::net::Trust;
 use nife_remote_link::secure::{Access, Identity};
 use nife_remote_proto::signal::Reclaim;
-use anyhow::Result;
 use toml_edit::{DocumentMut, Item};
 use tracing::{error, info, warn};
 
@@ -42,7 +42,7 @@ pub const DEFAULT_SERVER: &str = match option_env!("NIFE_REMOTE_SERVER") {
 /// 编译进程序的服务器证书 SHA-256 指纹（64 位十六进制，允许用 `:` 或空白分隔），`config.toml` 里没有设置时使用。
 ///
 /// * 非空：严格校验，指纹不符直接拒绝连接（防中间人）。
-/// * 为空：第一次连上服务器时记下它的指纹（`[server_trust]`），之后只认它。
+/// * 为空：本次运行信任第一次连上的那个证书（不记到磁盘上，下次连上账号服务再拿新的）。
 pub const DEFAULT_SERVER_FP: &str = match option_env!("NIFE_REMOTE_SERVER_FP") {
     Some(v) => v,
     None => "",
@@ -89,7 +89,7 @@ const KEEP_CHECK: Duration = if cfg!(test) {
 pub struct Settings {
     /// 中转服务器地址（`[relay] address`）：账号服务分配的，不是用户配置
     pub server: String,
-    /// 中转服务器证书指纹（`server_fp`），空字符串表示第一次连接时记下（见 [`FileTrust`]）
+    /// 中转服务器证书指纹（`[relay] fingerprint`，账号服务给的），空字符串表示本次运行信任第一次连上的证书
     pub server_fp: String,
     /// 开机自动启动（`autostart`，安装版）：开机后被控端服务自动运行，登录之前也能被控制
     pub autostart: bool,
@@ -224,7 +224,6 @@ pub fn link() -> Arc<LinkConfig> {
         let (name, os) = crate::sysinfo::host_identity();
         let configured = server_configured();
         let link = LinkConfig::new(s.server.clone(), &s.server_fp, name.clone(), os.clone())
-            .map(|l| l.with_store(Arc::new(FileTrust::default())))
             .unwrap_or_else(|e| {
                 // 指纹写错了：不能因此就不校验证书。用一个不可能对得上的指纹，连接时报“证书指纹不匹配”
                 error!("config.toml: invalid server_fp ({e:#}), refusing to connect");
@@ -237,7 +236,11 @@ pub fn link() -> Arc<LinkConfig> {
                 }
             });
         // 没配置过服务器（用的是占位的 127.0.0.1:4433）：不连接、不重试
-        Arc::new(if configured { link } else { link.unconfigured() })
+        Arc::new(if configured {
+            link
+        } else {
+            link.unconfigured()
+        })
     });
     LINK.clone()
 }
@@ -275,80 +278,6 @@ pub fn server_configured() -> bool {
             .unwrap_or(false)
     });
     *CONFIGURED
-}
-
-/// 是否配置了固定的服务器证书指纹（否则第一次连接时记下，控制台据此说明）
-pub fn pinned() -> bool {
-    link().pinned()
-}
-
-/// 第一次连上服务器时记下的证书指纹：存在 config.toml 的 `[server_trust]` 里（服务器地址 + 指纹，
-/// 换了服务器就重新记）。每次连接前重新读文件：Windows 上配置文件由系统服务里的被控端维护，
-/// 控制台（用户进程）写不进去，它自己记下的只在内存里，之后用被控端记下的那一个
-#[derive(Default)]
-struct FileTrust(MemoryTrust);
-
-impl TrustStore for FileTrust {
-    fn load(&self, server: &str) -> Option<[u8; 32]> {
-        let fp = read_text()
-            .as_deref()
-            .and_then(|t| saved_trust(t, server))
-            .or_else(|| self.0.load(server))?;
-        self.0.save(server, fp);
-        Some(fp)
-    }
-
-    fn save(&self, server: &str, fp: [u8; 32]) {
-        self.0.save(server, fp);
-        if let Err(e) = edit(|doc| {
-            put_trust(doc, server, &fp);
-            Ok(())
-        }) {
-            // Windows 的控制台进程：配置文件在安装目录里，由服务里的被控端记下
-            info!("can't save the server certificate fingerprint ({e:#}), keeping it in memory");
-        }
-    }
-}
-
-/// `[server_trust]` 里为 `server` 记下的指纹
-fn saved_trust(text: &str, server: &str) -> Option<[u8; 32]> {
-    let doc: DocumentMut = text.parse().ok()?;
-    let t = doc.get("server_trust")?.as_table_like()?;
-    if t.get("server")?.as_str()?.trim() != server {
-        return None;
-    }
-    parse_fingerprint(t.get("fp")?.as_str()?).ok()?
-}
-
-fn put_trust(doc: &mut DocumentMut, server: &str, fp: &[u8; 32]) {
-    let item = doc.entry("server_trust").or_insert_with(|| {
-        let mut t = toml_edit::Table::new();
-        t.decor_mut().set_prefix(format!("\n{}", trust_comment()));
-        Item::Table(t)
-    });
-    if !item.is_table() {
-        *item = Item::Table(toml_edit::Table::new());
-    }
-    item["server"] = toml_edit::value(server);
-    item["fp"] = toml_edit::value(format_fingerprint(fp));
-}
-
-/// 写在 `[relay]` 前面的说明（这段是程序自己的状态，不是要用户改的配置）
-fn relay_comment() -> String {
-    tr!(
-        "# 账号服务分配的中转服务器（客户端自己写的：改了也没用，下次连上账号服务就换回来）
-",
-        "# The relay server assigned by the account service (written by the client; edits are overwritten at the next sign-in)
-"
-    )
-}
-
-/// 写在 `[server_trust]` 前面的说明
-fn trust_comment() -> String {
-    tr!(
-        "# 第一次连上中转服务器时记下的证书指纹（没有设置 server_fp 时使用）：之后服务器的证书变了就拒绝连接，防止有人冒充服务器。\n# 服务器确实换了证书时，删掉这一段（或者写上新的 server_fp），然后重新启动 Nife Remote\n",
-        "# Certificate fingerprint remembered on the first connection to the relay server (used when server_fp isn't set): if the server's certificate changes later, Nife Remote refuses to connect, so nobody can impersonate the server.\n# If the server really got a new certificate, delete this section (or set the new server_fp) and restart Nife Remote\n"
-    )
 }
 
 // ───────────────────────────── 写配置 ─────────────────────────────
@@ -393,7 +322,6 @@ autostart = true
 "#
     )
 }
-
 
 /// 模板里 `access` 的说明
 fn access_comment() -> String {
@@ -440,14 +368,6 @@ fn regenerate(before: Option<&str>) -> Result<DocumentMut> {
         for (k, v) in from.iter() {
             to.insert(k, v.clone());
         }
-    }
-    // 记下的服务器指纹：不重新记（重新记的话，那一次连接就防不了中间人）
-    if let Some((server, fp)) = old.get("server_trust").and_then(|t| {
-        let server = t.get("server")?.as_str()?.to_string();
-        let fp = parse_fingerprint(t.get("fp")?.as_str()?).ok()??;
-        Some((server, fp))
-    }) {
-        put_trust(&mut doc, &server, &fp);
     }
     // 端到端加密的身份、配对码、配对过的控制端：丢了的话控制端会认为本机"身份变了"，配对过的也要重新配对
     for key in ["host", "controller"] {
@@ -573,7 +493,6 @@ pub fn keep_file() {
     }
 }
 
-
 /// 保存服务器分配的控制码；`None` 表示放弃了原来的控制码（下次启动时重新分配）
 pub fn save_code(code: Option<Reclaim>) -> Result<()> {
     edit(|doc| {
@@ -604,9 +523,8 @@ pub fn save_autostart(on: bool) -> Result<()> {
     })
 }
 
-/// 检查控制台里填的服务器设置（不改文件）：
-/// 地址必须是 `host:port`，指纹为空（首次连接时信任）或者 64 位十六进制。
-/// 服务端（Windows 安装版经命名管道）也是先过这一关再写。
+/// 检查账号服务给回来的中转服务器设置（不改文件）：
+/// 地址必须是 `host:port`，指纹为空（本次运行信任第一次连上的证书）或者 64 位十六进制。
 pub fn check_server(server: &str, fp: &str) -> Result<()> {
     let server = server.trim();
     anyhow::ensure!(!server.is_empty(), "the server address is empty");
@@ -616,7 +534,7 @@ pub fn check_server(server: &str, fp: &str) -> Result<()> {
     );
     anyhow::ensure!(
         fingerprint_is_valid(fp.trim()),
-        "the fingerprint must be 64 hex digits (or empty to trust on first use)"
+        "the fingerprint must be 64 hex digits (or empty)"
     );
     Ok(())
 }
@@ -631,13 +549,26 @@ pub fn check_pairing(code: &str) -> Result<()> {
     Ok(())
 }
 
+/// 写在 `[relay]` 前面的说明（程序自己的状态，不是要用户改的配置）
+fn relay_comment() -> String {
+    tr!(
+        "# 账号服务分配的中转服务器（客户端自己写的：改了也没用，下次连上账号服务就换回来）
+",
+        "# The relay server assigned by the account service (written by the client; edits are overwritten at the next sign-in)
+"
+    )
+}
+
 /// 把账号服务分配的中转服务器地址和指纹写进配置文档（`[relay]`，程序自己的状态，不是用户配置）；
-/// 顺手删掉 `[server_trust]`（换了地址或清空指纹就重新信任，见 [`saved_trust`]）和旧版本写在顶层的键
+/// 顺手删掉旧版本写在顶层的 `server` / `server_fp` / `auth` 和 `[server_trust]`（指纹不再记在本地）
 fn put_server(doc: &mut DocumentMut, server: &str, fp: &str) {
     let item = doc.entry("relay").or_insert_with(|| {
         let mut t = toml_edit::Table::new();
-        t.decor_mut().set_prefix(format!("
-{}", relay_comment()));
+        t.decor_mut().set_prefix(format!(
+            "
+{}",
+            relay_comment()
+        ));
         Item::Table(t)
     });
     if !item.is_table() {
@@ -660,8 +591,17 @@ fn migrate(doc: &mut DocumentMut) {
     if !has_old {
         return;
     }
-    let address = doc.get("server").and_then(Item::as_str).unwrap_or("").trim().to_string();
-    let fp = doc.get("server_fp").and_then(Item::as_str).unwrap_or("").to_string();
+    let address = doc
+        .get("server")
+        .and_then(Item::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let fp = doc
+        .get("server_fp")
+        .and_then(Item::as_str)
+        .unwrap_or("")
+        .to_string();
     if !address.is_empty() && doc.get("relay").is_none() {
         put_server(doc, &address, &fp);
         // put_server 已经把旧的键删掉了
@@ -684,7 +624,6 @@ pub fn save_server(server: &str, fp: &str) -> Result<()> {
         Ok(())
     })
 }
-
 
 /// 写入 `autostart`。已经有了就只改值；没有时加上一段说明，放在文件开头的说明后面
 /// （直接插入的话 toml_edit 会把它排在整个文件的第一行，开头的说明前面）
@@ -1027,9 +966,7 @@ pub(crate) mod secret {
 
     /// 加密保存一段字节（DPAPI）
     pub fn seal_bytes(data: &[u8], kind: Kind) -> Result<String> {
-        {
-            Ok(STANDARD.encode(dpapi(data, entropy(kind), true)?))
-        }
+        Ok(STANDARD.encode(dpapi(data, entropy(kind), true)?))
     }
 
     pub fn open_bytes(text: &str, kind: Kind) -> Result<Vec<u8>> {
@@ -1039,9 +976,7 @@ pub(crate) mod secret {
     }
 
     pub fn seal(secret: &[u8; 16]) -> Result<String> {
-        {
-            Ok(STANDARD.encode(dpapi(secret, ENTROPY, true)?))
-        }
+        Ok(STANDARD.encode(dpapi(secret, ENTROPY, true)?))
     }
 
     pub fn open(text: &str) -> Result<[u8; 16]> {
@@ -1055,9 +990,7 @@ pub(crate) mod secret {
 
     /// "我的设备"里的控制码写进文件之前（DPAPI 加密）
     pub fn seal_device_code(code: &str) -> Result<String> {
-        {
-            Ok(STANDARD.encode(dpapi(code.as_bytes(), DEVICE_ENTROPY, true)?))
-        }
+        Ok(STANDARD.encode(dpapi(code.as_bytes(), DEVICE_ENTROPY, true)?))
     }
 
     /// 解开加密过的控制码（6 位数字的不用解，调用方直接用）
@@ -1114,5 +1047,3 @@ pub(crate) mod secret {
         }
     }
 }
-
-

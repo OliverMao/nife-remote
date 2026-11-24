@@ -18,13 +18,16 @@ pub fn new_dir() -> PathBuf {
     std::env::temp_dir().join(format!("{PREFIX}{:016x}", rand::random::<u64>()))
 }
 
-
-
-
 /// 清理之前异常退出残留的目录（单实例锁保证不会误删正在使用的目录）。
 pub fn sweep_stale() {
-    #[allow(unused_mut)]
-    let mut places = vec![(std::env::temp_dir(), PREFIX)];
+    sweep_cache();
+}
+
+/// 清理缓存目录，返回删掉的字节数（界面里"清理本地缓存"用）。
+/// 正在用的那个目录删不掉（WebView 还开着它），下次启动时由 [`sweep_stale`] 收尾。
+pub fn sweep_cache() -> u64 {
+    let mut freed = 0;
+    let places = vec![(std::env::temp_dir(), PREFIX)];
     for (dir, prefix) in places {
         let Ok(rd) = std::fs::read_dir(dir) else {
             continue;
@@ -32,13 +35,32 @@ pub fn sweep_stale() {
         for entry in rd.flatten() {
             if entry.file_name().to_string_lossy().starts_with(prefix) {
                 let path = entry.path();
+                let size = dir_size(&path);
                 match std::fs::remove_dir_all(&path) {
-                    Ok(()) => debug!("removed leftover directory {}", path.display()),
+                    Ok(()) => {
+                        freed += size;
+                        debug!("removed leftover directory {}", path.display());
+                    }
                     Err(e) => debug!("can't remove leftover directory {}: {e}", path.display()),
                 }
             }
         }
     }
+    freed
+}
+
+/// 目录里所有文件的大小（删之前算，报给界面）
+fn dir_size(path: &std::path::Path) -> u64 {
+    let Ok(rd) = std::fs::read_dir(path) else {
+        return 0;
+    };
+    rd.flatten()
+        .map(|e| match e.file_type() {
+            Ok(t) if t.is_dir() => dir_size(&e.path()),
+            Ok(_) => e.metadata().map(|m| m.len()).unwrap_or(0),
+            Err(_) => 0,
+        })
+        .sum()
 }
 
 /// 删除目录；WebView 进程退出需要一点时间，所以会重试直到超时。

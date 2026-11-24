@@ -88,6 +88,9 @@ pub enum Problem {
     NoSession,
     /// 本机剪贴板没有文本
     NoClipboardText,
+    /// 账号服务回的错误：`code` 是服务端的错误码（`wrong_password`、`no_such_user`、`name_taken`、
+    /// `bad_name`、`bad_token`、`not_signed_in`……），界面按它显示本地化的说法
+    Account { code: String },
     /// 其它错误
     Failed { detail: String },
 }
@@ -179,6 +182,7 @@ impl fmt::Display for Problem {
             Problem::SessionEnded => f.write_str("session ended"),
             Problem::NoSession => f.write_str("no such session"),
             Problem::NoClipboardText => f.write_str("no text on the local clipboard"),
+            Problem::Account { code } => write!(f, "the account service said {code}"),
             Problem::Failed { detail } => f.write_str(detail),
         }
     }

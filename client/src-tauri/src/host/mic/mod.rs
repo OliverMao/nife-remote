@@ -11,7 +11,6 @@
 //!   丢包补偿盖过去），抖动缓冲（[`Playout`]）攒够 [`TARGET_MS`] 再开始放，换成设备的格式（[`Format`]）写进去。
 //!   没有声音的时候写静音；网络卡住、积压太多时丢掉旧的，延迟不会越积越多。
 
-
 pub(crate) mod wasapi;
 
 use std::collections::VecDeque;
@@ -21,10 +20,10 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use anyhow::{Result, bail};
 use nife_remote_link::host::MicSink;
 use nife_remote_proto::media::{self, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader};
 use nife_remote_proto::session::MicState;
-use anyhow::{Result, bail};
 use tokio::sync::watch;
 use tracing::{debug, info, warn};
 
@@ -489,5 +488,3 @@ fn feed(o: &mut dyn Output, resampler: &mut Resampler, playout: &mut Playout) ->
         }
     })
 }
-
-

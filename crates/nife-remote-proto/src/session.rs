@@ -152,7 +152,112 @@ pub enum HostMsg {
         #[n(1)]
         detail: Option<String>,
     },
+    /// 被控端的盘符和默认目录（文件传输窗口打开时问一次）。只发给协商了
+    /// [`crate::features::session::FILES`] 的控制端
+    #[n(13)]
+    FsRoots {
+        #[n(0)]
+        req: u32,
+        #[n(1)]
+        places: Vec<FsPlace>,
+        #[n(2)]
+        home: String,
+    },
+    /// 一个目录的内容（`path` 是被控端解析好的绝对路径；空路径 = 默认目录）。
+    /// `error`：打不开时的原因（英文技术信息，同 [`Notice::CaptureFailed`]）
+    #[n(14)]
+    FsList {
+        #[n(0)]
+        req: u32,
+        #[n(1)]
+        path: String,
+        #[n(2)]
+        parent: Option<String>,
+        #[n(3)]
+        entries: Vec<FsEntry>,
+        #[n(4)]
+        error: Option<String>,
+    },
+    /// 这个路径存不存在（发文件之前问一次：决定要不要弹"是否替换"）
+    #[n(15)]
+    FsExists {
+        #[n(0)]
+        req: u32,
+        #[n(1)]
+        exists: bool,
+    },
+    /// 文件打开了（`error` 有值就是没打开）。`size`：读的时候是要读的文件大小，写的时候是 0
+    #[n(16)]
+    FsOpened {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        size: u64,
+        #[n(2)]
+        error: Option<String>,
+    },
+    /// 读到的一块。走大块通道
+    #[n(17)]
+    FsData {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        offset: u64,
+        #[n(2)]
+        eof: bool,
+        #[cbor(n(3), with = "minicbor::bytes")]
+        data: Vec<u8>,
+    },
+    /// 写成功的一块（控制通道：控制端据此发下一块，也据此算进度）
+    #[n(18)]
+    FsWritten {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        offset: u64,
+    },
+    /// 这个任务出错了，结束（控制端把这一行标成失败）
+    #[n(19)]
+    FsError {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        error: String,
+    },
 }
+
+/// 文件传输窗口里能直接跳过去的"位置"：盘符、桌面、下载……
+///
+/// `kind` 给界面挑图标 / 翻译用（`drive`、`documents`、`downloads`……）；
+/// `name` 只有盘有卷标时才有值（`Data`），系统文件夹的名字由界面翻译。
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsPlace {
+    #[n(0)]
+    pub name: String,
+    #[n(1)]
+    pub path: String,
+    #[n(2)]
+    pub kind: String,
+}
+
+/// 文件传输里的一条目录项（`serde` 是给控制台的 JSON 用的）
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsEntry {
+    #[n(0)]
+    pub name: String,
+    #[n(1)]
+    pub dir: bool,
+    #[n(2)]
+    pub size: u64,
+    /// 修改时间（Unix 秒；0 = 不知道）
+    #[n(3)]
+    pub modified: i64,
+}
+
+/// 文件传输里一次读 / 写最多带多少字节（大块通道上的一个消息）
+pub const MAX_FS_CHUNK: u32 = 512 * 1024;
 
 open_enum! {
     /// 被控端的虚拟麦克风（见模块说明的"麦克风"）。不认识的值（对方版本新增的）控制端当作接不了
@@ -191,7 +296,9 @@ impl HostMsg {
     /// 这条消息走哪条通道（见模块说明的"走哪条通道"）
     pub fn lane(&self) -> SessionLane {
         match self {
-            HostMsg::CursorImage { .. } | HostMsg::Clipboard { .. } => SessionLane::Bulk,
+            HostMsg::CursorImage { .. } | HostMsg::Clipboard { .. } | HostMsg::FsData { .. } => {
+                SessionLane::Bulk
+            }
             HostMsg::Hello(_)
             | HostMsg::AwaitingApproval
             | HostMsg::Displays { .. }
@@ -200,7 +307,13 @@ impl HostMsg {
             | HostMsg::Cursor { .. }
             | HostMsg::Bye(_)
             | HostMsg::Direct(_)
-            | HostMsg::Mic { .. } => SessionLane::Control,
+            | HostMsg::Mic { .. }
+            | HostMsg::FsRoots { .. }
+            | HostMsg::FsList { .. }
+            | HostMsg::FsExists { .. }
+            | HostMsg::FsOpened { .. }
+            | HostMsg::FsWritten { .. }
+            | HostMsg::FsError { .. } => SessionLane::Control,
         }
     }
 }
@@ -513,19 +626,83 @@ pub enum ControllerMsg {
         #[n(0)]
         enabled: bool,
     },
+    /// 要被控端的盘符和默认目录（文件传输窗口打开时问一次）
+    #[n(11)]
+    FsRoots {
+        #[n(0)]
+        req: u32,
+    },
+    /// 列一个目录（空路径 = 默认目录）
+    #[n(12)]
+    FsList {
+        #[n(0)]
+        req: u32,
+        #[n(1)]
+        path: String,
+    },
+    /// 问一个路径存不存在（发文件之前问：决定要不要弹"是否替换"）
+    #[n(13)]
+    FsExists {
+        #[n(0)]
+        req: u32,
+        #[n(1)]
+        path: String,
+    },
+    /// 打开一个文件：`write` 为真时清空重写，否则读
+    #[n(14)]
+    FsOpen {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        path: String,
+        #[n(2)]
+        write: bool,
+    },
+    /// 从 `offset` 读 `len` 字节（不超过 [`MAX_FS_CHUNK`]）
+    #[n(15)]
+    FsRead {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        offset: u64,
+        #[n(2)]
+        len: u32,
+    },
+    /// 往 `offset` 写一块。走大块通道
+    #[n(16)]
+    FsWrite {
+        #[n(0)]
+        id: u32,
+        #[n(1)]
+        offset: u64,
+        #[cbor(n(2), with = "minicbor::bytes")]
+        data: Vec<u8>,
+    },
+    /// 关掉这个文件（读完、写完、或者取消）
+    #[n(17)]
+    FsClose {
+        #[n(0)]
+        id: u32,
+    },
 }
 
 impl ControllerMsg {
     pub fn lane(&self) -> SessionLane {
         match self {
-            Self::Clipboard { .. } => SessionLane::Bulk,
+            Self::Clipboard { .. } | Self::FsWrite { .. } => SessionLane::Bulk,
             Self::Input { .. }
             | Self::Settings(_)
             | Self::RequestKeyframe { .. }
             | Self::SelectDisplay { .. }
             | Self::Audio { .. }
             | Self::Direct(_)
-            | Self::Mic { .. } => SessionLane::Control,
+            | Self::Mic { .. }
+            | Self::FsRoots { .. }
+            | Self::FsList { .. }
+            | Self::FsExists { .. }
+            | Self::FsOpen { .. }
+            | Self::FsRead { .. }
+            | Self::FsClose { .. } => SessionLane::Control,
         }
     }
 }

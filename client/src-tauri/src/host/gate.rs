@@ -1,7 +1,9 @@
 //! 被控端的端到端身份和授权（协议见 `nife_remote_proto::handshake`）：本机的身份密钥、配对码、配对过的控制端。
 //!
 //! * 都保存在 config.toml 里（`[host]`、`[[paired]]`，见 [`crate::config`]），身份密钥和配对码加密保存；
-//! * 没配对过的控制端：默认要配对码（config.toml 的 `access`），配对码显示在托盘菜单里，从不经过服务器；
+//! * 登录同一个账号的其它设备：它们把自己的控制台公钥登记在账号服务里，本机登录之后拿到这些公钥，
+//!   对应的控制端就不用配对码（托盘进程算出列表，经命名管道交给这里，见 `ToAgent::TrustControllers`）；
+//! * 其它没配对过的控制端：默认要配对码（config.toml 的 `access`），配对码显示在托盘菜单里，从不经过服务器；
 //! * 连续 [`MAX_FAILURES`] 次未成功的配对尝试就暂停配对（`pairing_locked`，重启之后也一样），
 //!   托盘里提示，本机用户换一个配对码才恢复：中间人（包括中转服务器）一共只能猜这么几次；
 //! * 更换控制码时配对码也换一个、配对过的控制端全部忘掉（见 [`DesktopGate::reset`]）。
@@ -27,6 +29,8 @@ pub struct DesktopGate {
     /// 界面里的"允许他人远程协助"：关掉之后不再接受任何控制端（正在控的由调用方断开）
     allowed: std::sync::atomic::AtomicBool,
     state: Mutex<State>,
+    /// 账号里其它设备的控制台公钥（小写十六进制）：登录之后由托盘进程推过来，不用存盘
+    trusted: Mutex<Vec<String>>,
     hub: StatusHub,
 }
 
@@ -103,6 +107,7 @@ impl DesktopGate {
                 generation: 0,
                 paired: saved.paired,
             }),
+            trusted: Mutex::new(Vec::new()),
             hub,
         });
         gate.publish();
@@ -123,6 +128,16 @@ impl DesktopGate {
 
     pub fn allowed(&self) -> bool {
         self.allowed.load(Ordering::Relaxed)
+    }
+
+    /// 账号里其它设备的控制台公钥（登录之后由托盘进程推过来）：这些控制端不用输配对码
+    pub fn set_trusted_controllers(&self, keys: Vec<String>) {
+        let mut trusted = self.trusted.lock().unwrap();
+        *trusted = keys
+            .into_iter()
+            .map(|k| k.trim().to_ascii_lowercase())
+            .filter(|k| k.len() == 64 && k.bytes().all(|b| b.is_ascii_hexdigit()))
+            .collect();
     }
 
     /// 托盘里显示的：配对码、暂停了没有、配对过几个
@@ -244,7 +259,15 @@ impl Gate for DesktopGate {
             return false;
         }
         let k = hex(key);
-        self.state.lock().unwrap().paired.iter().any(|p| p.key == k)
+        // 配对过的控制端，或者登录同一个账号的其它设备（公钥登记在账号服务里）
+        if self.state.lock().unwrap().paired.iter().any(|p| p.key == k) {
+            return true;
+        }
+        self.trusted
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|t| t.eq_ignore_ascii_case(&k))
     }
 }
 
@@ -308,5 +331,3 @@ impl Drop for Attempt<'_> {
         self.gate.publish();
     }
 }
-
-

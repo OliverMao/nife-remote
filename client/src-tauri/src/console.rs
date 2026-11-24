@@ -12,8 +12,8 @@ use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use nife_remote_link::console::{self, MAX_MESSAGE, Setup, WsMessage};
 use futures_util::{SinkExt, StreamExt, future};
+use nife_remote_link::console::{self, MAX_MESSAGE, Setup, WsMessage};
 use tauri::{AppHandle, Manager};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
@@ -154,5 +154,3 @@ fn to_tungstenite(m: WsMessage) -> Message {
         WsMessage::Close => Message::Close(None),
     }
 }
-
-

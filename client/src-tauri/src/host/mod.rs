@@ -5,6 +5,7 @@ pub mod capture;
 pub(crate) mod clock;
 pub(crate) mod desktop;
 pub mod encoder;
+pub mod files;
 pub mod gate;
 mod input;
 pub(crate) mod mic;
@@ -48,9 +49,7 @@ pub(crate) fn dpi_aware<T>(f: impl FnOnce() -> T) -> T {
 
 /// 被控端缺少的系统权限（Windows 上不需要用户授权，恒为 `false`）。
 pub(crate) fn missing_permissions() -> (bool, bool) {
-    {
-        (false, false)
-    }
+    (false, false)
 }
 
 /// 采集失败是不是因为缺少系统权限（这种情况由会话用 `Notice::MissingPermissions` 单独说明）。

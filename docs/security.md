@@ -4,7 +4,8 @@
 
 ## Relay server and control codes
 
-- TLS 1.3 throughout (QUIC); the client verifies the server by **certificate fingerprint pinning**. Without a configured fingerprint the server's certificate is remembered on the first connection (trust on first use: `[server_trust]` in `config.toml`, `server-trust.txt` for the web console), and a different certificate is refused afterwards
+- Devices signed in to the same account **don't need a pairing code**: each one registers its controller public key with the account service, and a host trusts the keys that service reports for its own account (the account service is the trust anchor, over HTTPS with a login token)
+- TLS 1.3 throughout (QUIC). The desktop client gets both the server address and the **certificate fingerprint from the account service** (HTTPS) and verifies the server against it; when the account service hands out no fingerprint, that run trusts the certificate of the first connection without storing it. The web console is configured by hand: a fingerprint pins the server, without one it remembers the first certificate in its data directory (`server-trust.txt`)
 - Brute-force protection: at most 20 failed attempts per IP (IPv6 grouped by /64) per 10 minutes, and each failure adds a 400 ms delay
 - When a code exists but its host isn't ready (still registering, or disconnecting), the answer is exactly the same as for a code that doesn't exist (counted as a failure, delayed the same way), so response timing doesn't reveal whether a code exists
 - Requests with the right code are rate limited too. Every request takes one of the host's session slots, so one IP (IPv6 grouped by /64) can start at most 6 connections per minute to the same host (`NIFE_REMOTE_CONNECTS_PER_MINUTE`; requests with a resume token count as well). If someone who knows the code keeps pestering a host, **change its control code**

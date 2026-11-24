@@ -1,7 +1,7 @@
 [package]
 name = "nife-remote"
 description = "Nife Remote remote desktop client (controller and host in one program)"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 license = "MIT"
 default-run = "nife-remote"
@@ -25,7 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
 # 控制台窗口连本机的 WebSocket（只监听 127.0.0.1，见 src/console.rs）
-tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake", "connect", "rustls-tls-native-roots"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 # config.toml：修改时保留用户的注释和格式
 toml_edit = "0.25"
@@ -35,6 +35,8 @@ sha2 = "0.10"
 # 账号服务的 HTTP 调用（见 src/accounts.rs）
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+# 和 quinn 用同一个加密实现（ring）：rustls 0.23 要求进程里显式选一个，见 lib.rs 的 install_crypto_provider
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rand = "0.9"
 anyhow = "1"
 tracing = "0.1"

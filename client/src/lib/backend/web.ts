@@ -3,9 +3,25 @@
 // 会话和桌面版一样走 WebSocket（console.ts），连的是同一个端口的 `/ws`。网页版自己的：
 // * 剪贴板在浏览器里同步（navigator.clipboard），规则与桌面版相同：只同步连接之后的变化，并抑制回声；
 // * 没有被控端模式、托盘和窗口；"我的设备"不保存。
-import type { AccountInfo, AppInfo, Backend, Command, ConnectOptions, HostStatus, Problem, Profile, SessionEvent, SessionInfo } from "../api";
+import type {
+  AccountDevice,
+  AccountInfo,
+  AppInfo,
+  Backend,
+  Command,
+  ConnectOptions,
+  FsEntry,
+  FsPlace,
+  HostStatus,
+  OpenSession,
+  Problem,
+  Profile,
+  SessionEvent,
+  SessionInfo,
+} from "../api";
 import { ConsoleLink, type MediaView } from "../console";
 import { getLang } from "../i18n";
+import type { SessionTarget } from "../session-window";
 
 /** 一个会话的剪贴板同步 */
 interface Clip {
@@ -200,6 +216,38 @@ class WebConsole extends ConsoleLink implements Backend {
     return text;
   }
 
+  // ───────────────────────── 远程窗口（浏览器的标签页） ─────────────────────────
+
+  /** 已经打开的远程标签页（控制码 → 那个窗口）：再点同一台设备只是切过去，不重新连 */
+  private sessionTabs = new Map<string, Window>();
+
+  /** 远程画面在新标签页里：和桌面版一样，一台电脑一个窗口，显示器可以拖出来单独成窗口（地址里带上要连的那台） */
+  async openSessionWindow(target: SessionTarget) {
+    const name = `nife-session-${target.code}${target.display === null ? "" : `-d${target.display}`}`;
+    const known = this.sessionTabs.get(name);
+    if (known && !known.closed) {
+      known.focus();
+      return;
+    }
+    const url = new URL(location.href);
+    url.hash = "";
+    url.search = "";
+    url.searchParams.set("session", JSON.stringify(target));
+    const tab = window.open(url.href, name);
+    if (!tab) throw { kind: "failed", detail: "the browser blocked the new tab" } satisfies Problem;
+    this.sessionTabs.set(name, tab);
+  }
+
+  // 标签页归浏览器管，控制台不知道还有哪些开着（左栏的"会话中"只桌面版有）
+  async sessionWindows(): Promise<OpenSession[] | null> {
+    return null;
+  }
+  onSessionWindows() {
+    return () => {};
+  }
+  async focusSession() {}
+  async reportSession() {}
+
   // 网页版没有被控端、托盘和窗口。
   // 开发时加 ?preview=host 可以看桌面版才有的"本机被控中"卡片（只是看样式用，正式构建里没有）
   async hostStatus(): Promise<HostStatus | null> {
@@ -275,7 +323,7 @@ class WebConsole extends ConsoleLink implements Backend {
     // 开发预览（?preview=host）：假装已登录，方便看主界面。__NIFE_DEV__ 只在 dev 里由 main.tsx 设上
     // （不能用 import.meta.env：这个文件也会被 node 的测试加载）
     if (!webAccount && (globalThis as { __NIFE_DEV__?: boolean }).__NIFE_DEV__ && new URLSearchParams(location.search).has("preview")) {
-      return { id: "udev", name: "niferemote", createdAt: 0 };
+      return { id: "udev", name: "niferemote", createdAt: 0, devices: [], deviceKeys: {}, deviceOnline: {}, deviceInfo: {} };
     }
     return webAccount?.info ?? null;
   }
@@ -284,7 +332,7 @@ class WebConsole extends ConsoleLink implements Backend {
     return this.accountGet();
   }
   async accountRegister(name: string, password: string): Promise<AccountInfo> {
-    webAccount = { info: { id: "uweb", name, createdAt: Math.floor(Date.now() / 1000) }, password };
+    webAccount = { info: { id: "uweb", name, createdAt: Math.floor(Date.now() / 1000), devices: [], deviceKeys: {}, deviceOnline: {}, deviceInfo: {} }, password };
     return webAccount.info;
   }
   async accountLogin(name: string, password: string): Promise<AccountInfo> {
@@ -303,10 +351,49 @@ class WebConsole extends ConsoleLink implements Backend {
     webAccount.password = newPassword;
     return webAccount.info;
   }
-  async accountDevices(): Promise<string[]> {
-    return webAccount ? [...(await this.profileGet()).recent.map(() => "")].filter(Boolean) : [];
+  async accountDevices(): Promise<AccountDevice[]> {
+    return [];
   }
   async accountSaveDevices(): Promise<void> {}
+  async accountHeartbeat(): Promise<void> {}
+
+  // 网页版没有设备连接（没有本机被控端），列表来自它自己的登录态
+  onAccountDevices(): () => void {
+    return () => {};
+  }
+
+  // 网页版：文件传输开成一个浏览器标签页（左边那一栏看不到本机文件）
+  async openFilesWindow({ code, name }: { code: string; name: string }): Promise<void> {
+    const url = `${location.pathname}?files=${encodeURIComponent(JSON.stringify({ code, name }))}`;
+    const w = window.open(url, `nife-files-${code}`);
+    if (w) w.focus();
+    else throw new Error("the browser blocked the new tab");
+  }
+
+  // 网页版看不见本机的文件系统（浏览器的沙箱）：文件传输窗口里左边那一栏不显示
+  async localRoots(): Promise<{ places: FsPlace[]; home: string }> {
+    return { places: [], home: "" };
+  }
+  async localList(): Promise<{ path: string; parent: string | null; entries: FsEntry[] }> {
+    return { path: "", parent: null, entries: [] };
+  }
+  async localExists(): Promise<boolean> {
+    return false;
+  }
+  async localOpen(): Promise<number> {
+    throw new Error("the web console can't read local files");
+  }
+  async localRead(): Promise<{ data: string; eof: boolean }> {
+    throw new Error("the web console can't read local files");
+  }
+  async localWrite(): Promise<void> {
+    throw new Error("the web console can't write local files");
+  }
+  async localClose(): Promise<void> {}
+  async controllerPublicKey(): Promise<string> {
+    return "";
+  }
+  async trustControllers(): Promise<void> {}
 
   async profileGet(): Promise<Profile> {
     return { ...defaultProfile };
@@ -333,6 +420,10 @@ class WebConsole extends ConsoleLink implements Backend {
     const recent = code ? defaultProfile.recent.filter((r) => r.code !== code) : [];
     defaultProfile = { ...defaultProfile, recent };
     return { ...defaultProfile };
+  }
+  // 网页版跑在容器里，浏览器这边没有本地临时文件（界面偏好由界面自己清）
+  async clearCache(): Promise<number> {
+    return 0;
   }
   // 网页版的服务器地址和指纹是启动容器时的环境变量，界面里改不了（见 client/web/.env.example）
   async relayRefresh(): Promise<boolean> {

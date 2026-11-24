@@ -14,7 +14,8 @@ use crate::transport::write_lane;
 use nife_remote_proto::datagram;
 use nife_remote_proto::media::{self, VideoHeader};
 use nife_remote_proto::session::{
-    ByeReason, Codec, ControllerDatagram, ControllerMsg, DirectOffer, DisplayInfo, HostMsg,
+    ByeReason, Codec, ControllerDatagram, ControllerMsg, DirectOffer, DisplayInfo, FsEntry, FsPlace,
+    HostMsg,
     MicState, Notice, Platform, SystemAction,
 };
 use anyhow::Result;
@@ -223,8 +224,61 @@ pub enum SessionEvent {
         state: MicState,
         detail: Option<String>,
     },
+    /// 文件传输：被控端的盘符和默认目录（`req` 对上控制端的请求）
+    FsRoots {
+        req: u32,
+        places: Vec<FsPlace>,
+        home: String,
+    },
+    /// 文件传输：一个目录的内容（`error` 有值就是打不开）
+    FsList {
+        req: u32,
+        path: String,
+        parent: Option<String>,
+        entries: Vec<FsEntry>,
+        error: Option<String>,
+    },
+    /// 文件传输：这个路径存不存在（发文件前问，决定要不要弹"是否替换"）
+    FsExists { req: u32, exists: bool },
+    /// 文件传输：文件打开了（`error` 有值就是没打开）
+    FsOpened {
+        id: u32,
+        size: u64,
+        error: Option<String>,
+    },
+    /// 文件传输：读到的一块。`data` 是 base64（512 KB 的块按数组发会被 JSON 放大好几倍）
+    FsData {
+        id: u32,
+        offset: u64,
+        eof: bool,
+        #[serde(serialize_with = "base64")]
+        data: Vec<u8>,
+    },
+    /// 文件传输：写成功的一块
+    FsWritten { id: u32, offset: u64 },
+    /// 文件传输：这个任务出错结束
+    FsError { id: u32, error: String },
     /// `retry=false` 表示对方主动断开，不应自动重连
     Closed { reason: Problem, retry: bool },
+}
+
+/// 文件数据在 JSON 里用 base64（标准字母表，带填充）
+fn base64<S: serde::Serializer>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error> {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [
+            chunk[0],
+            chunk.get(1).copied().unwrap_or(0),
+            chunk.get(2).copied().unwrap_or(0),
+        ];
+        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+        out.push(ALPHABET[(n >> 18) as usize & 63] as char);
+        out.push(ALPHABET[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { ALPHABET[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { ALPHABET[n as usize & 63] as char } else { '=' });
+    }
+    s.serialize_str(&out)
 }
 
 /// [`Notice`] 发给控制台时的 JSON 形状：`{ "kind": "captureFailed", "detail": "..." }`
@@ -506,6 +560,49 @@ pub(super) async fn run(
                 }
                 HostMsg::AwaitingApproval => {
                     let _ = out.event(SessionEvent::AwaitingApproval);
+                }
+                HostMsg::FsRoots { req, places, home } => {
+                    let _ = out.event(SessionEvent::FsRoots { req, places, home });
+                }
+                HostMsg::FsList {
+                    req,
+                    path,
+                    parent,
+                    entries,
+                    error,
+                } => {
+                    let _ = out.event(SessionEvent::FsList {
+                        req,
+                        path,
+                        parent,
+                        entries,
+                        error,
+                    });
+                }
+                HostMsg::FsExists { req, exists } => {
+                    let _ = out.event(SessionEvent::FsExists { req, exists });
+                }
+                HostMsg::FsOpened { id, size, error } => {
+                    let _ = out.event(SessionEvent::FsOpened { id, size, error });
+                }
+                HostMsg::FsData {
+                    id,
+                    offset,
+                    eof,
+                    data,
+                } => {
+                    let _ = out.event(SessionEvent::FsData {
+                        id,
+                        offset,
+                        eof,
+                        data,
+                    });
+                }
+                HostMsg::FsWritten { id, offset } => {
+                    let _ = out.event(SessionEvent::FsWritten { id, offset });
+                }
+                HostMsg::FsError { id, error } => {
+                    let _ = out.event(SessionEvent::FsError { id, error });
                 }
                 HostMsg::Displays { displays, current } => {
                     let _ = out.event(SessionEvent::Displays { displays, current });

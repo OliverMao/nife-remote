@@ -61,9 +61,15 @@ pub async fn fetch(auth: &str) -> Result<Relay> {
         .await
         .with_context(|| format!("can't reach the account service at {url}"))?;
     if !response.status().is_success() {
-        bail!("the account service answered {} for {url}", response.status());
+        bail!(
+            "the account service answered {} for {url}",
+            response.status()
+        );
     }
-    let body: Envelope = response.json().await.context("unexpected reply from the account service")?;
+    let body: Envelope = response
+        .json()
+        .await
+        .context("unexpected reply from the account service")?;
     let Some(relay) = body.relay else {
         bail!("the account service hasn't assigned a relay server yet");
     };
@@ -95,5 +101,3 @@ pub async fn resolve(auth: &str) -> Option<Relay> {
         }
     }
 }
-
-

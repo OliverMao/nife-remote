@@ -2,8 +2,8 @@
 
 use std::time::Instant;
 
-use nife_remote_proto::session::{Codec, EncoderInfo};
 use anyhow::{Result, anyhow};
+use nife_remote_proto::session::{Codec, EncoderInfo};
 use openh264::OpenH264API;
 use openh264::encoder::{
     BitRate, Complexity, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, QpRange,

@@ -20,9 +20,9 @@ mod software;
 
 use std::sync::OnceLock;
 
-use nife_remote_proto::session::{Codec, EncoderInfo, QualitySettings, VideoPriority};
 use anyhow::{Context, Result, anyhow, bail};
 use fast_image_resize as fir;
+use nife_remote_proto::session::{Codec, EncoderInfo, QualitySettings, VideoPriority};
 use tracing::info;
 use tracing::warn;
 
@@ -194,7 +194,6 @@ fn fallback_order(requested: Codec, peers: &[Codec]) -> Vec<Codec> {
     order
 }
 
-
 fn hardware_encoder(
     codec: Codec,
     (w, h): (u32, u32),
@@ -204,7 +203,6 @@ fn hardware_encoder(
 ) -> Result<Box<dyn VideoEncoder>> {
     Ok(Box::new(mf::MfEncoder::new(codec, w, h, fps, kbps, gpu)?))
 }
-
 
 /// 缩放 + 编码。持有可复用的缩放缓冲区。
 pub struct Encoder {
@@ -370,5 +368,3 @@ pub(crate) fn annexb_nal_types(data: &[u8], hevc: bool) -> impl Iterator<Item = 
         None
     })
 }
-
-

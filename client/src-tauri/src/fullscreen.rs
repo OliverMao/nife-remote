@@ -11,7 +11,6 @@
 
 use tauri::WebviewWindow;
 
-
 /// 窗口是不是全屏
 pub fn is_on(window: &WebviewWindow) -> tauri::Result<bool> {
     window.is_fullscreen()
@@ -30,5 +29,3 @@ pub fn set(window: &WebviewWindow, on: bool) -> tauri::Result<()> {
 fn pause_edge_resize(window: &WebviewWindow, paused: bool) -> tauri::Result<()> {
     window.set_resizable(!paused)
 }
-
-

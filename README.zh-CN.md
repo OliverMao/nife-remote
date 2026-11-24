@@ -34,7 +34,7 @@ Nife Remote 是一个**高性能、低延迟**的远程桌面：画面用 GPU �
 
 - **Windows 系统服务**：锁屏、登录界面和 UAC 确认框也能看到、能操作，开机后登录之前就能被控制
 - **固定的控制码**：重启、升级，甚至服务器重启之后都不变，直到你主动更换
-- **控制台**：浏览器式标签页，同时控制多台电脑，多屏总览同时看所有画面。连接过的设备自动保存，下次点一下就连；对方离线时，等它上线自动连上
+- **控制台**：一台电脑一个窗口，管理界面只负责打开和切换。连接过的设备自动保存，下次点一下就连；对方离线时，窗口开着等它上线自动连上
 - **网页控制台**：控制端也能用 Docker 部署，浏览器打开就能用，操作的电脑上什么都不用装
 - **声音**：被控端的系统声音同步到控制端（Opus + 自适应抖动缓冲），看视频时可以打开音画同步。反过来，控制端的麦克风可以放进 Windows 被控端的虚拟麦克风（Steam Streaming Microphone，用过一次 Steam 远程同乐就有），在那边开会、语音输入
 - **实用工具**：剪贴板双向同步、以键盘输入方式发送剪贴板、系统快捷键（Win、Alt+Tab、Ctrl+Shift+Esc……）、多显示器、全屏时锁定键盘、画质预设
@@ -91,7 +91,7 @@ curl -fsSL  $base/.env.example -o .env
 NIFE_REMOTE_IMAGE=mirror.naig.us/nife-remote-server:0.0.1
 NIFE_REMOTE_AUTH_IMAGE=mirror.naig.us/nife-remote-auth:0.0.1
 NIFE_REMOTE_AUTH_RELAY_HOST=relay.example.com:4433   # 客户端直连的中转地址（原样交给客户端）
-NIFE_REMOTE_AUTH_RELAY_FP=                           # 留空 = 客户端第一次连接时记下指纹
+NIFE_REMOTE_AUTH_RELAY_FP=                           # 留空 = 由客户端在连接时自行信任
 ```
 
 **3）Caddy 反代账号服务**（客户端和网页控制台都用 `https://auth.example.com`）

@@ -20,16 +20,18 @@ mod devices;
 mod ephemeral;
 mod fullscreen;
 pub mod host;
+mod presence;
 mod profile;
 mod relay;
 mod single_instance;
 pub mod status;
 mod sysinfo;
 mod tray;
+mod viewer;
 mod winsvc;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use nife_remote_link::secure::Identity;
@@ -53,6 +55,8 @@ pub struct AppState {
     service_mode: bool,
     /// 控制台连过来的 WebSocket 地址（第一次要的时候开始监听，见 [`console`]）
     console: tokio::sync::OnceCell<String>,
+    /// 开着的远程窗口（控制台左栏"会话中"，见 [`viewer`]）
+    open: viewer::Open,
 }
 
 #[derive(Default)]
@@ -93,6 +97,18 @@ impl Hosting {
                 HostCmd::Kick { session_id } => winsvc::ipc::ToAgent::Kick { session_id },
                 HostCmd::NewCode => winsvc::ipc::ToAgent::NewCode,
             }),
+        }
+    }
+
+    /// 登录同一个账号的其它设备的控制台公钥：这些控制端不用输配对码。
+    /// 本进程里的被控端直接改，Windows 安装版经命名管道交给服务里的被控端
+    fn trust(&self, keys: Vec<String>) {
+        match self {
+            Hosting::InProcess(h) => {
+                let gate = h.gate().clone();
+                std::thread::spawn(move || gate.set_trusted_controllers(keys));
+            }
+            Hosting::Service(link) => link.send(winsvc::ipc::ToAgent::TrustControllers { keys }),
         }
     }
 
@@ -183,7 +199,6 @@ fn save_controller_key(sv: &Services, key: String) {
         }
     });
 }
-
 
 fn open_console(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(CONSOLE) {
@@ -293,7 +308,6 @@ struct AppInfo {
     account_ready: bool,
     /// 配置过中转服务器没有（没有的话 `server` 只是占位的 127.0.0.1:4433，不连接也不重试）
     configured: bool,
-    pinned: bool,
     hostname: String,
     lang: Lang,
     /// 配置文件（也保存着我的设备）的路径，控制台的菜单里显示
@@ -306,7 +320,6 @@ fn app_info() -> AppInfo {
         server: config::settings().server.clone(),
         account_ready: !accounts::base_url().is_empty(),
         configured: config::server_configured(),
-        pinned: config::pinned(),
         hostname: sysinfo::host_identity().0,
         lang: i18n::current(),
         config_path: config::path().map(|p| p.display().to_string()),
@@ -351,6 +364,14 @@ async fn devices_save(
         .map_err(|e| Problem::failed(format!("{e:#}")))
 }
 
+/// 清理本地缓存：临时文件（WebView 数据目录、上次异常退出的残留），返回删掉的字节数。
+/// 控制码、我的设备、登录状态都不动（那些是数据，不是缓存）。
+#[tauri::command]
+async fn clear_cache() -> Result<u64, Problem> {
+    tauri::async_runtime::spawn_blocking(ephemeral::sweep_cache)
+        .await
+        .map_err(|e| Problem::failed(format!("{e}")))
+}
 
 /// 断开某一路控制端（被控中页列表里那一行）
 #[tauri::command]
@@ -377,42 +398,169 @@ async fn account_refresh() -> Option<accounts::AccountInfo> {
 
 /// 注册一个账号（注册完直接登录）
 #[tauri::command]
-async fn account_register(name: String, password: String) -> Result<accounts::AccountInfo, Problem> {
-    accounts::register(&name, &password).await.map_err(|e| Problem::failed(format!("{e:#}")))
+async fn account_register(
+    name: String,
+    password: String,
+) -> Result<accounts::AccountInfo, Problem> {
+    accounts::register(&name, &password)
+        .await
+        .map_err(|e| Problem::from_error(e, Problem::failed))
 }
 
 /// 登录
 #[tauri::command]
 async fn account_login(name: String, password: String) -> Result<accounts::AccountInfo, Problem> {
-    accounts::login(&name, &password).await.map_err(|e| Problem::failed(format!("{e:#}")))
+    accounts::login(&name, &password)
+        .await
+        .map_err(|e| Problem::from_error(e, Problem::failed))
 }
 
 /// 退出登录
 #[tauri::command]
 async fn account_logout() -> Result<(), Problem> {
-    accounts::logout().await.map_err(|e| Problem::failed(format!("{e:#}")))
+    accounts::logout()
+        .await
+        .map_err(|e| Problem::from_error(e, Problem::failed))
 }
 
 /// 改密码（旧密码、新密码）
 #[tauri::command]
-async fn account_change_password(old_password: String, new_password: String) -> Result<accounts::AccountInfo, Problem> {
+async fn account_change_password(
+    old_password: String,
+    new_password: String,
+) -> Result<accounts::AccountInfo, Problem> {
     accounts::change_password(&old_password, &new_password)
         .await
-        .map_err(|e| Problem::failed(format!("{e:#}")))
+        .map_err(|e| Problem::from_error(e, Problem::failed))
 }
 
-/// 账号下的设备列表（"本账号设备"）
+/// 账号下的设备列表（"本账号设备"= 登录同一个账号的设备，每台带控制台公钥）
 #[tauri::command]
-async fn account_devices() -> Result<Vec<String>, Problem> {
-    accounts::devices().await.map_err(|e| Problem::failed(format!("{e:#}")))
+async fn account_devices() -> Result<Vec<accounts::AccountDevice>, Problem> {
+    accounts::devices()
+        .await
+        .map_err(|e| Problem::from_error(e, Problem::failed))
 }
 
-/// 把设备列表存进账号
+// ───────────────────────── 本地文件（文件传输窗口左边的这一半） ─────────────────────────
+
+/// 本地打开着的文件（文件传输窗口读发送的文件、写接收的文件）
+static LOCAL_FILES: LazyLock<Mutex<host::files::Jobs>> = LazyLock::new(Default::default);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalList {
+    path: String,
+    parent: Option<String>,
+    entries: Vec<nife_remote_proto::session::FsEntry>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalData {
+    /// base64（文件内容是二进制的，JSON 里这样最省）
+    data: String,
+    eof: bool,
+}
+
+/// 本机能直接跳过去的位置（盘符、桌面、下载……）和默认目录
+/// （对象，别用元组：界面上是按 `{places, home}` 读的）
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalRoots {
+    places: Vec<nife_remote_proto::session::FsPlace>,
+    home: String,
+}
+
 #[tauri::command]
-async fn account_save_devices(codes: Vec<String>) -> Result<(), Problem> {
-    accounts::save_devices(&codes).await.map_err(|e| Problem::failed(format!("{e:#}")))
+async fn local_fs_roots() -> LocalRoots {
+    let (places, home) = host::files::roots();
+    LocalRoots { places, home }
 }
 
+/// 列本机的一个目录（`path` 为空 = 默认目录）
+#[tauri::command]
+async fn local_fs_list(path: String) -> Result<LocalList, String> {
+    host::files::list(&path).map(|(path, parent, entries)| LocalList {
+        path,
+        parent,
+        entries,
+    })
+}
+
+/// 本机的这个文件存不存在（发之前问一次：决定要不要弹"是否替换"）
+#[tauri::command]
+async fn local_fs_exists(path: String) -> bool {
+    host::files::exists(&path)
+}
+
+/// 打开本机的一个文件（`write` 为真时清空重写）
+#[tauri::command]
+async fn local_fs_open(id: u32, path: String, write: bool) -> Result<u64, String> {
+    LOCAL_FILES.lock().unwrap().open(id, &path, write)
+}
+
+/// 读本机文件的一块
+#[tauri::command]
+async fn local_fs_read(id: u32, offset: u64, len: u32) -> Result<LocalData, String> {
+    let (data, eof) = LOCAL_FILES.lock().unwrap().read(id, offset, len)?;
+    Ok(LocalData {
+        data: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data),
+        eof,
+    })
+}
+
+/// 写本机文件的一块（`data` 是 base64）
+#[tauri::command]
+async fn local_fs_write(id: u32, offset: u64, data: String) -> Result<(), String> {
+    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data.as_bytes())
+        .map_err(|e| e.to_string())?;
+    LOCAL_FILES.lock().unwrap().write(id, offset, &bytes)
+}
+
+/// 关掉本机打开的文件
+#[tauri::command]
+async fn local_fs_close(id: u32) {
+    LOCAL_FILES.lock().unwrap().close(id);
+}
+
+/// 打开一台电脑的**文件传输**窗口（见 src-tauri/src/viewer.rs 的 open_files）
+#[tauri::command]
+async fn files_open(app: AppHandle, code: String, name: String) -> Result<(), Problem> {
+    viewer::open_files(&app, &code, &name)
+}
+
+/// 这台设备报到（每 30 秒一次）：账号里的其它设备据此看到它在线
+#[tauri::command]
+async fn account_heartbeat(code: String) -> Result<(), Problem> {
+    accounts::heartbeat(&code)
+        .await
+        .map_err(|e| Problem::from_error(e, Problem::failed))
+}
+
+/// 把设备列表存进账号（每台带控制台公钥）
+#[tauri::command]
+async fn account_save_devices(devices: Vec<accounts::AccountDevice>) -> Result<(), Problem> {
+    accounts::save_devices(&devices)
+        .await
+        .map_err(|e| Problem::from_error(e, Problem::failed))
+}
+
+/// 本机的控制台公钥（64 位十六进制，登记到账号里给同账号的其它设备认）。网页版没有
+#[tauri::command]
+fn controller_public_key() -> String {
+    let (identity, _new) = config::controller_identity();
+    nife_remote_link::secure::hex(identity.public())
+}
+
+/// 登录同一个账号的其它设备的控制台公钥：这些控制端连本机不用输配对码
+#[tauri::command]
+fn trust_controllers(state: tauri::State<'_, AppState>, keys: Vec<String>) {
+    let sv = state.services.lock().unwrap();
+    if let Some(host) = &sv.host {
+        host.trust(keys);
+    }
+}
 
 /// 界面自己的偏好和记录（profile.json）：允许协助、验证方式、收藏、最近连接
 #[tauri::command]
@@ -422,7 +570,10 @@ fn profile_get() -> profile::Profile {
 
 /// 允许他人远程协助：关掉之后正在控的全部断开，也不再接受新的
 #[tauri::command]
-fn profile_set_allow(state: tauri::State<'_, AppState>, allow: bool) -> Result<profile::Profile, Problem> {
+fn profile_set_allow(
+    state: tauri::State<'_, AppState>,
+    allow: bool,
+) -> Result<profile::Profile, Problem> {
     let (p, ()) = profile::update(|p| {
         let changed = p.allow_assist != allow;
         p.allow_assist = allow;
@@ -440,7 +591,10 @@ fn profile_set_allow(state: tauri::State<'_, AppState>, allow: bool) -> Result<p
 
 /// 验证方式：pairing（配对码）/ approval（本机同意）/ open（不用验证）
 #[tauri::command]
-fn profile_set_verify(state: tauri::State<'_, AppState>, verify: String) -> Result<profile::Profile, Problem> {
+fn profile_set_verify(
+    state: tauri::State<'_, AppState>,
+    verify: String,
+) -> Result<profile::Profile, Problem> {
     let verify = profile::Verify::parse(&verify);
     let (p, ()) = profile::update(|p| {
         let changed = p.verify != verify;
@@ -499,13 +653,15 @@ async fn relay_refresh() -> Result<bool, Problem> {
     if auth.is_empty() {
         return Ok(false);
     }
-    let before = (config::settings().server.clone(), config::settings().server_fp.clone());
+    let before = (
+        config::settings().server.clone(),
+        config::settings().server_fp.clone(),
+    );
     let Some(relay) = relay::resolve(&auth).await else {
         return Ok(false);
     };
     Ok(before != (relay.address(), relay.fingerprint))
 }
-
 
 /// 断开所有正在控制本机的控制端（左栏被控卡点开放大后那一页的按钮）
 #[tauri::command]
@@ -521,10 +677,7 @@ fn kick_all(state: tauri::State<'_, AppState>) -> Result<(), Problem> {
 /// 首页里填的配对码（6 位数字，本机生成的，可以自己改）：写进 `config.toml` 并马上生效。
 /// Windows 安装版：配置文件在安装目录里，由服务里的被控端维护（托盘没有写权限），经命名管道交给它
 #[tauri::command]
-async fn pairing_save(
-    state: tauri::State<'_, AppState>,
-    code: String,
-) -> Result<(), Problem> {
+async fn pairing_save(state: tauri::State<'_, AppState>, code: String) -> Result<(), Problem> {
     config::check_pairing(&code).map_err(|e| Problem::failed(format!("{e:#}")))?;
     let code = code.trim().to_string();
     {
@@ -584,16 +737,57 @@ fn host_status(state: tauri::State<'_, AppState>) -> HostStatus {
     state.hub.borrow().host.clone()
 }
 
+/// 在一台电脑自己的窗口里打开远程画面（网页版是新的浏览器标签页）。已经开着就切过去
+#[tauri::command]
+async fn session_open(
+    app: AppHandle,
+    code: String,
+    settings: serde_json::Value,
+    pairing: Option<String>,
+    display: Option<u32>,
+) -> Result<(), Problem> {
+    viewer::open(&app, code, settings, pairing, display)
+}
+
+/// 现在开着的远程窗口（控制台左栏"会话中"）
+#[tauri::command]
+fn session_windows(app: AppHandle) -> Vec<viewer::OpenSession> {
+    viewer::list(&app)
+}
+
+/// 切到已经开着的远程窗口（`display`：固定看某个显示器的那一个）
+#[tauri::command]
+fn session_focus(app: AppHandle, code: String, display: Option<u32>) {
+    viewer::focus(&app, &code, display);
+}
+
+/// 远程窗口里的会话变样了（名字、状态）：更新左栏，并通知控制台
+#[tauri::command]
+fn session_report(app: AppHandle, code: String, display: Option<u32>, name: String, state: String) {
+    viewer::report(&app, &code, display, name, state);
+}
+
 // ───────────────────────────── 入口 ─────────────────────────────
 
+/// 选一个 rustls 的加密实现（ring），必须在任何 TLS 连接之前调用。
+///
+/// 进程里同时有 quinn（ring）和 tokio-tungstenite（native roots）——两边把 rustls 的
+/// `aws-lc-rs` / `ring` 两个 feature 都打开了，rustls 0.23 就不再自动挑实现，
+/// **第一次用 TLS 时直接 panic**（release 下 `panic = "abort"`，表现为启动后闪退）。
+fn install_crypto_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 pub fn run() {
+    install_crypto_provider();
     // Windows：安装包和服务管理器用的命令行（--install、--service、--agent……）
     if let Some(code) = winsvc::cli() {
         std::process::exit(code);
     }
     init_logging();
     let Some(_instance) = single_instance::acquire() else {
-        // 已经有一个实例在运行（托盘里），直接退出
+        // 已经有一个在运行（托盘里）：说一句再退出（不说的话看起来像闪退）
+        single_instance::show_already_running();
         return;
     };
     // Windows：安装好的 Nife Remote 由系统服务运行被控端；发布版必须安装，调试构建直接运行时被控端在本进程里运行
@@ -628,6 +822,7 @@ pub fn run() {
             webview_dirs: Mutex::default(),
             service_mode,
             console: Default::default(),
+            open: Default::default(),
         })
         // 控制台的麦克风（把本机的麦克风发给对方，见 client/src/lib/mic.ts）：用户在连接里打开了才会用到，
         // 直接允许，不再弹 WebView 自己的询问（控制台的数据目录是临时的，不然每次打开控制台都要问一遍）
@@ -646,13 +841,25 @@ pub fn run() {
             devices_save,
             pairing_save,
             relay_refresh,
+            clear_cache,
             kick_all,
             kick_session,
             account_get,
             account_refresh,
             account_change_password,
             account_devices,
+            account_heartbeat,
+            files_open,
+            local_fs_roots,
+            local_fs_list,
+            local_fs_exists,
+            local_fs_open,
+            local_fs_read,
+            local_fs_write,
+            local_fs_close,
             account_save_devices,
+            controller_public_key,
+            trust_controllers,
             account_register,
             account_login,
             account_logout,
@@ -663,43 +870,59 @@ pub fn run() {
             recent_push,
             recent_drop,
             restart_app,
+            session_open,
+            session_windows,
+            session_focus,
+            session_report,
         ])
-        .setup(move |app| {
-            let handle = app.handle().clone();
-            if tray::available() {
-                tray::create(&handle)?;
-            }
-            // 两个角色同时开：被控端（本机可被连）+ 控制台的控制端身份（去连别人）
-            start_services(&handle);
-            // 启动就打开控制台（首页显示本机连接码）；关掉后只剩托盘图标
-            open_console(&handle);
-
-            // 状态（或界面语言）变化 → 刷新托盘 / 通知控制台
-            let mut rx = hub.subscribe();
-            tauri::async_runtime::spawn(async move {
-                let mut lang = None;
-                loop {
-                    let st = rx.borrow_and_update().clone();
-                    tray::refresh(&handle, &st);
-                    // 控制台首页的本机连接码、正在控制本机的控制端
-                    let _ = handle.emit_to(CONSOLE, "host-status", &st.host);
-                    let cur = i18n::current();
-                    if lang.replace(cur) != Some(cur) {
-                        if let Some(w) = handle.get_webview_window(CONSOLE) {
-                            let _ = w.set_title(&console_title());
-                        }
-                        let _ = handle.emit_to(CONSOLE, "lang-changed", cur);
-                    }
-                    if rx.changed().await.is_err() {
-                        break;
-                    }
+        .setup({
+            let hub_for_presence = hub.clone();
+            move |app| {
+                let handle = app.handle().clone();
+                if tray::available() {
+                    tray::create(&handle)?;
                 }
-            });
-            Ok(())
+                // 两个角色同时开：被控端（本机可被连）+ 控制台的控制端身份（去连别人）
+                start_services(&handle);
+                // 设备的常连接（账号服务）：报到本机控制码，收同账号的设备列表和在线状态
+                presence::start(handle.clone(), hub_for_presence.clone());
+                // 启动就打开控制台（首页显示本机连接码）；关掉后只剩托盘图标
+                open_console(&handle);
+
+                // 状态（或界面语言）变化 → 刷新托盘 / 通知控制台
+                let mut rx = hub.subscribe();
+                tauri::async_runtime::spawn(async move {
+                    let mut lang = None;
+                    loop {
+                        let st = rx.borrow_and_update().clone();
+                        tray::refresh(&handle, &st);
+                        // 控制台首页的本机连接码、正在控制本机的控制端
+                        let _ = handle.emit_to(CONSOLE, "host-status", &st.host);
+                        let cur = i18n::current();
+                        if lang.replace(cur) != Some(cur) {
+                            if let Some(w) = handle.get_webview_window(CONSOLE) {
+                                let _ = w.set_title(&console_title());
+                            }
+                            // 远程窗口也听这个（它们自己画界面，标题由界面改）
+                            let _ = handle.emit("lang-changed", cur);
+                        }
+                        if rx.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                });
+                Ok(())
+            }
         })
         .on_window_event(|window, event| {
-            if window.label() == CONSOLE && matches!(event, WindowEvent::Destroyed) {
+            if !matches!(event, WindowEvent::Destroyed) {
+                return;
+            }
+            if window.label() == CONSOLE {
                 on_console_destroyed(window.app_handle());
+            } else if viewer::parse_label(window.label()).is_some() {
+                // 远程窗口关掉了：会话跟着断（WebSocket 没了），左栏那一行也撤掉
+                viewer::forget(window.app_handle(), window.label());
             }
         })
         .build(tauri::generate_context!())
@@ -750,11 +973,6 @@ fn start_service_link(app: &AppHandle, hub: &StatusHub) -> Hosting {
     }))
 }
 
-
-
-
-
-
 fn init_logging() {
     let filter = tracing_subscriber::EnvFilter::try_from_env("NIFE_REMOTE_LOG")
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info,quinn=warn,quinn_proto=warn"));
@@ -764,7 +982,6 @@ fn init_logging() {
         .with_writer(std::io::stderr)
         .try_init();
 }
-
 
 pub(crate) fn enable_dpi_awareness() {
     unsafe {

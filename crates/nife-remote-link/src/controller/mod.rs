@@ -72,7 +72,9 @@ use crate::wire::{read_msg, write_msg};
 use nife_remote_proto::framing;
 use nife_remote_proto::handshake::SEAL_OVERHEAD;
 use nife_remote_proto::media;
-use nife_remote_proto::session::{ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, QualitySettings, Codec};
+use nife_remote_proto::session::{
+    Codec, ControllerMsg, InputEvent, MAX_CLIPBOARD_TEXT, MAX_FS_CHUNK, QualitySettings,
+};
 use nife_remote_proto::signal::{
     ClientMsg, PresenceQuery, ResumeToken, ServerMsg, SessionGrant, connect_outcome,
 };
@@ -172,6 +174,47 @@ pub enum Command {
         sid: u32,
         enabled: bool,
     },
+    /// 文件传输：要被控端的盘符和默认目录
+    FsRoots {
+        sid: u32,
+        req: u32,
+    },
+    FsList {
+        sid: u32,
+        req: u32,
+        path: String,
+    },
+    FsExists {
+        sid: u32,
+        req: u32,
+        path: String,
+    },
+    FsOpen {
+        sid: u32,
+        /// 任务 id（界面上一个文件一个）。**不能叫 `id`**：命令信封本身用 `id` 对回答，
+        /// 同名字段会被盖掉，界面就永远等不到回复（进度一直 0%）
+        file: u32,
+        path: String,
+        write: bool,
+    },
+    FsRead {
+        sid: u32,
+        file: u32,
+        offset: u64,
+        len: u32,
+    },
+    FsWrite {
+        sid: u32,
+        file: u32,
+        offset: u64,
+        /// 界面发来的是 base64（见 [`b64`]）：512 KB 的块按 JSON 数组发会放大好几倍
+        #[serde(deserialize_with = "b64::deserialize")]
+        data: Vec<u8>,
+    },
+    FsClose {
+        sid: u32,
+        file: u32,
+    },
     /// 界面收到了第 `seq` 帧画面（累积确认），见 [`SessionUi::packet`]
     Ack {
         sid: u32,
@@ -196,8 +239,68 @@ impl Command {
             | Command::Clipboard { sid, .. }
             | Command::ClipboardSync { sid, .. }
             | Command::Ack { sid, .. }
+            | Command::FsRoots { sid, .. }
+            | Command::FsList { sid, .. }
+            | Command::FsExists { sid, .. }
+            | Command::FsOpen { sid, .. }
+            | Command::FsRead { sid, .. }
+            | Command::FsWrite { sid, .. }
+            | Command::FsClose { sid, .. }
             | Command::Disconnect { sid } => *sid,
         }
+    }
+}
+
+/// 文件数据在 JSON 里是 base64（和 `SessionEvent::FsData` 发出去时一样，标准字母表带填充）。
+///
+/// 只做解码：`Vec<u8>` 默认按 JSON 数组收，界面发的是字符串——不写这个就会"每条写命令
+/// 都解析失败"，界面那边看到的是进度一直 0%。
+mod b64 {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    fn value(c: u8) -> Option<u32> {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return None,
+        };
+        Some(v as u32)
+    }
+
+    pub fn decode(text: &str) -> Result<Vec<u8>, String> {
+        let bytes = text.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+        for chunk in bytes.chunks(4) {
+            if chunk.len() < 2 {
+                return Err("truncated base64".into());
+            }
+            let mut n = 0u32;
+            for (i, c) in chunk.iter().enumerate() {
+                let v = if *c == b'=' {
+                    0
+                } else {
+                    value(*c).ok_or_else(|| format!("bad base64 character {:?}", *c as char))?
+                };
+                n |= v << (18 - 6 * i);
+            }
+            out.push((n >> 16) as u8);
+            if chunk.len() > 2 && chunk[2] != b'=' {
+                out.push((n >> 8) as u8);
+            }
+            if chunk.len() > 3 && chunk[3] != b'=' {
+                out.push(n as u8);
+            }
+        }
+        let _ = ALPHABET;
+        Ok(out)
+    }
+
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let text = <String as serde::Deserialize>::deserialize(d)?;
+        decode(&text).map_err(serde::de::Error::custom)
     }
 }
 
@@ -300,6 +403,22 @@ pub struct SessionInfo {
     pub host_key: String,
     /// 安全码（见模块说明的"端到端加密"）
     pub safety: String,
+    /// 双方都支持、界面可能用得上的会话能力（见 `nife_remote_proto::features::session`）：
+    /// `"mic"`、`"files"`。界面据此决定显不显示麦克风、能不能开文件传输
+    pub features: Vec<&'static str>,
+}
+
+/// 双方都有的会话能力，界面关心的那几个（见 `nife_remote_proto::features::session`）
+fn session_features(features: &Features) -> Vec<&'static str> {
+    use nife_remote_proto::features::session;
+    let mut out = Vec::new();
+    if features.has(session::MIC) {
+        out.push("mic");
+    }
+    if features.has(session::FILES) {
+        out.push("files");
+    }
+    out
 }
 
 impl ControllerService {
@@ -502,6 +621,7 @@ impl ControllerService {
             resume: grant.resume,
             host_key: secure::hex(&peer),
             safety,
+            features: session_features(&link.negotiated.features),
         })
     }
 
@@ -544,6 +664,42 @@ impl ControllerService {
                 return Ok(());
             }
             Command::Ack { sid, seq } => return self.ack(sid, seq),
+            Command::FsRoots { sid, req } => (sid, ControllerMsg::FsRoots { req }),
+            Command::FsList { sid, req, path } => (sid, ControllerMsg::FsList { req, path }),
+            Command::FsExists { sid, req, path } => (sid, ControllerMsg::FsExists { req, path }),
+            Command::FsOpen {
+                sid,
+                file,
+                path,
+                write,
+            } => (
+                sid,
+                ControllerMsg::FsOpen {
+                    id: file,
+                    path,
+                    write,
+                },
+            ),
+            Command::FsRead {
+                sid,
+                file,
+                offset,
+                len,
+            } => (
+                sid,
+                ControllerMsg::FsRead {
+                    id: file,
+                    offset,
+                    len: len.min(MAX_FS_CHUNK),
+                },
+            ),
+            Command::FsWrite {
+                sid,
+                file,
+                offset,
+                data,
+            } => (sid, ControllerMsg::FsWrite { id: file, offset, data }),
+            Command::FsClose { sid, file } => (sid, ControllerMsg::FsClose { id: file }),
             Command::Disconnect { sid } => {
                 self.disconnect(sid);
                 return Ok(());

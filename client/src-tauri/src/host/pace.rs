@@ -52,5 +52,3 @@ impl Pacer {
 fn period(fps: u8) -> Duration {
     Duration::from_secs(1) / fps.max(1) as u32
 }
-
-

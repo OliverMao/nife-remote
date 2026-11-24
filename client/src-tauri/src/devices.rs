@@ -20,11 +20,11 @@
 //!
 //! 手动添加时 `code` 写 6 位数字都可以。
 
-use nife_remote_proto::session::{Codec, QualitySettings, VideoPriority};
-use nife_remote_proto::signal::ResumeToken;
 use anyhow::Result;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use nife_remote_proto::session::{Codec, QualitySettings, VideoPriority};
+use nife_remote_proto::signal::ResumeToken;
 use serde::{Deserialize, Serialize};
 use toml_edit::{Datetime, InlineTable, Item, Table, Value};
 use tracing::warn;
@@ -320,5 +320,3 @@ pub(crate) fn from_millis(ms: i64) -> Option<Datetime> {
         offset: Some(toml_edit::Offset::Z),
     })
 }
-
-

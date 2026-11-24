@@ -2,8 +2,10 @@
 //
 // 以后这里还要放登录注册和"绑定自己的设备"，所以账号相关的区域留在最上面（现在先放本机被控卡）。
 import type { SavedDevice } from "../lib/api";
-import { fmtCode, loadDevices } from "../lib/actions";
+import { api } from "../lib/api";
+import { loadDevices } from "../lib/actions";
 import { useT } from "../lib/i18n";
+import { openStateText } from "../lib/messages";
 import { store, useStore } from "../lib/store";
 import { MyDevices } from "./MyDevices";
 import { Logo } from "./Logo";
@@ -76,28 +78,33 @@ function HostCard() {
   );
 }
 
-/** 左栏里的"我的设备"：点一下直接连（画质用上次的） */
-/** 会话中（原来的顶部标签条）：没有标签页之后，多个远程桌面在这里切换 */
+/** 会话中：现在开着的远程窗口（一台电脑一个，显示器拖出去的另算），点一下把它叫到前面 */
 function SessionList() {
   const t = useT();
-  const sessions = useStore((s) => s.sessions);
-  const view = useStore((s) => s.view);
-  if (sessions.length === 0) return null;
+  const open = useStore((s) => s.open);
+  if (open.length === 0) return null;
+
+  /** 固定看某个显示器的窗口——名字后面写上是哪一块屏幕 */
+  const name = (w: (typeof open)[number]) =>
+    w.display === null
+      ? w.name || t("session.remoteComputer")
+      : `${w.name || t("session.remoteComputer")} · ${t("session.display", { n: w.display + 1 })}`;
+
   return (
     <div className="sb-section">
       <div className="sb-title">
         <IconMonitor size={16} />
         {t("sidebar.sessions")}
       </div>
-      {sessions.map((s) => (
+      {open.map((w) => (
         <button
-          key={s.id}
-          className={`sb-item ${view === s.id ? "on" : ""}`}
-          title={`${s.hostName} · ${fmtCode(s.code)}`}
-          onClick={() => store.setView(s.id)}
+          key={`${w.code}-${w.display ?? "x"}`}
+          className="sb-item"
+          title={`${name(w)} · ${openStateText(w.state)}`}
+          onClick={() => void api.focusSession(w.code, w.display)}
         >
-          <span className={`sb-live ${s.state}`} />
-          <span>{s.hostName || fmtCode(s.code)}</span>
+          <span className={`sb-live ${w.state}`} />
+          <span>{name(w)}</span>
         </button>
       ))}
     </div>

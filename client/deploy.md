@@ -3,7 +3,7 @@
 ## 1. 连接域名配在哪
 
 **只有一个地方：构建时的账号服务地址**，优先级 环境变量 → `client/.env` → 默认值（正式服务
-`https://nife-remote-auth.naig.us`）。什么都不设，直接构建就是正式服务：
+`https://nife-remote-auth.yoobit.cn`）。什么都不设，直接构建就是正式服务：
 
 ```powershell
 cd client

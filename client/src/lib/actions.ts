@@ -1,95 +1,64 @@
-// 跨组件的操作：连接、我的设备、重新打开关闭的会话、关闭控制台（先确认）、全屏。
-import { api, toProblem, type QualitySettings, type SavedDevice } from "./api";
+// 跨组件的操作：连接（打开远程窗口）、我的设备、关闭控制台（只藏界面）、全屏。
+import { api, toProblem, type AccountDevice, type AccountInfo, type Problem, type QualitySettings, type SavedDevice } from "./api";
 import * as devices from "./devices";
 import { bestCodec } from "./codec";
-import { presetSettings } from "./presets";
+import { DEFAULT_PRESET, presetSettings } from "./presets";
 import { RemoteSession } from "./session";
+import { sessionTarget } from "./session-window";
 import { emptyDraft, store } from "./store";
 
 export { fmtCode } from "./devices";
 
-/** 新连接用的画质：设置里选的预设（默认"均衡"）+ 本机能解码的格式 */
+/**
+ * 新连接用的画质：设置里选的预设（默认"均衡"：1080p / 30 fps / 4 Mbps）+ 默认编码格式（H.264）
+ * + 默认按"文字清晰"缩放（高分屏缩小时文字更清楚，用户可以在画质面板里改）
+ */
 export function defaultQuality(): QualitySettings {
   const st = store.get();
-  return presetSettings(st.quality, bestCodec(st.decoders));
+  return { ...presetSettings(st.quality, bestCodec(st.decoders)), priority: "clarity" };
 }
 
-/** 新建连接标签里正在连的会话（关掉这个标签就放弃） */
-let pending: RemoteSession | null = null;
-
-/**
- * 怎么连：配对码（对方要求配对时；对方的身份变了、用户确认是重装之后也是重新配对，
- * 配对码认的就是对方，记着的旧公钥不作数，见 nife_remote_proto::handshake 的"身份"）
- */
+/** 窗口里就地输入配对码时用（对方要求配对时才输入） */
 export interface OpenOptions {
   pairing?: string | null;
 }
 
 /**
- * 连接控制码为 `code` 的电脑，在新建连接标签里显示进度和错误，连上后这个标签变成会话标签。
- * 已经有这台电脑的标签：切过去（断开了就重新连接）。
+ * 连一台电脑：**在它自己的窗口里**打开远程画面（网页版是新的浏览器标签页），
+ * 管理界面只负责打开 / 切过去，远程画面不进管理界面（见 components/SessionWindow.tsx）。
+ * 连接、配对、重连、出错都在那个窗口里；只有窗口本身打不开（例如浏览器拦了新标签页）时才返回问题。
  */
-export async function openSession(code: string, settings: QualitySettings, opts: OpenOptions = {}): Promise<void> {
-  const st = store.get();
-  const dup = st.sessions.find((s) => s.code === code);
-  if (dup) {
-    if (st.view === "new") store.closeDraft();
-    store.setView(dup.id);
-    if (dup.state === "closed") {
-      if (opts.pairing) dup.pairWith(opts.pairing);
-      else dup.reconnect();
-    }
-    return;
-  }
-  if (!st.draft) store.newTab();
-  if (store.get().draft?.busy) return;
-  store.patchDraft({ digits: code.split(""), busy: true, error: null });
-  // 我的设备里有：带着上次的重连凭证连（对方不在线时等它上线，而不是报错），连上之前就显示它的名字；
-  // 只认记着的对方公钥（带着配对码时认配对码，连上之后记下对方现在的公钥）
-  const saved = st.devices.find((d) => d.code === code);
-  const s = new RemoteSession(code, settings, saved, opts.pairing);
-  pending = s;
+export async function openSession(
+  code: string,
+  settings: QualitySettings,
+  opts: OpenOptions = {},
+): Promise<Problem | null> {
+  // 新建连接页（如果在看）显示一下正在打开
+  if (store.get().draft) store.patchDraft({ digits: code.split(""), busy: true, error: null });
   try {
-    await s.open();
-    if (pending !== s) {
-      // 等待期间关掉了新建连接标签
-      s.dispose();
-      return;
-    }
-    store.add(s);
-    // 连上了就记进我的设备（在等对方上线的，等连上时再记）；之后每次重连、改画质也更新
-    if (s.sid !== null) rememberSession(s);
-    s.onConnected = rememberSession;
-    s.onSettingsChange = rememberQuality;
+    await api.openSessionWindow({ code, settings, pairing: opts.pairing ?? null, display: null });
+    if (store.get().draft) store.patchDraft({ busy: false, error: null });
+    return null;
   } catch (e) {
-    s.dispose();
-    if (pending === s) store.patchDraft({ busy: false, error: toProblem(e) });
-  } finally {
-    if (pending === s) pending = null;
+    const problem = toProblem(e);
+    if (store.get().draft) store.patchDraft({ busy: false, error: problem });
+    return problem;
   }
 }
 
-/** 关闭新建连接标签（正在连接就放弃） */
-export function closeDraft() {
-  const st = store.get();
-  if (!st.draft || st.sessions.length === 0) return;
-  pending = null;
-  store.closeDraft();
-}
-
-/** 关闭标签：会话标签 = 断开连接，新建连接标签 = 放弃输入 */
+/** 断开一路：远程窗口里 = 断开并关掉这个窗口（管理界面的页面没有"关掉"这一说） */
 export function closeTab(view: string) {
-  if (view === "new") closeDraft();
-  else if (view !== "grid") store.remove(view);
+  if (!sessionTarget()) return;
+  if (view !== "new" && view !== "grid") store.remove(view);
+  closeWindow();
 }
 
-/** 重新打开最近关闭的会话（Ctrl+Shift+T） */
-export function reopenLast() {
-  const r = store.get().recent[0];
-  if (!r) return;
-  store.newTab();
-  void openSession(r.code, r.settings);
+/** 关掉这个窗口（网页版：关掉这个标签页） */
+function closeWindow() {
+  if (api.frame) void api.frame.destroy();
+  else window.close();
 }
+
 
 // ── 我的设备 ──
 
@@ -166,42 +135,110 @@ function setDevices(list: SavedDevice[]) {
   if (list === store.get().devices) return;
   store.setDevices(list);
   saveDevices();
-  syncDevicesToAccount();
 }
 
-/** 设备列表同步到账号（没登录就什么都不做）：账号服务里存着"本账号设备"的 ID */
-let syncing = false;
-export function syncDevicesToAccount() {
-  if (syncing || !store.get().account) return;
-  const codes = store.get().devices.map((d) => d.code);
-  syncing = true;
-  void api.accountSaveDevices(codes).catch((e) => console.warn("can't sync the devices to the account", e)).finally(() => {
-    syncing = false;
-  });
-}
-
-/** 登录之后：把账号里的设备拉回来（本机没有的补进"我的设备"，用设置里的画质），再把本机的补上去 */
-export async function syncDevicesFromAccount(): Promise<void> {
-  if (!store.get().account) return;
+/**
+ * 把**本机**登记到账号的设备列表（没登录、还没拿到本机控制码时什么都不做）。
+ *
+ * "我的设备"= 登录同一个账号的设备：每台登录之后把自己登记上去，别的设备从这里就能看到它、直接连它。
+ */
+let registering = false;
+export async function registerSelfWithAccount(): Promise<void> {
+  const st = store.get();
+  const account = st.account;
+  const code = st.host?.code;
+  if (registering || !account || !code) return;
+  const self = String(code);
+  registering = true;
   try {
-    const codes = await api.accountDevices();
-    const now = store.get().devices;
-    const missing = codes.filter((c) => !now.some((d) => d.code === c));
-    if (missing.length > 0) {
-      const preset = defaultQuality();
-      // 从账号拉回来的只记 ID：名字先当控制码、画质用默认，连一次之后会自动补全
-      let merged = now;
-      for (const code of missing) {
-        const seen = { code, name: devices.fmtCode(code), os: "", resume: null, quality: preset, hostKey: null };
-        merged = devices.remember(merged, seen, Date.now());
-      }
-      merged = devices.sortDevices(merged);
-      store.setDevices(merged.slice(0, devices.MAX_DEVICES), store.get().devicesSaved);
-      saveDevices();
-    }
-    syncDevicesToAccount();
+    // 自己的控制台公钥也登记上去：同账号的其它设备凭它认本机，不用输配对码
+    const key = await api.controllerPublicKey().catch(() => "");
+    const list = await api.accountDevices();
+    const before = list.find((d) => d.code === self)?.key ?? "";
+    if (account.devices?.includes(self) && (!key || before === key)) return;
+    const next: AccountDevice[] = list.some((d) => d.code === self)
+      ? list.map((d) => (d.code === self && key ? { ...d, code: self, key } : d))
+      : [...list, { code: self, key, online: true, name: "", os: "" }];
+    await api.accountSaveDevices(next);
+    store.setAccount(applyAccountDevices(account, next));
   } catch (e) {
-    console.warn("can't load the devices from the account", e);
+    console.warn("can't register this computer on the account", e);
+  } finally {
+    registering = false;
+  }
+}
+
+/** 本机报个到：账号里的其它设备据此看到我们在线（没登录、还没有控制码时什么都不做） */
+export async function heartbeatToAccount(): Promise<void> {
+  const st = store.get();
+  const code = st.host?.code;
+  if (!st.account || !code) return;
+  try {
+    await api.accountHeartbeat(String(code));
+  } catch (e) {
+    console.warn("can't reach the account service for the heartbeat", e);
+  }
+}
+
+/** 账号设备列表 → store 里的 account（控制码给界面，公钥用来免配对） */
+export function applyAccountDevices(account: AccountInfo, list: AccountDevice[]): AccountInfo {
+  return {
+    ...account,
+    devices: list.map((d) => d.code),
+    deviceKeys: Object.fromEntries(list.filter((d) => d.key).map((d) => [d.code, d.key])),
+    // 在线状态和名字都由账号服务维护（设备连上账号服务就报到）：不依赖"本机有没有连过它"
+    deviceOnline: Object.fromEntries(list.map((d) => [d.code, !!d.online])),
+    deviceInfo: Object.fromEntries(list.map((d) => [d.code, { name: d.name ?? "", os: d.os ?? "" }])),
+  };
+}
+
+/** 登录之后：把账号里的设备列表拉回来（"我的设备"显示的就是这个），再把自己登记上去 */
+export async function refreshAccountDevices(): Promise<void> {
+  const account = store.get().account;
+  if (!account) return;
+  try {
+    const list = await api.accountDevices();
+    store.setAccount(applyAccountDevices(account, list));
+    void registerSelfWithAccount();
+    void trustAccountSiblings();
+  } catch (e) {
+    console.warn("can't load the devices of the account", e);
+  }
+}
+
+/**
+ * 把登录同一个账号的其它设备的控制台公钥交给本机被控端：
+ * 这些设备连本机时不用输配对码（同账号直接信任）
+ */
+export async function trustAccountSiblings(): Promise<void> {
+  const st = store.get();
+  const account = st.account;
+  const self = st.host?.code ? String(st.host.code) : null;
+  if (!account) return;
+  const keys = Object.entries(account.deviceKeys ?? {})
+    .filter(([code, key]) => code !== self && key)
+    .map(([, key]) => key);
+  try {
+    await api.trustControllers(keys);
+  } catch (e) {
+    console.warn("can't pass the account devices to the host", e);
+  }
+}
+
+/**
+ * 把一台设备从账号的设备列表里移除（它下次登录还会自己登记回来）。
+ * 本机的连接记录（重连凭证、画质）另外由 forgetDevice 清。
+ */
+export async function removeAccountDevice(code: string): Promise<void> {
+  const account = store.get().account;
+  if (!account) return;
+  try {
+    const list = (await api.accountDevices()).filter((d) => d.code !== code);
+    store.setAccount(applyAccountDevices(account, list));
+    await api.accountSaveDevices(list);
+    void trustAccountSiblings();
+  } catch (e) {
+    console.warn("can't remove the device from the account", e);
   }
 }
 
@@ -221,14 +258,37 @@ export function rememberSession(s: RemoteSession) {
 }
 
 /** 画质改了：下次用同样的画质连（只更新已经记下的） */
-function rememberQuality(s: RemoteSession) {
+export function rememberQuality(s: RemoteSession) {
   setDevices(devices.patchDevice(store.get().devices, s.code, { quality: s.settings }));
 }
 
 export const renameDevice = (code: string, name: string) =>
   setDevices(devices.renameDevice(store.get().devices, code, name));
 export const forgetDevice = (code: string) => setDevices(devices.forgetDevice(store.get().devices, code));
-export const restoreDevice = (d: SavedDevice) => setDevices(devices.restoreDevice(store.get().devices, d));
+
+/**
+ * 清理本地缓存：临时文件（Rust 那边删 WebView 数据目录和残留）+ 这台电脑上的界面偏好
+ * （画质、画面增强、本机光标）。控制码、"我的设备"、登录状态都不动。返回删掉的字节数。
+ */
+export async function clearCache(): Promise<number> {
+  let freed = 0;
+  try {
+    freed = await api.clearCache();
+  } catch {
+    // 删不掉（文件被占用等）不算失败：界面偏好照样清
+  }
+  try {
+    for (const key of Object.keys(globalThis.localStorage ?? {})) {
+      if (key.startsWith("nife-remote.")) globalThis.localStorage.removeItem(key);
+    }
+  } catch {
+    // 存不了 / 删不了：只在这次有效
+  }
+  store.setQuality(DEFAULT_PRESET);
+  store.setEnhance("off");
+  store.setLocalCursor(true);
+  return freed;
+}
 
 /** 等正在保存的存完（关闭控制台之前） */
 const devicesSaved = () => Promise.race([saving, new Promise((r) => setTimeout(r, 1500))]);

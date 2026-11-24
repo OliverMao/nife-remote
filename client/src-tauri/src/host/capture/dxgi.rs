@@ -10,11 +10,12 @@
 //! * 旋转了的显示器（竖屏）：桌面复制给出的是没有旋转的画面，复制时转成用户看到的方向（见 [`Rotation`]），
 //!   画面的宽高、方向与 [`DisplayInfo`]（桌面坐标）一致，控制端的鼠标坐标才能对上。
 
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
-use nife_remote_proto::session::{CursorShape, DisplayInfo};
 use anyhow::{Context, Result, anyhow, bail};
+use nife_remote_proto::session::{CursorShape, DisplayInfo};
 use windows::Win32::Foundation::{HMODULE, RECT};
 use windows::Win32::Graphics::Direct3D::{
     D3D_DRIVER_TYPE_UNKNOWN, D3D_FEATURE_LEVEL, D3D_FEATURE_LEVEL_10_0, D3D_FEATURE_LEVEL_10_1,
@@ -103,6 +104,63 @@ pub(crate) fn adapter_luid(adapter: &IDXGIAdapter) -> Result<u64> {
     let desc = unsafe { adapter.GetDesc() }.context("IDXGIAdapter::GetDesc")?;
     let l = desc.AdapterLuid;
     Ok(((l.HighPart as u32 as u64) << 32) | l.LowPart as u64)
+}
+
+/// 一块显卡上共享的 D3D11 设备。
+///
+/// 所有显示器的采集都用同一块显卡上的**同一个**设备：
+///
+/// * 每块屏各建一个设备（`D3D11CreateDevice` 带 video 支持，还要开多线程保护）要几百毫秒，
+///   换屏时会明显卡一下；共享之后换屏只重新 `DuplicateOutput`；
+/// * `GpuFrame::source` 是设备的编号，设备一样编码器才能复用（见 `Encoder::compatible`）——
+///   两块分辨率相同的显示器之间切换，编码器直接接着用。
+pub(crate) struct SharedDevice {
+    device: ID3D11Device,
+    ctx: ID3D11DeviceContext,
+    /// 显卡支持视频处理器时才有：GPU 上的画面来源（编码器按它判断能不能复用）
+    gpu: Option<Arc<D3dSource>>,
+}
+
+/// 显卡 LUID -> 共享设备。设备一直留着（占几 MB），换屏时不用重建。
+static DEVICES: LazyLock<Mutex<HashMap<u64, Arc<SharedDevice>>>> = LazyLock::new(Default::default);
+
+impl SharedDevice {
+    /// 这块显卡上的共享设备（第一次用到时创建）
+    fn get(adapter: &IDXGIAdapter1) -> Result<Arc<Self>> {
+        let base: IDXGIAdapter = adapter.cast()?;
+        let luid = adapter_luid(&base)?;
+        let mut devices = DEVICES.lock().unwrap();
+        if let Some(d) = devices.get(&luid) {
+            return Ok(d.clone());
+        }
+        let (device, ctx, video) = create_device(adapter)?;
+        let gpu = if video {
+            match D3dSource::new(device.clone(), ctx.clone()) {
+                Ok(s) => Some(Arc::new(s)),
+                Err(e) => {
+                    tracing::info!("frames will be read back from the GPU: {e:#}");
+                    None
+                }
+            }
+        } else {
+            tracing::info!("no D3D11 video support, frames will be read back from the GPU");
+            None
+        };
+        let shared = Arc::new(Self { device, ctx, gpu });
+        devices.insert(luid, shared.clone());
+        Ok(shared)
+    }
+
+    /// 设备被驱动重置（TDR）、显卡拔掉了：从缓存里去掉，下一次打开时重建
+    fn invalidate(adapter: &IDXGIAdapter1) {
+        let Ok(base) = adapter.cast::<IDXGIAdapter>() else {
+            return;
+        };
+        let Ok(luid) = adapter_luid(&base) else {
+            return;
+        };
+        DEVICES.lock().unwrap().remove(&luid);
+    }
 }
 
 /// GPU 上的一帧画面：没有旋转过的 BGRA 纹理（桌面复制给出的方向），转成用户看到的方向由用的一方做
@@ -266,6 +324,38 @@ unsafe fn copy_mapped(
 }
 
 /// 在 `adapter` 上创建 D3D11 设备：先要视频支持（视频处理器、画面留在显卡上），不行再不要
+/// 设备没了（驱动重置、显卡拔掉）：错误链里有这几个 HRESULT
+fn device_lost(e: &anyhow::Error) -> bool {
+    use windows::Win32::Graphics::Dxgi::{DXGI_ERROR_DEVICE_REMOVED, DXGI_ERROR_DEVICE_RESET};
+    e.chain().any(|c| {
+        c.downcast_ref::<windows::core::Error>().is_some_and(|w| {
+            w.code() == DXGI_ERROR_DEVICE_REMOVED || w.code() == DXGI_ERROR_DEVICE_RESET
+        })
+    })
+}
+
+/// 打开桌面复制：优先 `DuplicateOutput1`（支持 HDR 桌面自动转 BGRA8），不行再退回 `DuplicateOutput`
+fn duplicate_output(
+    output: &IDXGIOutput1,
+    device: &ID3D11Device,
+) -> Result<IDXGIOutputDuplication> {
+    unsafe {
+        match output.cast::<IDXGIOutput5>() {
+            Ok(o5) => match o5.DuplicateOutput1(device, 0, &[DXGI_FORMAT_B8G8R8A8_UNORM]) {
+                Ok(d) => Ok(d),
+                Err(e) => {
+                    tracing::debug!(
+                        "DuplicateOutput1 failed ({}), trying DuplicateOutput",
+                        e.code()
+                    );
+                    output.DuplicateOutput(device).context("DuplicateOutput")
+                }
+            },
+            Err(_) => output.DuplicateOutput(device).context("DuplicateOutput"),
+        }
+    }
+}
+
 pub(crate) fn create_device(
     adapter: &IDXGIAdapter1,
 ) -> Result<(ID3D11Device, ID3D11DeviceContext, bool)> {
@@ -411,38 +501,22 @@ impl DxgiCapturer {
         let o = outs
             .get(index as usize)
             .ok_or_else(|| anyhow!("display {index} doesn't exist"))?;
-        let (device, ctx, video) = create_device(&o.adapter)?;
-        let gpu = if video {
-            match D3dSource::new(device.clone(), ctx.clone()) {
-                Ok(s) => Some(Arc::new(s)),
-                Err(e) => {
-                    tracing::info!("frames will be read back from the GPU: {e:#}");
-                    None
+        // 同一块显卡上的所有显示器共用一个设备（见 SharedDevice）：换屏时不用重建几百毫秒的设备
+        let shared = SharedDevice::get(&o.adapter)?;
+        let device = shared.device.clone();
+        let ctx = shared.ctx.clone();
+        let gpu = shared.gpu.clone();
+        let dup = match duplicate_output(&o.output, &device) {
+            Ok(d) => d,
+            Err(e) => {
+                // 共享设备被驱动重置/显卡拔掉之后整个都没用了：扔掉缓存，下一次重建
+                if device_lost(&e) {
+                    SharedDevice::invalidate(&o.adapter);
                 }
+                return Err(e);
             }
-        } else {
-            tracing::info!("no D3D11 video support, frames will be read back from the GPU");
-            None
         };
         unsafe {
-            let dup = match o.output.cast::<IDXGIOutput5>() {
-                Ok(o5) => match o5.DuplicateOutput1(&device, 0, &[DXGI_FORMAT_B8G8R8A8_UNORM]) {
-                    Ok(d) => d,
-                    Err(e) => {
-                        tracing::debug!(
-                            "DuplicateOutput1 failed ({}), trying DuplicateOutput",
-                            e.code()
-                        );
-                        o.output
-                            .DuplicateOutput(&device)
-                            .context("DuplicateOutput")?
-                    }
-                },
-                Err(_) => o
-                    .output
-                    .DuplicateOutput(&device)
-                    .context("DuplicateOutput")?,
-            };
             let desc = dup.GetDesc();
             if desc.ModeDesc.Format != DXGI_FORMAT_B8G8R8A8_UNORM {
                 let format = desc.ModeDesc.Format;
@@ -813,5 +887,3 @@ fn outline_inverted(rgba: &mut [u8], invert: &[bool], w: usize, h: usize) {
         }
     }
 }
-
-

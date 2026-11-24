@@ -1,13 +1,13 @@
-// 标题栏右侧的齿轮按钮（SettingsButton）：网络状态、本机名称、语言、画质、快捷键说明都在这个弹层里。
+// 标题栏右侧的齿轮按钮（SettingsButton）：网络状态、本机名称、语言、画质、清理缓存都在这个弹层里。
 //
 // 弹层挂在按钮下面（以前挂在最左边的 Logo 上，和窗口按钮挤在一起）。
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { api } from "../lib/api";
-import { focusActive } from "../lib/actions";
+import { clearCache, focusActive } from "../lib/actions";
 import { setLang, useLang, useT, type Lang } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { serverStatus, store, useStore } from "../lib/store";
-import { IconChevron, IconKeyboard, IconMenuLines, IconSettings, IconWarn } from "./Icons";
+import { IconChevron, IconMenuLines, IconSettings, IconTrash, IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 import { PRESETS, presetDesc, presetName } from "../lib/presets";
 import { Popover } from "./Popover";
@@ -55,7 +55,6 @@ function AppMenu({ onClose }: { onClose: () => void }) {
   const t = useT();
   const app = useStore((s) => s.app);
   const web = api.kind === "web";
-  const [keys, setKeys] = useState(false);
 
   return (
     <Popover className="app-menu" onClose={onClose}>
@@ -83,32 +82,47 @@ function AppMenu({ onClose }: { onClose: () => void }) {
         <QualitySwitch />
       </div>
 
-      {/* 网页版没有被控端，浏览器也会拦下这些快捷键 */}
-      {!web && (
-        <div className="am-actions">
-          <button className={`am-item ${keys ? "open" : ""}`} aria-expanded={keys} onClick={() => setKeys((k) => !k)}>
-            <span className="am-item-icon">
-              <IconKeyboard size={16} />
-            </span>
-            <span className="am-item-text">
-              {t("menu.shortcuts")}
-              <span className="muted small block">{t("menu.shortcutsHint")}</span>
-            </span>
-            <IconChevron size={15} className="am-chevron" />
-          </button>
-          {keys && (
-            <div className="am-keys">
-              <Keys keys={["Ctrl", "T"]}>{t("shortcut.newTab")}</Keys>
-              <Keys keys={["Ctrl", "W"]}>{t("shortcut.closeTab")}</Keys>
-              <Keys keys={["Ctrl", "Tab"]}>{t("shortcut.nextTab")}</Keys>
-              <Keys keys={["Ctrl", "1~9"]}>{t("shortcut.nthTab")}</Keys>
-              <Keys keys={["Ctrl", "Shift", "T"]}>{t("shortcut.reopen")}</Keys>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="am-actions">
+        <ClearCache />
+      </div>
     </Popover>
   );
+}
+
+/** 清理本地缓存：临时文件 + 这台电脑上的界面偏好。设备、控制码、登录状态都不动 */
+function ClearCache() {
+  const t = useT();
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [freed, setFreed] = useState(0);
+  const run = async () => {
+    if (state === "busy") return;
+    setState("busy");
+    const bytes = await clearCache();
+    setFreed(bytes);
+    setState("done");
+    window.setTimeout(() => setState("idle"), 2500);
+  };
+  return (
+    <button className="am-item" onClick={() => void run()} disabled={state === "busy"}>
+      <span className="am-item-icon">
+        <IconTrash size={16} />
+      </span>
+      <span className="am-item-text">
+        {t("menu.clearCache")}
+        <span className={`muted small block ${state === "done" ? "am-done" : ""}`}>
+          {state === "done" ? t("menu.cleared", { size: formatSize(freed) }) : t("menu.clearCacheHint")}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/** 给用户看的体积 */
+function formatSize(bytes: number): string {
+  if (!bytes) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /** 画质：省流 / 均衡 / 流畅 / 高清 / 原画（记在 localStorage 里，跟着这台电脑）。
@@ -156,19 +170,6 @@ function ServerRow() {
       </button>
       {open && <NetworkDetails />}
     </div>
-  );
-}
-
-function Keys({ keys, children }: { keys: string[]; children: ReactNode }) {
-  return (
-    <>
-      <span className="keys">
-        {keys.map((k) => (
-          <kbd key={k}>{k}</kbd>
-        ))}
-      </span>
-      <span>{children}</span>
-    </>
   );
 }
 

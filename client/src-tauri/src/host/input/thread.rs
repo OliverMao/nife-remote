@@ -226,5 +226,3 @@ fn inject<I: Inject>(
         }
     }
 }
-
-

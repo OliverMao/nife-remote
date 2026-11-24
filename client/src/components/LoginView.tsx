@@ -7,7 +7,7 @@ import { api, toProblem, type Problem } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { store, useStore } from "../lib/store";
-import { syncDevicesFromAccount } from "../lib/actions";
+import { refreshAccountDevices } from "../lib/actions";
 import { IconWarn } from "./Icons";
 import { Logo } from "./Logo";
 
@@ -29,7 +29,7 @@ export function LoginView() {
     try {
       const info = mode === "login" ? await api.accountLogin(name, password) : await api.accountRegister(name, password);
       store.setAccount(info);
-      void syncDevicesFromAccount();
+      void refreshAccountDevices();
     } catch (err) {
       setError(toProblem(err));
       setBusy(false);
@@ -52,7 +52,9 @@ export function LoginView() {
           <p className="login-hint">{t("web.noAccountHint")}</p>
           <button
             className="login-btn"
-            onClick={() => store.setAccount({ id: "web-local", name: t("web.localName"), createdAt: 0 })}
+            onClick={() =>
+              store.setAccount({ id: "web-local", name: t("web.localName"), createdAt: 0, devices: [], deviceKeys: {}, deviceOnline: {}, deviceInfo: {} })
+            }
           >
             {t("web.start")}
           </button>

@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "session",
+  "description": "远程窗口和文件传输窗口的权限：一个控制码一个窗口（label 是 session-<控制码> / files-<控制码>）。无边框窗口的拖动、窗口按钮、改标题、全屏被系统退出时回调",
+  "windows": [
+    "session-*",
+    "files-*"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-title",
+    "core:window:allow-close",
+    "core:window:allow-destroy"
+  ]
+}

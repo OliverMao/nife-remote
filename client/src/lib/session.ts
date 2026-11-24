@@ -68,6 +68,10 @@ export interface EncoderState {
 const BACKGROUND_FPS = 5;
 /** 显示区域的大小停下来这么久才按新大小请求分辨率（拖动窗口边框时不要每一下都让对方重建编码器） */
 const VIEW_LIMIT_DELAY_MS = 400;
+/** 连上之后等这么久还没有第一帧，就怀疑是 AV1 解不出来（见 watchFirstFrame） */
+const FIRST_FRAME_MS = 4000;
+/** 换屏之后先等这么久再按新的显示区域改分辨率：对方刚重建完采集/编码器，别紧接着又重建一次 */
+const SWITCH_SETTLE_MS = 1200;
 const MAX_RETRIES = 30;
 /** 等对方上线时，保险起见每隔这么久也试一次（正常情况下服务器会在对方上线时马上通知） */
 const WAIT_CHECK_MS = 60_000;
@@ -101,7 +105,14 @@ export class RemoteSession {
   hostVersion = "";
   displays: DisplayInfo[] = [];
   currentDisplay = 0;
+  /**
+   * 这个窗口固定看哪一块屏幕（从显示器标签拖出来的窗口）：连上（拿到 sid）之后切过去。
+   * 同时看两块屏幕是两条会话（画面是一路流），所以各自一个窗口。
+   */
+  private pinnedDisplay: number | null = null;
   hostCodecs: Codec[] = ["h264"];
+  /** 双方都支持、界面用得上的能力：`"mic"`、`"files"`（见 nife_remote_proto::features::session） */
+  features: string[] = [];
   /** 对方报告的平台（hello 之前为 null，这时按 hostOs 猜） */
   hostPlatform: Platform | null = null;
   /** 对方支持的系统操作（手机的返回、主页……）；电脑为空 */
@@ -116,8 +127,8 @@ export class RemoteSession {
   scaleMode: ScaleMode = "fit";
   /** 双向同步剪贴板文本 */
   clipboardSync = true;
-  /** 播放远程声音（用户开关；实际只在当前查看的会话上播放） */
-  audioEnabled = true;
+  /** 播放远程声音（用户开关，默认关；实际只在当前查看的会话上播放） */
+  audioEnabled = false;
   /** 音画同步开关（用户设置；实际只在播放声音时生效） */
   avSync = false;
   /** 对方能不能接本机的麦克风（hello 之后对方会说）；对方的版本旧、还没说时为 null：不显示麦克风 */
@@ -153,6 +164,9 @@ export class RemoteSession {
   private readonly attempt = new ConnectionAttempt();
   private disposed = false;
   private retryTimer: number | undefined;
+  /** 这次连接已经解出（并画出了）第一帧：见 watchFirstFrame */
+  private gotFrame = false;
+  private frameWatchdog: number | undefined;
   /** 控制码（数字），用来认出 hostOnline 通知 */
   private readonly codeNum: number;
   /** 重连凭证：连上过就有，重连时带上（对方换了控制码就作废） */
@@ -189,6 +203,8 @@ export class RemoteSession {
   private viewport: { w: number; h: number } | null = null;
   /** 按显示区域向被控端请求的短边上限（0 = 不限），与用户选的上限取较严的发过去 */
   private viewLimit = 0;
+  /** 最近一次换屏的时刻（见 selectDisplay、updateViewLimit） */
+  private switchedAt = -Infinity;
   private viewLimitTimer: number | undefined;
   /** 最近一次想改 viewLimit 的时刻（与 performance.now() 同一时基） */
   private viewLimitAt = -Infinity;
@@ -221,7 +237,14 @@ export class RemoteSession {
   ) {
     this.code = code;
     this.codeNum = Number(code.replace(/\D/g, ""));
-    this.settings = settings;
+    // 编码格式每次连接都用默认值（H.264，见 codec.ts 的 AUTO_CODECS）：存下来的画质里可能是旧版本
+    // 自动选的 AV1 / H.265（解不出来会黑屏）；某次连接里在画质面板手动改的格式只影响那次
+    // 缩放优先也用默认值（文字清晰）；老设备存下来的画质里没有这一项
+    this.settings = {
+      ...settings,
+      codec: bestCodec(store.get().decoders),
+      priority: settings.priority ?? "clarity",
+    };
     if (saved) {
       this.resume = saved.resume;
       this.hostName = saved.name;
@@ -236,6 +259,9 @@ export class RemoteSession {
     this.canvas.height = this.frame.h;
     this.view = api.view(this.canvas, {
       size: (w, h) => {
+        // Worker 只在真的解出并画出第一帧时才报大小，所以这就是"画面出来了"
+        this.gotFrame = true;
+        this.clearFrameWatchdog();
         this.frame = { w, h };
         this.layout();
       },
@@ -333,6 +359,7 @@ export class RemoteSession {
     // 第一次连上（或者用户信任了新的身份）：记下对方的公钥，之后只认它；配对码用过了
     this.hostKey = info.hostKey;
     this.safety = info.safety;
+    this.features = info.features;
     this.pairing = null;
     this.connectedOnce = true;
     this.sid = info.sid;
@@ -342,6 +369,10 @@ export class RemoteSession {
     // hello 也可能比这里先到，那时已经是 live 了
     this.retries = 0;
     this.closedReason = null;
+    // 这是一次新的连接：第一帧还没到
+    this.gotFrame = false;
+    // 这个窗口固定看某块屏幕（拖出来的窗口）：连上之后切过去
+    this.applyPinnedDisplay();
     // 连接过程中设置变了（例如 Hello 先到，换了编码格式、按显示区域改了分辨率，那时还没有 sid 发不出去）：重发
     if (!sameQuality(this.effectiveSettings(), sent)) this.pushSettings();
     // 对方已经按握手里说的开始（或者没有开始）发声音；连接期间变了（例如切换了标签）再告诉对方
@@ -388,6 +419,15 @@ export class RemoteSession {
   /** 重连凭证（连上过才有）：记进我的设备，下次对方不在线时可以等它 */
   get resumeToken(): ResumeToken | null {
     return this.resume;
+  }
+
+  /**
+   * 第一次连接就失败了（不是"等对方上线"，那些在 open 里已经处理）：把原因记下来，
+   * 按它决定重试还是等用户（对方要配对码、身份变了、版本不兼容……见 scheduleRetry）。
+   * 远程窗口用它（见 components/SessionWindow.tsx）。
+   */
+  fail(e: unknown) {
+    this.scheduleRetry(toProblem(e));
   }
 
   /**
@@ -477,6 +517,7 @@ export class RemoteSession {
     this.input.dispose();
     this.view.dispose();
     clearTimeout(this.viewLimitTimer);
+    this.clearFrameWatchdog();
     if (this.sid !== null) this.command({ cmd: "disconnect", sid: this.sid });
     this.sid = null;
     this.state = "closed";
@@ -495,6 +536,7 @@ export class RemoteSession {
         break;
       case "hello":
         this.state = "live";
+        this.watchFirstFrame();
         this.hostName = ev.hostname;
         this.hostOs = ev.os;
         this.hostPlatform = ev.platform;
@@ -505,11 +547,13 @@ export class RemoteSession {
         this.hostCodecs = ev.codecs;
         this.fitCodec();
         this.updateViewLimit();
+        this.applyPinnedDisplay();
         break;
       case "displays":
         this.displays = ev.displays;
         this.currentDisplay = ev.current;
         this.updateViewLimit();
+        this.applyPinnedDisplay();
         break;
       case "stats":
         this.stats = {
@@ -590,6 +634,34 @@ export class RemoteSession {
    * H.264 改用 AVC 格式重试；其它格式从可用列表里去掉，并让被控端按优先级改用下一个能用的格式。
    * 关键帧 Worker 已经要了。
    */
+  /**
+   * 连上之后一直没画面时的兜底：**指定了 AV1** 却等不到第一帧，就换下一档能用的格式。
+   *
+   * AV1 在 WebView2 里经常"配置说支持、实际解不出"，而且不报错（`onUndecodable` 救不到），
+   * 表现就是有码率、有 fps、纯黑。换格式之后对方会重建编码器、重发关键帧，画面就回来了。
+   */
+  private watchFirstFrame() {
+    this.clearFrameWatchdog();
+    this.frameWatchdog = window.setTimeout(() => {
+      this.frameWatchdog = undefined;
+      if (this.disposed || this.gotFrame || this.sid === null) return;
+      if (this.settings.codec !== "av1") return; // 别的格式没画面是被控端那边的事（锁屏、没有显示器）
+      const decoders = store.get().decoders.filter((c) => c !== "av1");
+      store.setDecoders(decoders);
+      const to = bestCodec(decoders, this.hostCodecs);
+      console.warn(`no frame with av1, switching to ${to}`);
+      this.notice = { kind: "codecFallback", codec: CODEC_LABEL.av1, to: CODEC_LABEL[to] };
+      this.updateSettings({ ...this.settings, codec: to });
+    }, FIRST_FRAME_MS);
+  }
+
+  private clearFrameWatchdog() {
+    if (this.frameWatchdog !== undefined) {
+      window.clearTimeout(this.frameWatchdog);
+      this.frameWatchdog = undefined;
+    }
+  }
+
   private onUndecodable(codec: Codec) {
     if (codec === "h264") {
       this.notice = { kind: "h264Undecodable" };
@@ -723,7 +795,7 @@ export class RemoteSession {
     this.applyCursor();
   }
 
-  /** 画面增强的强度：全局设置，只用在正在操作的会话上（多屏总览的缩略图不增强） */
+  /** 画面增强的强度：全局设置，只用在正在操作的会话上 */
   private get enhanceLevel(): EnhanceLevel {
     return this.interactive ? store.get().enhance : "off";
   }
@@ -792,10 +864,12 @@ export class RemoteSession {
       this.pushSettings();
     };
     const now = performance.now();
-    const quiet = now - this.viewLimitAt >= VIEW_LIMIT_DELAY_MS;
+    // 刚换过屏：对方正在建新的一路采集和编码器，这时推分辨率会让它紧接着再重建一次
+    const hold = Math.max(0, this.switchedAt + SWITCH_SETTLE_MS - now);
+    const quiet = hold === 0 && now - this.viewLimitAt >= VIEW_LIMIT_DELAY_MS;
     this.viewLimitAt = now;
     if (quiet) apply();
-    else this.viewLimitTimer = window.setTimeout(apply, VIEW_LIMIT_DELAY_MS);
+    else this.viewLimitTimer = window.setTimeout(apply, Math.max(VIEW_LIMIT_DELAY_MS, hold));
   }
 
   // ───────────────────────── 可见性 / 设置 ─────────────────────────
@@ -940,7 +1014,23 @@ export class RemoteSession {
   selectDisplay(index: number) {
     if (this.sid === null || index === this.currentDisplay) return;
     this.releaseAll();
+    this.switchedAt = performance.now();
     this.command({ cmd: "display", sid: this.sid, index });
+  }
+
+  /** 这个窗口固定看某块屏幕（被控端的显示器序号；null = 取消固定）。连上之后生效 */
+  pinDisplay(index: number | null) {
+    this.pinnedDisplay = index;
+    this.applyPinnedDisplay();
+  }
+
+  /** 固定看的那块屏幕到了之后就切过去（还没拿到 sid / 还没收到显示器列表时什么都不做） */
+  private applyPinnedDisplay() {
+    const i = this.pinnedDisplay;
+    if (i === null || this.sid === null || i === this.currentDisplay) return;
+    // 对方没有这块屏幕（单屏、或者屏幕数变了）就不切
+    if (this.displays.length > 0 && !this.displays.some((d) => d.index === i)) return;
+    this.selectDisplay(i);
   }
 
   setClipboardSync(v: boolean) {

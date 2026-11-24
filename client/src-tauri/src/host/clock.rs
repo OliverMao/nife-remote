@@ -25,7 +25,6 @@ pub fn us(t: Instant) -> u64 {
 /// 系统 API 给出的时间戳只比现在早这么多以内才可信
 const MAX_AGE: Duration = Duration::from_secs(5);
 
-
 /// `QueryPerformanceCounter` 计数（DXGI 的 `LastPresentTime`）对应的时刻。
 pub fn from_qpc(ticks: i64) -> Option<Instant> {
     let (now, freq) = qpc();
@@ -57,6 +56,3 @@ fn from_age(age: i64, freq: i64) -> Option<Instant> {
     }
     Instant::now().checked_sub(age)
 }
-
-
-

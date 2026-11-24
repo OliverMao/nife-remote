@@ -112,8 +112,17 @@ export function markH264NeedsAvc() {
   needsAvc = true;
 }
 
-/** 编码格式的优先级：同画质下压缩率从高到低（界面上也按这个顺序列出） */
-export const CODEC_PRIORITY: readonly Codec[] = ["av1", "h265", "h264"];
+/**
+ * 默认（自动）用的编码格式：**H.264**。
+ *
+ * 理由：所有电脑都能硬解，兼容性最好。H.265 在部分显卡/驱动上硬解不稳，AV1 在 WebView2 里更不可靠
+ * （`isConfigSupported` 说支持，实际经常解不出画面：有码率、有 fps、纯黑，而且不报错，自动降级也救不回来）。
+ * 这两个都需要在画质面板里手动选。
+ */
+const AUTO_CODECS: readonly Codec[] = ["h264"];
+
+/** 画质面板里列出的顺序：常用的两个在前，实验性的 AV1 放在最后 */
+export const CODEC_ORDER: readonly Codec[] = ["h264", "h265", "av1"];
 
 /**
  * 这种格式能不能用：本机能解码，并且被控端能编码。H.264 双方都一定支持。
@@ -123,9 +132,9 @@ export function codecUsable(c: Codec, decoders: Codec[], hostCodecs?: Codec[]): 
   return c === "h264" || (decoders.includes(c) && (hostCodecs?.includes(c) ?? true));
 }
 
-/** 按 {@link CODEC_PRIORITY} 选出能用的格式里压缩率最高的一个 */
+/** 自动选择：按 {@link AUTO_CODECS} 选出能用的格式里压缩率最高的一个（AV1 不参与，见上） */
 export function bestCodec(decoders: Codec[], hostCodecs?: Codec[]): Codec {
-  return CODEC_PRIORITY.find((c) => codecUsable(c, decoders, hostCodecs)) ?? "h264";
+  return AUTO_CODECS.find((c) => codecUsable(c, decoders, hostCodecs)) ?? "h264";
 }
 
 let probeCache: Promise<Codec[]> | null = null;

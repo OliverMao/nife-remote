@@ -78,6 +78,23 @@ interface Chan {
 
 /** 与控制端服务的连接断了 */
 export const LOST: Problem = { kind: "consoleLost" };
+
+/** `p` 在 `ms` 内完成就是 `true`（用来等连接建好，等不到也不干等） */
+function openedWithin(p: Promise<void>, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    void p.then(
+      () => {
+        clearTimeout(timer);
+        resolve(true);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(false);
+      },
+    );
+  });
+}
 const RECONNECT_MAX_MS = 5000;
 const PING_MS = 2000;
 const CALL_TIMEOUT_MS = 30_000;
@@ -152,14 +169,18 @@ export class ConsoleLink {
     this.worker.postMessage(m, transfer);
   }
 
-  private call<T>(cmd: string, args: object = {}): Promise<T> {
-    if (!this.connected) return Promise.reject(LOST);
+  private async call<T>(cmd: string, args: object = {}): Promise<T> {
+    // 窗口刚打开时控制端服务可能还没连上（握手要几十毫秒）：等它连上再发，
+    // 别立刻报"与控制台服务的连接已断开"——那时其实只是"还没连好"。
+    if (!this.connected && !(await openedWithin(this.whenOpen(), CALL_TIMEOUT_MS))) {
+      return Promise.reject(LOST);
+    }
     if (this.pending.size >= MAX_PENDING) {
       this.post({ t: "close", reason: "too many pending calls" });
       return Promise.reject(LOST);
     }
     const id = this.nextId++;
-    return new Promise<T>((resolve, reject) => {
+    const p = new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(LOST);
@@ -169,6 +190,9 @@ export class ConsoleLink {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
       this.post({ t: "send", text: JSON.stringify({ id, cmd, ...args }) });
     });
+    // 连接断开时这里会被拒绝，调用方可能已经不等了：别冒成"未处理的拒绝"
+    p.catch(() => {});
+    return p;
   }
 
   /** 不要回复的命令 */

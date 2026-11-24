@@ -1,60 +1,52 @@
 import { useEffect, useRef } from "react";
-import { GridView } from "./components/GridView";
-import { SessionView } from "./components/SessionView";
 import { TitleBar } from "./components/TitleBar";
 import { WebUnsupported, webUnsupported } from "./components/WebUnsupported";
-import { applyFullscreen, closeTab, hideOnClose, loadDevices, reopenLast, syncDevicesFromAccount } from "./lib/actions";
+import { applyAccountDevices, applyFullscreen, heartbeatToAccount, hideOnClose, loadDevices, refreshAccountDevices, registerSelfWithAccount } from "./lib/actions";
 import { api } from "./lib/api";
 import { supportedDecoders } from "./lib/codec";
 import { setLang, useLang } from "./lib/i18n";
 import { markPlatform } from "./lib/platform";
+import { filesTarget } from "./lib/files-window";
+import { sessionTarget } from "./lib/session-window";
 import { store, useStore } from "./lib/store";
 import { Sidebar } from "./components/Sidebar";
 import { DeviceView } from "./components/DeviceView";
 import { AssistView } from "./components/AssistView";
 import { HostView } from "./components/HostView";
 import { LoginView } from "./components/LoginView";
+import { SessionWindow } from "./components/SessionWindow";
+import { FileTransfer } from "./components/FileTransfer";
 
 markPlatform();
+
+/** 这个窗口是不是一台电脑的远程窗口（见 lib/session-window.ts） */
+const REMOTE = sessionTarget();
+const FILES = filesTarget();
 
 export function App() {
   // 语言切换时整个界面重新渲染
   useLang();
   // 网页版：不是安全页面（HTTPS / localhost）或浏览器太旧，没有视频解码可用
   const unsupported = webUnsupported();
-  return unsupported ? <WebUnsupported reason={unsupported} /> : <Console />;
-}
-
-/**
- * 标签页的快捷键（桌面版；网页版里浏览器自己要用这些键）。
- * 正在看一台连着的电脑时一律不处理：键盘归对方（远程画面有焦点时按键根本到不了这里）。
- */
-function shortcut(e: KeyboardEvent): boolean {
-  if (api.kind !== "desktop" || !e.ctrlKey || e.altKey || e.metaKey) return false;
-  const st = store.get();
-  if (st.sessions.find((s) => s.id === st.view)?.state === "live") return false;
-  const key = e.key.toLowerCase();
-  if (e.key === "Tab" || e.key === "PageDown" || e.key === "PageUp") {
-    store.cycle(e.shiftKey || e.key === "PageUp" ? -1 : 1);
-  } else if (key === "t") {
-    if (e.shiftKey) reopenLast();
-    else store.newTab();
-  } else if (key === "w" && !e.shiftKey) {
-    closeTab(st.view);
-  } else if (/^Digit[1-9]$/.test(e.code) && !e.shiftKey) {
-    store.selectTab(Number(e.code.slice(5)));
-  } else {
-    return false;
-  }
-  return true;
+  if (unsupported) return <WebUnsupported reason={unsupported} />;
+  // 远程窗口：整个窗口就是远程画面（没有左栏、没有标题栏）
+  if (FILES) return <FileTransfer target={FILES} />;
+  if (REMOTE) return <SessionWindow target={REMOTE} />;
+  return <Console />;
 }
 
 function Console() {
   const view = useStore((s) => s.view);
-  const sessions = useStore((s) => s.sessions);
   const immersive = useStore((s) => s.immersive);
   const account = useStore((s) => s.account);
   const accountLoaded = useStore((s) => s.accountLoaded);
+
+  /** 本机的连接记录 + 账号里的设备（"我的设备"显示的是后者） */
+  const refreshDevices = () => {
+    void loadDevices();
+    // 先报到再拉列表：这样"我的设备"里本机（以及其它刚启动的设备）的在线状态也是最新的
+    void heartbeatToAccount().then(refreshAccountDevices);
+  };
 
   useEffect(() => {
     const unLang = api.onLangChanged(setLang);
@@ -64,9 +56,16 @@ function Console() {
     });
     void api.serverStatus().then(store.setServer);
     // 首页的本机连接码：先取一次，之后跟着变化（连上服务器、换码、有人连上）
-    void api.hostStatus().then((h) => h && store.setHost(h));
+    void api.hostStatus().then((h) => {
+      if (!h) return;
+      store.setHost(h);
+      void registerSelfWithAccount();
+    });
     // 网页版没有被控端，这两个都是空的
-    const unHost = api.onHostStatus(store.setHost);
+    const unHost = api.onHostStatus((h) => {
+      store.setHost(h);
+      void registerSelfWithAccount();
+    });
     void loadDevices();
     // 本机偏好（允许协助 / 验证方式 / 收藏 / 最近连接）
     void api.profileGet().then((p) => store.setProfile(p), () => {});
@@ -75,12 +74,17 @@ function Console() {
       // 后台再问一下账号服务（凭证过期就自动变成没登录）
       if (a) {
         void api.accountRefresh().then((fresh) => store.setAccount(fresh), () => {});
-        void syncDevicesFromAccount();
+        void refreshAccountDevices();
       }
     }, () => {});
+    // 账号服务的设备连接推来的列表（名字、系统、上下线）：直接换掉"我的设备"里那份
+    const unDevices = api.onAccountDevices((list) => {
+      const account = store.get().account;
+      if (account) store.setAccount(applyAccountDevices(account, list));
+    });
     // 我的设备：每 30 秒自动刷新一次，窗口切回前台也刷新（别的地方改了配置能跟上）
-    const devicesTimer = window.setInterval(() => void loadDevices(), 30_000);
-    const onFocus = () => void loadDevices();
+    const devicesTimer = window.setInterval(() => void refreshDevices(), 30_000);
+    const onFocus = () => void refreshDevices();
     window.addEventListener("focus", onFocus);
     void supportedDecoders().then(store.setDecoders);
     // 连不上中转服务器时自动再问一次账号服务：分配变了（换了地址 / 线路）就重启用新的
@@ -103,14 +107,15 @@ function Console() {
         });
     });
     const unOnline = api.onHostOnline(store.hostOnline);
+    // 开着的远程窗口（左栏"会话中"、设备列表里的"已打开"）：一个控制码一个窗口，见 src-tauri/src/viewer.rs
+    void api.sessionWindows().then((list) => list && store.setOpen(list), () => {});
+    const unOpen = api.onSessionWindows(store.setOpen);
     // 关闭窗口（标题栏的关闭按钮、任务栏、Alt+F4）：有会话时先确认
     // 关窗口 = 只藏界面（不退出、不问），真正退出在托盘右键菜单里
     const unClose = api.frame?.onCloseRequested(hideOnClose);
     const onKey = (e: KeyboardEvent) => {
       // 屏蔽 WebView 自带的刷新/查找/打印等快捷键，避免误触
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && ["r", "p", "f", "g", "j", "u"].includes(e.key.toLowerCase()))) {
-        e.preventDefault();
-      } else if (shortcut(e)) {
         e.preventDefault();
       }
     };
@@ -119,11 +124,6 @@ function Console() {
       if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
     };
     window.addEventListener("contextmenu", noMenu);
-    // 网页版：关闭或刷新标签页会断开所有会话，先让浏览器确认一下
-    const confirmLeave = (e: BeforeUnloadEvent) => {
-      if (api.kind === "web" && store.get().sessions.length > 0) e.preventDefault();
-    };
-    window.addEventListener("beforeunload", confirmLeave);
     // 全屏被系统退出（长按 Esc、系统快捷键……）时同步状态
     const exitImmersive = () => {
       if (store.get().immersive) store.setImmersive(false);
@@ -135,16 +135,17 @@ function Console() {
     const unWinFs = api.onWindowFullscreenExit(exitImmersive);
     return () => {
       unStatus();
+      unDevices();
       window.clearInterval(devicesTimer);
       window.removeEventListener("focus", onFocus);
       unHost();
       unOnline();
+      unOpen();
       unLang();
       unClose?.();
       unWinFs();
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("contextmenu", noMenu);
-      window.removeEventListener("beforeunload", confirmLeave);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   }, []);
@@ -155,8 +156,6 @@ function Console() {
     if (wasImmersive.current && !immersive) void applyFullscreen(false);
     wasImmersive.current = immersive;
   }, [immersive]);
-
-  const active = sessions.find((s) => s.id === view);
 
   // 没登录：整个窗口就是登录页（标题栏留着，窗口还要能拖动 / 关闭）；账号状态还没读出来时什么都不画
   if (!accountLoaded) return <div className="app login-shell" />;
@@ -177,19 +176,7 @@ function Console() {
       <div className="workspace">
         {!immersive && <TitleBar />}
         <main className="main">
-        {view === "host" ? (
-          <HostView />
-        ) : view === "assist" || view === "new" ? (
-          <AssistView />
-        ) : view === "device" ? (
-          <DeviceView />
-        ) : view === "grid" && sessions.length > 0 ? (
-          <GridView />
-        ) : active ? (
-          <SessionView key={active.id} s={active} />
-        ) : (
-          <AssistView />
-        )}
+          {view === "host" ? <HostView /> : view === "device" ? <DeviceView /> : <AssistView />}
         </main>
       </div>
     </div>

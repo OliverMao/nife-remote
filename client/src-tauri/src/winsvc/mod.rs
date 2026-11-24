@@ -578,5 +578,3 @@ pub fn show_not_installed() {
         MessageBoxW(None, &text, w!("Nife Remote"), MB_OK | MB_ICONINFORMATION);
     }
 }
-
-

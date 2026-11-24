@@ -34,7 +34,7 @@ See [How it works → Video](docs/architecture.md#video) for details.
 
 - **Windows system service**: the lock screen, the sign-in screen and UAC prompts can be seen and controlled, and the computer can be reached after boot, before anyone signs in
 - **Fixed control codes**: they survive restarts, upgrades and even server restarts until you change them yourself
-- **Console**: browser-style tabs to control several computers at once, plus a multi-screen overview to watch them all. Computers you've connected to are saved and reconnect with one click; if one is offline, it connects as soon as it comes back
+- **Console**: one window per computer, and the console only opens them and brings them forward. Computers you've connected to are saved and reconnect with one click; if one is offline, its window waits and connects as soon as it comes back
 - **Web console**: the controller can also run in Docker and be used from a browser, with nothing to install on the computer you control from
 - **Audio**: the host's system audio plays on the controller (Opus + adaptive jitter buffer), with optional A/V sync for watching videos. The other way, the controller's microphone can go into a virtual microphone on Windows hosts (Steam Streaming Microphone, there once Steam Remote Play has been used) for meetings and voice typing over there
 - **Handy tools**: two-way clipboard sync, typing the clipboard as keystrokes, system shortcuts (Win, Alt+Tab, Ctrl+Shift+Esc…), multiple monitors, keyboard lock in fullscreen, quality presets
@@ -91,7 +91,7 @@ curl -fsSL  $base/.env.example -o .env
 NIFE_REMOTE_IMAGE=mirror.naig.us/nife-remote-server:0.0.1
 NIFE_REMOTE_AUTH_IMAGE=mirror.naig.us/nife-remote-auth:0.0.1
 NIFE_REMOTE_AUTH_RELAY_HOST=relay.example.com:4433   # relay clients connect to (passed through as-is)
-NIFE_REMOTE_AUTH_RELAY_FP=                           # empty = trust on first use
+NIFE_REMOTE_AUTH_RELAY_FP=                           # empty = clients accept the relay certificate
 ```
 
 **3) Caddy proxies the account service** (clients and the web console use `https://auth.example.com`)

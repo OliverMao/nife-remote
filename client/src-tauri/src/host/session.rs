@@ -5,20 +5,23 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use anyhow::Result;
+use bytes::Bytes;
 use nife_remote_link::flow::Flow;
 use nife_remote_link::host::{
     Acks, Admission, CursorCache, Incoming, MicSink, Outbox, Platform, Request, Senders, Start,
     serve,
 };
-use nife_remote_proto::session::{Codec, DisplayInfo, HostHello, HostMsg, MicState, Notice, QualitySettings};
-use anyhow::Result;
-use bytes::Bytes;
+use nife_remote_proto::session::{
+    Codec, DisplayInfo, HostHello, HostMsg, MicState, Notice, QualitySettings,
+};
 use tokio::sync::{mpsc, watch};
 use tokio::time::{Interval, MissedTickBehavior};
 use tracing::{info, warn};
 
 use super::audio::{self, AudioSubscription};
 use super::capture;
+use super::files;
 use super::gate::DesktopGate;
 use super::input::InjectorThread;
 use super::mic::{self, MicInput, MicLease};
@@ -30,7 +33,8 @@ use crate::config;
 const VIDEO_QUEUE: usize = 2;
 
 /// 告诉控制端的平台（控制端据此选快捷键、提示的说法）
-const PLATFORM: nife_remote_proto::session::Platform = nife_remote_proto::session::Platform::Windows;
+const PLATFORM: nife_remote_proto::session::Platform =
+    nife_remote_proto::session::Platform::Windows;
 /// 检查系统权限是否有变化的间隔
 const PERMISSION_CHECK: Duration = Duration::from_secs(2);
 /// 检查显示器有没有变化（插拔、旋转、改分辨率 / 缩放 / 排列）的间隔
@@ -147,6 +151,8 @@ struct Desktop {
     /// 缺少的系统权限，见 [`super::missing_permissions`]
     missing: (bool, bool),
     mic: Mic,
+    /// 文件传输打开着的文件（块读写在 `spawn_blocking` 里跑，所以要共享）
+    files: Arc<Mutex<files::Jobs>>,
 }
 
 /// 控制端的麦克风（见 [`super::mic`]）
@@ -214,6 +220,7 @@ impl Desktop {
             permission_tick: ticker(PERMISSION_CHECK),
             display_tick: ticker(DISPLAY_CHECK),
             missing: (false, false),
+            files: Arc::default(),
             mic: Mic {
                 negotiated: false,
                 input: Arc::default(),
@@ -384,7 +391,11 @@ impl Platform for Desktop {
             Request::SelectDisplay(index) => {
                 if (index as usize) < self.displays.len() && index != self.current {
                     self.current = index;
-                    self.restart_pipeline().await;
+                    // 只换一路采集，不重建管线：换屏要快，重建编码器是几百毫秒级的卡顿
+                    match &self.pipeline {
+                        Some(p) => p.switch_display(index),
+                        None => self.restart_pipeline().await,
+                    }
                     self.out.send(&HostMsg::Displays {
                         displays: self.displays.clone(),
                         current: self.current,
@@ -392,6 +403,81 @@ impl Platform for Desktop {
                 }
             }
             Request::Clipboard(text) => self.clip.apply(text),
+            // 文件传输：列目录、问存在这些都是小操作，直接做；块读写是磁盘 IO，放到阻塞线程池
+            Request::FsRoots { req } => {
+                let (places, home) = files::roots();
+                self.out.send(&HostMsg::FsRoots { req, places, home })?;
+            }
+            Request::FsList { req, path } => {
+                let (path, parent, entries, error) = match files::list(&path) {
+                    Ok((path, parent, entries)) => (path, parent, entries, None),
+                    Err(e) => (path, None, Vec::new(), Some(e)),
+                };
+                self.out.send(&HostMsg::FsList {
+                    req,
+                    path,
+                    parent,
+                    entries,
+                    error,
+                })?;
+            }
+            Request::FsExists { req, path } => {
+                self.out.send(&HostMsg::FsExists {
+                    req,
+                    exists: files::exists(&path),
+                })?;
+            }
+            Request::FsOpen { id, path, write } => {
+                let jobs = self.files.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    jobs.lock().unwrap().open(id, &path, write)
+                })
+                .await
+                .unwrap_or_else(|e| Err(e.to_string()));
+                match result {
+                    Ok(size) => self.out.send(&HostMsg::FsOpened {
+                        id,
+                        size,
+                        error: None,
+                    })?,
+                    Err(error) => self.out.send(&HostMsg::FsOpened {
+                        id,
+                        size: 0,
+                        error: Some(error),
+                    })?,
+                }
+            }
+            Request::FsRead { id, offset, len } => {
+                let jobs = self.files.clone();
+                let result =
+                    tokio::task::spawn_blocking(move || jobs.lock().unwrap().read(id, offset, len))
+                        .await
+                        .unwrap_or_else(|e| Err(e.to_string()));
+                match result {
+                    Ok((data, eof)) => self.out.send(&HostMsg::FsData {
+                        id,
+                        offset,
+                        eof,
+                        data,
+                    })?,
+                    Err(error) => self.out.send(&HostMsg::FsError { id, error })?,
+                }
+            }
+            Request::FsWrite { id, offset, data } => {
+                let jobs = self.files.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    jobs.lock().unwrap().write(id, offset, &data)
+                })
+                .await
+                .unwrap_or_else(|e| Err(e.to_string()));
+                match result {
+                    Ok(()) => self.out.send(&HostMsg::FsWritten { id, offset })?,
+                    Err(error) => self.out.send(&HostMsg::FsError { id, error })?,
+                }
+            }
+            Request::FsClose { id } => {
+                self.files.lock().unwrap().close(id);
+            }
             Request::Audio(enabled) => {
                 if !enabled {
                     self.sound = None;
@@ -473,8 +559,14 @@ impl Platform for Desktop {
                     let next = follow_display(&self.displays, self.current, &now);
                     info!(session_id, ?now, current = next, "displays changed");
                     self.displays = now;
-                    if next != self.current || self.pipeline.is_none() {
+                    if next != self.current {
                         self.current = next;
+                        // 屏幕数目/顺序变了（拔掉、切换显示模式）：同样只换采集
+                        match &self.pipeline {
+                            Some(p) => p.switch_display(next),
+                            None => self.restart_pipeline().await,
+                        }
+                    } else if self.pipeline.is_none() {
                         self.restart_pipeline().await;
                     }
                     // 只留最新的一个（见 nife_remote_link::host::queue）
@@ -512,5 +604,3 @@ impl Platform for Desktop {
         self.mic.lease = None;
     }
 }
-
-

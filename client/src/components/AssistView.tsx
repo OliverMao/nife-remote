@@ -10,9 +10,6 @@ import { problemText } from "../lib/messages";
 import { store, useStore } from "../lib/store";
 import { IconCheck, IconChevron, IconCopy, IconEye, IconEyeOff, IconSettings, IconStar, IconTrash } from "./Icons";
 
-/** 这些问题要用户输入配对码（对方的身份变了也是：重新配对才认新的身份） */
-const PAIRING_PROBLEMS = new Set(["pairingRequired", "pairingFailed", "pairingUnavailable", "hostKeyChanged"]);
-
 export function AssistView() {
   const t = useT();
   const host = useStore((s) => s.host);
@@ -41,15 +38,12 @@ export function AssistView() {
   const attempt = useStore((s) => s.draft);
   const busy = attempt?.busy ?? false;
   const problem = attempt?.error ?? null;
-  const needsPairing = !!problem && PAIRING_PROBLEMS.has(problem.kind);
-  // 配对码就地输入（对方第一次被连时才需要，见 problem.pairingRequired）
-  const [pairInput, setPairInput] = useState("");
 
-  // 画质用"设置 → 画质"里的预设（默认均衡）；连上之后还能在会话工具栏里单独调
-  const connect = (code6 = digits, pair = "") => {
+  // 远程画面在它自己的窗口里：这里只负责打开（配对码、连接进度、错误都在那个窗口里）
+  const connect = (code6 = digits) => {
     if (!/^\d{6}$/.test(code6)) return;
     setError(null);
-    void openSession(code6, defaultQuality(), { pairing: pair || null }).catch((e) => setError(e as Problem));
+    void openSession(code6, defaultQuality()).catch((e) => setError(e as Problem));
   };
 
   const share = () => {
@@ -224,32 +218,8 @@ export function AssistView() {
                 {t(busy ? "assist.connecting" : "assist.connect")}
               </button>
             </div>
-            {/* 对方要配对码：就地输完再连，不跳页面 */}
-            {needsPairing && !busy && (
-              <form
-                className="as-pair-edit"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  connect(digits, pairInput);
-                }}
-              >
-                <input
-                  className="as-input mono"
-                  value={pairInput}
-                  onChange={(e) => setPairInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder={t("assist.partnerPairing")}
-                  inputMode="numeric"
-                  maxLength={6}
-                  autoFocus
-                  aria-label={t("assist.partnerPairing")}
-                />
-                <button type="submit" className="as-connect small" disabled={!/^\d{6}$/.test(pairInput)}>
-                  {t("assist.connectPaired")}
-                </button>
-                <div className="as-sub">{t("assist.partnerPairingHint")}</div>
-              </form>
-            )}
-            {problem && !needsPairing && <div className="error-box left">{problemText(problem)}</div>}
+            {/* 对方要配对码：在它的远程窗口里就地输（不跳页面） */}
+            {problem && <div className="error-box left">{problemText(problem)}</div>}
             {error && <div className="error-box left">{problemText(error)}</div>}
           </div>
 
@@ -281,9 +251,10 @@ export function AssistView() {
                       <button
                         className="as-chip-code"
                         title={r.name ? `${r.name} · ${fmtCode(r.code)}` : fmtCode(r.code)}
+                        aria-label={r.name || fmtCode(r.code)}
                         onClick={() => void openSession(r.code, knownQuality())}
                       >
-                        {r.code}
+                        {r.name || r.code}
                       </button>
                       <button
                         className="as-chip-x"

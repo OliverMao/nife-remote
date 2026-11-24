@@ -46,7 +46,7 @@ export function Popover({ className, onClose, children }: { className: string; o
     return () => window.removeEventListener("resize", fit);
   }, []);
   return (
-    // 标签栏整个是窗口的拖动区域：弹出层里的空白处不能拖动窗口
+    // 标题栏整个是窗口的拖动区域：弹出层里的空白处不能拖动窗口
     <div className={`popover ${className}`} ref={ref} data-tauri-drag-region="false">
       {children}
     </div>

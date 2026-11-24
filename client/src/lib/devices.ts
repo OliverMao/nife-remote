@@ -1,6 +1,7 @@
 // "我的设备"的列表操作（纯函数）。保存在 config.toml 的 [[device]] 里（见 Rust 端 devices.rs），
 // 每次变化都把整个列表交给 api.saveDevices（见 actions.ts）。
 import type { QualitySettings, ResumeToken, SavedDevice } from "./api";
+import { t } from "./i18n";
 
 /** 最多保存多少台（与 Rust 端 devices::MAX 相同） */
 export const MAX_DEVICES = 50;
@@ -8,8 +9,60 @@ export const MAX_DEVICES = 50;
 /** 控制码显示成 "123 456" */
 export const fmtCode = (code: string) => (code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code);
 
-/** 显示的名字：自己起的名字 > 对方的设备名 > 控制码 */
-export const deviceTitle = (d: SavedDevice) => d.alias?.trim() || d.name.trim() || fmtCode(d.code);
+/**
+ * 显示的名字：自己起的名字 > 对方的设备名 > "未命名设备"。
+ *
+ * 不再退回控制码：界面上不显示控制码（只在"远程协助"页输入），
+ * 对方还是旧版本、没报名字的设备就显示"未命名设备"。
+ */
+export const deviceTitle = (d: SavedDevice) => d.alias?.trim() || d.name.trim() || t("devices.unnamed");
+
+/** 账号里有、本机没连过（或连接记录被删了）的设备：只知道控制码 */
+export const unknownDevice = (code: string): SavedDevice => ({
+  code,
+  alias: null,
+  name: "",
+  os: "",
+  resume: null,
+  lastUsed: 0,
+  quality: null,
+  hostKey: null,
+});
+
+/**
+ * 这台现在能不能连：`true` 在线、`false` 不在线、`undefined` 不知道
+ * （没连过这台、服务器还是旧版本、还没问完）。列表和详情页都用它，不能各算各的。
+ */
+export function deviceReachable(
+  d: SavedDevice,
+  presence: Record<string, boolean> | null,
+  accountOnline?: Record<string, boolean>,
+): boolean | undefined {
+  // 账号服务维护的在线状态（同账号的设备心跳）：有的话最准，也不要求本机连过它
+  const byAccount = accountOnline?.[d.code];
+  if (byAccount !== undefined) return byAccount;
+  return presence && d.resume ? presence[d.code] === true : undefined;
+}
+
+/**
+ * "我的设备"显示的列表 = 登录同一个账号的设备（`account.devices` 里的控制码），
+ * 本机连过的那些再把名字、系统、画质、重连凭证补上
+ */
+export function accountDevices(
+  account: { devices: string[]; deviceInfo?: Record<string, { name: string; os: string }> } | null,
+  local: SavedDevice[],
+): SavedDevice[] {
+  if (!account) return [];
+  const byCode = new Map(local.map((d) => [d.code, d]));
+  return account.devices.map((code) => {
+    const known = byCode.get(code);
+    const info = account.deviceInfo?.[code];
+    // 本机没连过它：名字和系统用账号服务记着的（设备报到时发的）
+    if (!known) return { ...unknownDevice(code), name: info?.name ?? "", os: info?.os ?? "" };
+    // 连过：本机记的名字可能比服务端的旧（对方改了机器名），用服务端的
+    return info?.name ? { ...known, name: info.name, os: info.os || known.os } : known;
+  });
+}
 
 /** 最近连过的在前面 */
 export const sortDevices = (list: SavedDevice[]) => [...list].sort((a, b) => b.lastUsed - a.lastUsed);
@@ -57,10 +110,6 @@ export function renameDevice(list: SavedDevice[], code: string, name: string) {
 }
 
 export const forgetDevice = (list: SavedDevice[], code: string) => list.filter((d) => d.code !== code);
-
-/** 撤销移除：放回原来的位置（按最后连接时间） */
-export const restoreDevice = (list: SavedDevice[], d: SavedDevice) =>
-  sortDevices([d, ...list.filter((x) => x.code !== d.code)]).slice(0, MAX_DEVICES);
 
 /** 搜索：名字（不分大小写）或控制码（可以带空格） */
 export function matchDevice(d: SavedDevice, query: string): boolean {

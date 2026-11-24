@@ -11,15 +11,15 @@
 //! 编码器只需要补残差，几帧之内就接近原画（实测 H.264、4 Mbps、2880×1800 缩到 1080p 的文字：
 //! 42 dB → 58 dB，补的几帧一共约 40 KB）。编码器偶尔丢掉的帧（返回空）也靠这一步补发。
 
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use bytes::Bytes;
 use nife_remote_link::flow::Flow;
 use nife_remote_link::host::{CursorCache, Outbox, SendError};
 use nife_remote_proto::media::{self, VideoHeader};
 use nife_remote_proto::session::{Codec, HostMsg, Notice, QualitySettings};
-use bytes::Bytes;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
@@ -41,6 +41,8 @@ pub struct Pipeline {
 
 struct Ctrl {
     settings: Mutex<QualitySettings>,
+    /// 要采集哪一块屏幕：换屏时改这里，编码线程下一轮自己换一路采集（见 [`Pipeline::switch_display`]）
+    display: AtomicU8,
     settings_ver: AtomicU64,
     /// 控制端能解码的格式（握手时报过来的）：编码器建不起来时按它降级，见 [`Encoder::new`]
     peers: Vec<Codec>,
@@ -68,6 +70,7 @@ impl Pipeline {
     ) -> Self {
         let ctrl = Arc::new(Ctrl {
             settings: Mutex::new(settings),
+            display: AtomicU8::new(display),
             settings_ver: AtomicU64::new(0),
             peers,
             force_key: AtomicBool::new(true),
@@ -85,6 +88,14 @@ impl Pipeline {
             ctrl,
             thread: Some(thread),
         }
+    }
+
+    /// 换一块屏幕：只改采集，**不重建编码器**（重建硬件编码器要几百毫秒，换屏会明显卡一下）。
+    /// 新的一块屏幕尺寸不同、编码器用不了时，编码线程自己按"换了画面"重建一次。
+    pub fn switch_display(&self, display: u8) {
+        self.ctrl.display.store(display, Ordering::Release);
+        self.ctrl.force_key.store(true, Ordering::Release);
+        self.ctrl.flow.wake();
     }
 
     pub fn update_settings(&self, s: QualitySettings) {
@@ -158,6 +169,7 @@ fn send_msg_cancellable(out: &Outbox, stop: &AtomicBool, msg: &HostMsg) -> bool 
 
 fn run(ctrl: Arc<Ctrl>, screen: u8, video: mpsc::Sender<Bytes>, out: Outbox) {
     capture::raise_priority();
+    let mut screen = screen;
     let mut settings = *ctrl.settings.lock().unwrap();
     let mut ver = ctrl.settings_ver.load(Ordering::Acquire);
     // 要哪种画面取决于画质设置（见 capture::output_for），设置变了可能要换一路采集
@@ -186,6 +198,25 @@ fn run(ctrl: Arc<Ctrl>, screen: u8, video: mpsc::Sender<Bytes>, out: Outbox) {
     let notice = |n: Notice| send(&HostMsg::Notice(Some(n)));
 
     while !ctrl.stop.load(Ordering::Acquire) {
+        // 换屏：和"画质变了要换一路采集"同一个做法——旧画面不用了，等新的一路的第一帧，
+        // 编码器留着（尺寸一样就直接接着用），只强制一个关键帧
+        let want_screen = ctrl.display.load(Ordering::Acquire);
+        if want_screen != screen {
+            info!(
+                from = %screen,
+                to = %want_screen,
+                "switching to another display"
+            );
+            screen = want_screen;
+            output = capture::output_for(screen, &settings);
+            sub = capture::subscribe(screen, settings.fps, output);
+            (frame_seq, cursor_seq, shape_seq) = (0, 0, 0);
+            last_frame = None;
+            refine_left = 0;
+            reported_error = None;
+            ctrl.force_key.store(true, Ordering::Release);
+        }
+
         let v = ctrl.settings_ver.load(Ordering::Acquire);
         if v != ver {
             ver = v;
@@ -414,5 +445,3 @@ fn run(ctrl: Arc<Ctrl>, screen: u8, video: mpsc::Sender<Bytes>, out: Outbox) {
     }
     info!(screen, "encoding pipeline stopped");
 }
-
-

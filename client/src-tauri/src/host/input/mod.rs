@@ -38,6 +38,3 @@ impl Drop for Injector {
         self.release_all();
     }
 }
-
-
-

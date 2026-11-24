@@ -22,6 +22,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
+use nife_remote_link::Problem;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -31,6 +32,37 @@ const DEFAULT_AUTH: &str = env!("NIFE_REMOTE_AUTH");
 const FILE_NAME: &str = "session.json";
 /// 请求超时（账号服务很快，超过就是连不上）
 const TIMEOUT: Duration = Duration::from_secs(10);
+
+/// 账号里的一台设备：控制码 + 那台设备的控制台端到端公钥（登录同一个账号的设备用它互相认，不用配对码）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AccountDevice {
+    pub code: String,
+    pub key: String,
+    /// 这台设备现在在线（最近 90 秒内发过心跳，见 `server/auth` 的 `/auth/heartbeat`）
+    pub online: bool,
+}
+
+/// 服务端返回的条目：新版本是 `{code, key}`，旧版本只有控制码
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum DeviceEntry {
+    Code(String),
+    Full(AccountDevice),
+}
+
+impl DeviceEntry {
+    fn into_device(self) -> AccountDevice {
+        match self {
+            DeviceEntry::Code(code) => AccountDevice {
+                code,
+                key: String::new(),
+                online: false,
+            },
+            DeviceEntry::Full(d) => d,
+        }
+    }
+}
 
 /// 给界面看的账号信息（不含密码，也没有盐和摘要——那些只在服务端）
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +105,8 @@ struct ErrorBody {
 #[derive(Deserialize)]
 struct ErrorDetail {
     #[serde(default)]
+    code: String,
+    #[serde(default)]
     message: String,
 }
 
@@ -87,7 +121,9 @@ pub fn base_url() -> String {
 fn base() -> Result<String> {
     let url = base_url();
     if url.is_empty() {
-        bail!("this build has no account service address (NIFE_REMOTE_AUTH)");
+        bail!(Problem::Account {
+            code: "no_service".into()
+        });
     }
     Ok(url)
 }
@@ -117,8 +153,12 @@ pub async fn register(name: &str, password: &str) -> Result<AccountInfo> {
         .await
         .context("can't reach the account service")?;
     let body = check(r).await?;
-    let auth: AuthResponse = serde_json::from_value(body).context("unexpected reply from the account service")?;
-    save_session(Session { token: Some(auth.token), user: Some(auth.user.clone()) })?;
+    let auth: AuthResponse =
+        serde_json::from_value(body).context("unexpected reply from the account service")?;
+    save_session(Session {
+        token: Some(auth.token),
+        user: Some(auth.user.clone()),
+    })?;
     info!(account = %auth.user.name, "registered on the account service");
     Ok(auth.user)
 }
@@ -132,8 +172,12 @@ pub async fn login(name: &str, password: &str) -> Result<AccountInfo> {
         .await
         .context("can't reach the account service")?;
     let body = check(r).await?;
-    let auth: AuthResponse = serde_json::from_value(body).context("unexpected reply from the account service")?;
-    save_session(Session { token: Some(auth.token), user: Some(auth.user.clone()) })?;
+    let auth: AuthResponse =
+        serde_json::from_value(body).context("unexpected reply from the account service")?;
+    save_session(Session {
+        token: Some(auth.token),
+        user: Some(auth.user.clone()),
+    })?;
     info!(account = %auth.user.name, "logged in");
     Ok(auth.user)
 }
@@ -172,7 +216,13 @@ pub async fn refresh() -> Option<AccountInfo> {
     if base_url().is_empty() {
         return session.user;
     }
-    let r = client().ok()?.get(format!("{}/auth/me", base_url())).bearer_auth(token).send().await.ok()?;
+    let r = client()
+        .ok()?
+        .get(format!("{}/auth/me", base_url()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .ok()?;
     if !r.status().is_success() {
         // 凭证过期 / 被作废：清掉本机的登录状态
         if r.status().as_u16() == 401 {
@@ -181,15 +231,20 @@ pub async fn refresh() -> Option<AccountInfo> {
         return session.user;
     }
     let body: UserResponse = r.json().await.ok()?;
-    let _ = save_session(Session { token: session.token, user: Some(body.user.clone()) });
+    let _ = save_session(Session {
+        token: session.token,
+        user: Some(body.user.clone()),
+    });
     Some(body.user)
 }
 
-/// 账号下的设备列表（"本账号设备"）
-pub async fn devices() -> Result<Vec<String>> {
+/// 账号下的设备列表（"本账号设备"：登录同一个账号的设备）
+pub async fn devices() -> Result<Vec<AccountDevice>> {
     let session = load_session();
     let Some(token) = session.token else {
-        bail!("not signed in");
+        bail!(Problem::Account {
+            code: "not_signed_in".into()
+        });
     };
     let r = client()?
         .get(format!("{}/auth/devices", base()?))
@@ -198,20 +253,51 @@ pub async fn devices() -> Result<Vec<String>> {
         .await
         .context("can't reach the account service")?;
     let body = check(r).await?;
-    let list = body.get("devices").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-    Ok(list.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+    let list: Vec<DeviceEntry> = serde_json::from_value(
+        body.get("devices")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
+    )
+    .context("unexpected device list from the account service")?;
+    Ok(list.into_iter().map(DeviceEntry::into_device).collect())
 }
 
-/// 把设备列表存到账号里
-pub async fn save_devices(codes: &[String]) -> Result<()> {
+/// 现在登录凭证（没有登录、或者旧版本没存时是 `None`）：设备连接用它连账号服务
+pub fn token() -> Option<String> {
+    load_session().token
+}
+
+/// 这台设备报到（每 30 秒一次）：账号里的其它设备据此看到它在线
+pub async fn heartbeat(code: &str) -> Result<()> {
     let session = load_session();
     let Some(token) = session.token else {
-        bail!("not signed in");
+        bail!(Problem::Account {
+            code: "not_signed_in".into()
+        });
+    };
+    let r = client()?
+        .post(format!("{}/auth/heartbeat", base()?))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "code": code }))
+        .send()
+        .await
+        .context("can't reach the account service")?;
+    check(r).await?;
+    Ok(())
+}
+
+/// 把设备列表存到账号里（每台带上它的控制台公钥，同账号的设备互相认）
+pub async fn save_devices(devices: &[AccountDevice]) -> Result<()> {
+    let session = load_session();
+    let Some(token) = session.token else {
+        bail!(Problem::Account {
+            code: "not_signed_in".into()
+        });
     };
     let r = client()?
         .put(format!("{}/auth/devices", base()?))
         .bearer_auth(token)
-        .json(&serde_json::json!({ "devices": codes }))
+        .json(&serde_json::json!({ "devices": devices }))
         .send()
         .await
         .context("can't reach the account service")?;
@@ -223,7 +309,9 @@ pub async fn save_devices(codes: &[String]) -> Result<()> {
 pub async fn change_password(old_password: &str, new_password: &str) -> Result<AccountInfo> {
     let session = load_session();
     let Some(token) = session.token else {
-        bail!("not signed in");
+        bail!(Problem::Account {
+            code: "not_signed_in".into()
+        });
     };
     let r = client()?
         .post(format!("{}/auth/password", base()?))
@@ -233,7 +321,11 @@ pub async fn change_password(old_password: &str, new_password: &str) -> Result<A
         .await
         .context("can't reach the account service")?;
     let body = check(r).await?;
-    let token = body.get("token").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let token = body
+        .get("token")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     if token.is_empty() {
         bail!("the account service didn't return a new login token");
     }
@@ -243,7 +335,10 @@ pub async fn change_password(old_password: &str, new_password: &str) -> Result<A
         created_at: 0,
         devices: Vec::new(),
     });
-    save_session(Session { token: Some(token), user: Some(user.clone()) })?;
+    save_session(Session {
+        token: Some(token),
+        user: Some(user.clone()),
+    })?;
     info!(account = %user.name, "password changed");
     Ok(user)
 }
@@ -255,12 +350,15 @@ async fn check(r: reqwest::Response) -> Result<serde_json::Value> {
     if status.is_success() {
         return serde_json::from_str(&text).context("unexpected reply from the account service");
     }
-    let message = serde_json::from_str::<ErrorBody>(&text)
-        .map(|e| e.error.message)
+    let body = serde_json::from_str::<ErrorBody>(&text)
         .ok()
-        .filter(|m| !m.is_empty())
-        .unwrap_or_else(|| format!("the account service answered {status}"));
-    bail!("{message}")
+        .map(|e| e.error);
+    match body {
+        // 服务端的错误码：界面按它显示本地化的说法
+        Some(e) if !e.code.is_empty() => bail!(Problem::Account { code: e.code }),
+        Some(e) if !e.message.is_empty() => bail!("{}", e.message),
+        _ => bail!("the account service answered {status}"),
+    }
 }
 
 // ───────────────────────── 本机保存的登录状态 ─────────────────────────
@@ -319,7 +417,9 @@ fn write_to(path: &Path, session: &Session) -> Result<()> {
     {
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create(true).truncate(true);
-        let mut f = opts.open(&tmp).with_context(|| format!("creating {}", tmp.display()))?;
+        let mut f = opts
+            .open(&tmp)
+            .with_context(|| format!("creating {}", tmp.display()))?;
         f.write_all(text.as_bytes())?;
         f.write_all(b"\n")?;
         f.sync_all()?;
@@ -327,5 +427,3 @@ fn write_to(path: &Path, session: &Session) -> Result<()> {
     std::fs::rename(&tmp, path).with_context(|| format!("renaming to {}", path.display()))?;
     Ok(())
 }
-
-

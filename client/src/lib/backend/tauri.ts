@@ -6,9 +6,22 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { AccountInfo, Backend, HostStatus, Profile, SavedDevice, WindowFrame } from "../api";
+import type {
+  AccountDevice,
+  AccountInfo,
+  Backend,
+  FsEntry,
+  FsPlace,
+  HostStatus,
+  OpenSession,
+  OpenSessionState,
+  Profile,
+  SavedDevice,
+  WindowFrame,
+} from "../api";
 import { ConsoleLink } from "../console";
 import type { Lang } from "../i18n";
+import type { SessionTarget } from "../session-window";
 
 /** 把异步注册的监听变成同步返回的取消函数 */
 function unlistenLater(p: Promise<UnlistenFn>): () => void {
@@ -25,6 +38,7 @@ function windowFrame(): WindowFrame {
     close: () => w.close(),
     destroy: () => w.destroy(),
     hide: () => w.hide(),
+    setTitle: (title) => w.setTitle(title),
     onCloseRequested: (cb) =>
       unlistenLater(
         w.onCloseRequested((e) => {
@@ -64,6 +78,35 @@ class DesktopConsole extends ConsoleLink implements Backend {
     return invoke<void>("devices_save", { devices });
   }
 
+  // 远程画面在它自己的窗口里（见 src-tauri/src/viewer.rs）
+  openSessionWindow(target: SessionTarget) {
+    return invoke<void>("session_open", {
+      code: target.code,
+      settings: target.settings,
+      pairing: target.pairing,
+      display: target.display,
+    });
+  }
+
+  sessionWindows() {
+    return invoke<OpenSession[]>("session_windows");
+  }
+
+  onSessionWindows(cb: (list: OpenSession[]) => void) {
+    return unlistenLater(listen<OpenSession[]>("sessions-changed", (e) => cb(e.payload)));
+  }
+
+  focusSession(code: string, display: number | null) {
+    return invoke<void>("session_focus", { code, display });
+  }
+
+  reportSession(code: string, display: number | null, name: string, state: OpenSessionState) {
+    return invoke<void>("session_report", { code, display, name, state });
+  }
+
+  clearCache() {
+    return invoke<number>("clear_cache");
+  }
   relayRefresh() {
     return invoke<boolean>("relay_refresh");
   }
@@ -103,10 +146,49 @@ class DesktopConsole extends ConsoleLink implements Backend {
     return invoke<AccountInfo>("account_change_password", { oldPassword, newPassword });
   }
   accountDevices() {
-    return invoke<string[]>("account_devices");
+    return invoke<AccountDevice[]>("account_devices");
   }
-  accountSaveDevices(codes: string[]) {
-    return invoke<void>("account_save_devices", { codes });
+  accountSaveDevices(devices: AccountDevice[]) {
+    return invoke<void>("account_save_devices", { devices });
+  }
+  accountHeartbeat(code: string) {
+    return invoke<void>("account_heartbeat", { code });
+  }
+
+  onAccountDevices(cb: (devices: AccountDevice[]) => void) {
+    return unlistenLater(listen<{ devices: AccountDevice[] }>("account-devices", (e) => cb(e.payload.devices ?? [])));
+  }
+
+  openFilesWindow(target: { code: string; name: string }) {
+    return invoke<void>("files_open", { code: target.code, name: target.name });
+  }
+
+  localRoots() {
+    return invoke<{ places: FsPlace[]; home: string }>("local_fs_roots");
+  }
+  localList(path: string) {
+    return invoke<{ path: string; parent: string | null; entries: FsEntry[] }>("local_fs_list", { path });
+  }
+  localExists(path: string) {
+    return invoke<boolean>("local_fs_exists", { path });
+  }
+  localOpen(id: number, path: string, write: boolean) {
+    return invoke<number>("local_fs_open", { id, path, write });
+  }
+  localRead(id: number, offset: number, len: number) {
+    return invoke<{ data: string; eof: boolean }>("local_fs_read", { id, offset, len });
+  }
+  localWrite(id: number, offset: number, data: string) {
+    return invoke<void>("local_fs_write", { id, offset, data });
+  }
+  localClose(id: number) {
+    return invoke<void>("local_fs_close", { id });
+  }
+  controllerPublicKey() {
+    return invoke<string>("controller_public_key");
+  }
+  trustControllers(keys: string[]) {
+    return invoke<void>("trust_controllers", { keys });
   }
 
   profileGet() {

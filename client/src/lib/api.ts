@@ -15,6 +15,7 @@ import { tauriBackend } from "./backend/tauri";
 import { webBackend } from "./backend/web";
 import type { MediaView, ViewOutput } from "./console";
 import type { Lang } from "./i18n";
+import type { SessionTarget } from "./session-window";
 
 export type Codec = "h264" | "h265" | "av1";
 
@@ -98,6 +99,8 @@ export type Problem =
   // 其它
   | { kind: "noSession" }
   | { kind: "noClipboardText" }
+  /** 账号服务回的错误：`code` 是服务端的错误码，界面按它显示本地化的说法 */
+  | { kind: "account"; code: string }
   | { kind: "failed"; detail: string }
   // 只在控制台里产生（Rust 端没有）
   /** 与控制端服务（桌面版：本程序；网页版：nife-remote-web）的连接断了 */
@@ -127,7 +130,6 @@ export interface AppInfo {
   server: string;
   /** 配置过中转服务器没有：false 时 `server` 只是占位的 127.0.0.1:4433，不连接也不重试 */
   configured: boolean;
-  pinned: boolean;
   /** 被控端看到的本控制端名称（桌面版是计算机名） */
   hostname: string;
   lang: Lang;
@@ -136,11 +138,33 @@ export interface AppInfo {
 }
 
 /** 账号（在中转服务器旁边的账号服务里，见 server/auth；与 Rust 端 accounts::AccountInfo 对应）：不含密码 */
+/** 账号里的一台设备（Rust 端 accounts::AccountDevice）：登录同一个账号的设备 */
+export interface AccountDevice {
+  /** 6 位控制码 */
+  code: string;
+  /** 那台设备的控制台端到端公钥（64 位十六进制）：同账号的设备互相认，不用输配对码 */
+  key: string;
+  /** 这台设备现在在线（设备连上账号服务就是在线，见 server/auth 的 /auth/ws） */
+  online: boolean;
+  /** 设备名（服务端记着的，来自那台设备的报到） */
+  name: string;
+  /** 系统（同上） */
+  os: string;
+}
+
 export interface AccountInfo {
   id: string;
   name: string;
   /** 注册时间（Unix 秒） */
   createdAt: number;
+  /** 登录同一个账号的设备（控制码）：左栏"我的设备"显示的就是它 */
+  devices: string[];
+  /** 这些设备的控制台公钥（控制码 → 公钥），用来免配对 */
+  deviceKeys: Record<string, string>;
+  /** 这些设备现在在不在线（控制码 → 在线；账号服务维护） */
+  deviceOnline: Record<string, boolean>;
+  /** 这些设备的说明（控制码 → 名字、系统）：本机没连过的设备也能显示名字 */
+  deviceInfo: Record<string, { name: string; os: string }>;
 }
 
 /** 界面自己的偏好和记录（profile.json，与 Rust 端 profile::Profile 对应） */
@@ -203,6 +227,19 @@ export interface SavedDevice {
   hostKey: string | null;
 }
 
+/** 窗口里会话的状态（与 lib/session.ts 的 SessionState 相同，这里不 import 它以免循环） */
+export type OpenSessionState = "connecting" | "approving" | "live" | "reconnecting" | "waiting" | "closed";
+
+/** 开着的远程窗口（控制台左栏"会话中"）：一台电脑一个窗口，显示器可以拖出来单独成窗口 */
+export interface OpenSession {
+  code: string;
+  /** 这个窗口固定看的显示器（被控端的显示器序号）；null = 由被控端决定 */
+  display: number | null;
+  /** 对方的设备名；还没连上时是空串 */
+  name: string;
+  state: OpenSessionState;
+}
+
 /**
  * 重连凭证（与 nife_remote_proto::signal::ResumeToken 对应，16 个字节）：连上时得到，会话断了之后重连时原样带上。
  * 带凭证的重连不会被服务器当成猜控制码而限速；对方不在线时回答 hostOffline，对方回来时通知 onHostOnline
@@ -219,6 +256,8 @@ export interface SessionInfo {
   hostKey: string;
   /** 安全码：对方托盘里显示的是同一个 */
   safety: string;
+  /** 双方都支持、界面用得上的会话能力：`"mic"`、`"files"`（见 nife_remote_proto::features::session） */
+  features: string[];
 }
 
 /**
@@ -297,7 +336,44 @@ export type SessionEvent =
   | { type: "clipboard"; text: string }
   /** 被控端能不能接本机的麦克风：会话开始时一次，之后有变化再来；对方的版本旧时没有。detail：出错时的技术信息 */
   | { type: "mic"; state: MicState; detail: string | null }
+  // ── 文件传输（见 lib/files.ts），`req` / `id` 对回命令里的 ──
+  | { type: "fsRoots"; req: number; places: FsPlace[]; home: string }
+  | {
+      type: "fsList";
+      req: number;
+      path: string;
+      parent: string | null;
+      entries: FsEntry[];
+      error: string | null;
+    }
+  | { type: "fsExists"; req: number; exists: boolean }
+  | { type: "fsOpened"; id: number; size: number; error: string | null }
+  /** 读到的一块（`data` 是 base64） */
+  | { type: "fsData"; id: number; offset: number; eof: boolean; data: string }
+  | { type: "fsWritten"; id: number; offset: number }
+  | { type: "fsError"; id: number; error: string }
   | { type: "closed"; reason: Problem; retry: boolean };
+
+/**
+ * 文件传输窗口里能直接跳过去的位置（与 Rust 的 `nife_remote_proto::session::FsPlace` 对应）
+ *
+ * `kind`：`drive` / `desktop` / `documents` / `downloads` / `pictures` / `videos` / `music`
+ * （界面按它挑图标和名字，`name` 只有盘有卷标时才有值）。
+ */
+export interface FsPlace {
+  name: string;
+  path: string;
+  kind: string;
+}
+
+/** 文件传输里的一个目录项（与 Rust 的 `nife_remote_proto::session::FsEntry` 对应） */
+export interface FsEntry {
+  name: string;
+  dir: boolean;
+  size: number;
+  /** 修改时间（Unix 秒；0 = 不知道） */
+  modified: number;
+}
 
 export type MouseButton = "left" | "right" | "middle" | "back" | "forward";
 
@@ -336,6 +412,15 @@ export type Command =
   | { cmd: "clipboardSync"; sid: number; enabled: boolean }
   /** 收到了第 seq 帧画面（累积确认；控制台的 Worker 收到画面时自己发，走二进制，见 ack.ts） */
   | { cmd: "ack"; sid: number; seq: number }
+  /** 文件传输：要被控端的盘符和默认目录（`req` 在回答里对回来） */
+  | { cmd: "fsRoots"; sid: number; req: number }
+  | { cmd: "fsList"; sid: number; req: number; path: string }
+  | { cmd: "fsExists"; sid: number; req: number; path: string }
+  /** 打开一个文件：`write` 为真时清空重写，否则读 */
+  | { cmd: "fsOpen"; sid: number; file: number; path: string; write: boolean }
+  | { cmd: "fsRead"; sid: number; file: number; offset: number; len: number }
+  | { cmd: "fsWrite"; sid: number; file: number; offset: number; data: string }
+  | { cmd: "fsClose"; sid: number; file: number }
   | { cmd: "disconnect"; sid: number };
 
 /** 控制台与控制端服务之间的通道。会话的部分两种运行方式共用（console.ts 的 ConsoleLink） */
@@ -352,6 +437,19 @@ export interface Backend {
   onHostStatus(cb: (s: HostStatus) => void): () => void;
   /** 会话的画面：canvas 交给 Worker 绘制（之后主线程不能再画它），`out` 收它的消息 */
   view(canvas: HTMLCanvasElement, out: ViewOutput): MediaView;
+  /**
+   * 在一台电脑**自己的窗口**里打开远程画面（已经开着就切过去）。会话在那个窗口里建立，
+   * 管理界面只负责打开（见 components/SessionWindow.tsx）：桌面版是新窗口，网页版是新标签页
+   */
+  openSessionWindow(target: SessionTarget): Promise<void>;
+  /** 开着的远程窗口（桌面版才有；网页版是浏览器的标签页，控制台不知道） */
+  sessionWindows(): Promise<OpenSession[] | null>;
+  /** 开着的远程窗口变了（打开了、关掉了、里面的会话状态变了）。返回取消订阅的函数 */
+  onSessionWindows(cb: (list: OpenSession[]) => void): () => void;
+  /** 切到已经开着的远程窗口（桌面版；`display` 是固定看某个显示器的那一个） */
+  focusSession(code: string, display: number | null): Promise<void>;
+  /** 远程窗口报告自己的名字和状态：控制台左栏"会话中"显示它（桌面版） */
+  reportSession(code: string, display: number | null, name: string, state: OpenSessionState): Promise<void>;
   /**
    * 连接。`opts`：重连凭证、记下的对方公钥、配对码、开始时的画质和声音（见 ConnectOptions）；
    * `view`：画面和声音交给它；`onEvent`：会话事件；`clipboard`：开始时是否同步剪贴板
@@ -372,6 +470,8 @@ export interface Backend {
   onHostOnline(cb: (code: number) => void): () => void;
   /** 对会话的操作（画面的确认由 Worker 在收到画面时自己发） */
   command(c: Command): Promise<void>;
+  /** 清理本地缓存（临时文件 + 界面偏好），返回删掉的字节数。设备、控制码、登录状态不动 */
+  clearCache(): Promise<number>;
   /** 重新问一次中转服务器（连接失败时自动调用）；分配变了返回 true */
   relayRefresh(): Promise<boolean>;
   /** 重启程序，让新的服务器设置生效（只有桌面版） */
@@ -392,10 +492,35 @@ export interface Backend {
   accountLogin(name: string, password: string): Promise<AccountInfo>;
   /** 改密码（成功后服务端作废旧凭证，本机换成新的） */
   accountChangePassword(oldPassword: string, newPassword: string): Promise<AccountInfo>;
-  /** 账号下的设备ID列表 */
-  accountDevices(): Promise<string[]>;
-  /** 把设备ID列表存进账号 */
-  accountSaveDevices(codes: string[]): Promise<void>;
+  /** 登录同一个账号的设备（控制码 + 各自的控制台公钥） */
+  accountDevices(): Promise<AccountDevice[]>;
+  /** 把设备列表存进账号 */
+  accountSaveDevices(devices: AccountDevice[]): Promise<void>;
+  /** 报个到（每 30 秒一次）：账号里的其它设备据此看到本机在线 */
+  accountHeartbeat(code: string): Promise<void>;
+
+  /** 打开一台电脑的**文件传输**窗口（一个控制码一个窗口；已经有了就切到前面） */
+  openFilesWindow(target: { code: string; name: string }): Promise<void>;
+
+  /** 账号的设备列表变了（账号服务推的：名字、系统、在线状态，见 src-tauri/src/presence.rs） */
+  onAccountDevices(cb: (devices: AccountDevice[]) => void): () => void;
+
+  // ── 本地文件（文件传输窗口左边那一栏；网页版不能用） ──
+  /** 本机的盘符和默认目录 */
+  localRoots(): Promise<{ places: FsPlace[]; home: string }>;
+  localList(path: string): Promise<{ path: string; parent: string | null; entries: FsEntry[] }>;
+  /** 本机的这个文件存不存在 */
+  localExists(path: string): Promise<boolean>;
+  /** 打开本机的一个文件：`write` 为真时清空重写；返回要读的文件大小 */
+  localOpen(id: number, path: string, write: boolean): Promise<number>;
+  /** 读一块（`data` 是 base64） */
+  localRead(id: number, offset: number, len: number): Promise<{ data: string; eof: boolean }>;
+  localWrite(id: number, offset: number, data: string): Promise<void>;
+  localClose(id: number): Promise<void>;
+  /** 本机的控制台公钥（64 位十六进制）；网页版返回空 */
+  controllerPublicKey(): Promise<string>;
+  /** 登录同一个账号的其它设备的控制台公钥：它们连本机不用输配对码 */
+  trustControllers(keys: string[]): Promise<void>;
   accountLogout(): Promise<void>;
   /** 界面自己的偏好和记录 */
   profileGet(): Promise<Profile>;
@@ -441,6 +566,8 @@ export interface WindowFrame {
   destroy(): Promise<void>;
   /** 把窗口藏起来（托盘里还在，点"打开控制台"再出来） */
   hide(): Promise<void>;
+  /** 改窗口标题（无边框窗口只在任务栏里看得到；远程窗口用它显示对方的设备名） */
+  setTitle(title: string): Promise<void>;
   /** 用户要关闭窗口：回调返回 false 时窗口先不关。返回取消订阅的函数 */
   onCloseRequested(cb: () => boolean): () => void;
 }

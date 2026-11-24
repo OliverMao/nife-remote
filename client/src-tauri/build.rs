@@ -1,7 +1,7 @@
 use std::path::Path;
 
 /// 账号服务地址的默认值：环境变量和 `.env` 都没有时用它（正式服务）
-const DEFAULT_AUTH: &str = "https://nife-remote-auth.naig.us";
+const DEFAULT_AUTH: &str = "https://nife-remote-auth.yoobit.cn";
 
 fn main() {
     // Media Foundation 延迟加载：Windows N/KN 版（未装媒体功能包）没有 mfplat.dll，

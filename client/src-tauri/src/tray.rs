@@ -66,7 +66,6 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         .build(app)
 }
 
-
 fn item(app: &AppHandle, id: &str, text: String) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::with_id(app, id, text, true, None::<&str>)
 }
@@ -133,7 +132,11 @@ pub fn refresh(app: &AppHandle, st: &AppStatus) {
             )
         }
         (true, ServerState::Connected, Some(code)) => {
-            format!("Nife Remote · {}\n{}", tr!("被控端", "Host"), code_line(code))
+            format!(
+                "Nife Remote · {}\n{}",
+                tr!("被控端", "Host"),
+                code_line(code)
+            )
         }
         (true, ServerState::Connected, None) => {
             tr!("Nife Remote · 被控端", "Nife Remote · Host")

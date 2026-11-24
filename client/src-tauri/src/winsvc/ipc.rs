@@ -83,6 +83,10 @@ pub enum ToAgent {
     SaveDevices {
         devices: Vec<crate::devices::Device>,
     },
+    /// 账号里其它设备的控制台公钥（托盘进程登录之后算出来）：这些控制端不用输配对码
+    TrustControllers {
+        keys: Vec<String>,
+    },
     /// 换一个配对码（暂停了的配对随之恢复）
     NewPairingCode,
     /// 换成本机用户填的配对码
@@ -268,6 +272,9 @@ async fn handle(msg: ToAgent, agent: &Agent) {
                 gate.set_allowed(allow);
             })
             .await;
+        }
+        ToAgent::TrustControllers { keys } => {
+            agent.gate.set_trusted_controllers(keys);
         }
         ToAgent::ForgetPaired => {
             let gate = agent.gate.clone();
@@ -477,5 +484,3 @@ async fn talk(
         }
     }
 }
-
-

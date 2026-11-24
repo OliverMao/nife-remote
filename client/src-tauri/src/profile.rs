@@ -119,7 +119,9 @@ impl Profile {
 
     /// 记一条最近连接：同一台只留最新的一条，排在最前面
     pub fn push_recent(&mut self, code: &str, name: &str, at: i64) {
-        let Some(code) = normalize_code(code) else { return };
+        let Some(code) = normalize_code(code) else {
+            return;
+        };
         let name: String = name.trim().chars().take(MAX_NAME).collect();
         self.recent.retain(|r| r.code != code);
         self.recent.insert(0, Recent { code, name, at });
@@ -216,7 +218,8 @@ fn write_to(path: &Path, profile: &Profile) -> Result<()> {
     let text = serde_json::to_string_pretty(profile).context("serializing the profile")?;
     let tmp = path.with_extension("json.tmp");
     {
-        let mut f = std::fs::File::create(&tmp).with_context(|| format!("creating {}", tmp.display()))?;
+        let mut f =
+            std::fs::File::create(&tmp).with_context(|| format!("creating {}", tmp.display()))?;
         f.write_all(text.as_bytes())?;
         f.write_all(b"\n")?;
         f.sync_all()?;
@@ -225,5 +228,3 @@ fn write_to(path: &Path, profile: &Profile) -> Result<()> {
     info!("profile saved to {}", path.display());
     Ok(())
 }
-
-

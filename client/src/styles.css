@@ -48,7 +48,8 @@
   --shadow-soft: 0 4px 14px rgba(18, 18, 40, 0.08);
   --mono: "Microsoft YaHei", "微软雅黑", monospace;
   --titlebar-h: 44px;
-  --toolbar-h: 46px;
+  /* 远程窗口的标题栏（工具栏）：和无边框窗口一样矮一点，别占掉画面高度 */
+  --toolbar-h: 38px;
   --sidebar-w: 232px;
   color-scheme: light;
   /* 全界面统一用微软雅黑（Windows 自带） */
@@ -453,6 +454,13 @@ h3 {
   color: var(--brand-2);
 }
 .device-item.disabled .device-mark {
+  color: var(--text-3);
+}
+/* 本机这一行：不可点，但也不灰（它是正常的账号设备） */
+.device-item.self {
+  cursor: default;
+}
+.device-item.self .device-mark {
   color: var(--text-3);
 }
 .nt-devices.compact .device-mark {
@@ -967,6 +975,10 @@ html.os-web .title-actions {
   color: var(--text-3);
   font-size: 11.5px;
 }
+/* 清理完成之后那一行提示 */
+.am-item-text .block.am-done {
+  color: var(--good);
+}
 .am-chevron {
   flex-shrink: 0;
   color: var(--text-3);
@@ -1410,6 +1422,17 @@ kbd {
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+}
+@keyframes confirm-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
   }
 }
 .pop-title {
@@ -1899,6 +1922,34 @@ kbd {
   background: #17171b;
   color: #d6d7de;
 }
+/* 预览区是深色底：配对码输入框、错误提示都用浅色 */
+.dv-pairing {
+  width: 190px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.07);
+  color: #f2f2f7;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  letter-spacing: 2px;
+  outline: none;
+}
+.dv-pairing::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0;
+}
+.dv-pairing:focus {
+  border-color: var(--brand-2);
+}
+.dv-stage .error-box {
+  max-width: 78%;
+  background: rgba(214, 60, 75, 0.16);
+  border-color: rgba(214, 60, 75, 0.45);
+  color: #ffd9dc;
+}
 .dv-stage-title {
   font-size: 13px;
 }
@@ -2333,18 +2384,67 @@ kbd {
   font-size: 12.5px;
   user-select: text;
 }
-.undo-bar {
+/* 删除前的确认：小窗 + 两个按钮（不做撤销条那种交互） */
+.confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 11px;
-  background: rgba(91, 124, 255, 0.12);
-  border: 1px solid rgba(91, 124, 255, 0.28);
+  justify-content: center;
+  background: rgba(16, 17, 24, 0.28);
+  animation: confirm-fade 0.12s ease-out;
+}
+.confirm-card {
+  width: min(340px, calc(100vw - 48px));
+  padding: 18px 18px 14px;
+  border-radius: 14px;
+  background: var(--pop);
+  border: 1px solid var(--edge-2);
+  box-shadow: 0 18px 48px rgba(16, 17, 24, 0.18);
+  animation: confirm-in 0.14s ease-out;
+}
+.confirm-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.confirm-text {
+  margin: 8px 0 16px;
   font-size: 12.5px;
+  line-height: 1.7;
   color: var(--text-2);
-  animation: pop 0.14s ease-out;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.confirm-btn {
+  min-width: 68px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--edge-2);
+  background: var(--glass-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.confirm-btn:hover {
+  background: var(--hover);
+  border-color: var(--edge-3);
+}
+.confirm-btn.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+.confirm-btn.danger:hover {
+  filter: brightness(1.06);
+  background: var(--danger);
+  border-color: var(--danger);
 }
 .device-list {
   display: grid;
@@ -2451,6 +2551,12 @@ kbd {
 }
 
 /* ───────── 会话 ───────── */
+/* 远程窗口：整个窗口就是远程画面（没有左栏、没有标题栏，见 components/SessionWindow.tsx） */
+.session-loading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
 .session-view {
   flex: 1;
   min-height: 0;
@@ -2458,44 +2564,237 @@ kbd {
   flex-direction: column;
   position: relative;
 }
-/* 工具栏：标签下面一条玻璃（不在远程画面上面，不需要模糊） */
+/* 工具栏：现在它自己就是窗口的标题栏（无边框窗口，拖动由 data-tauri-drag-region 处理） */
 .toolbar {
   height: var(--toolbar-h);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 8px;
+  padding: 0 0 0 10px;
   background: #fff;
-  border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   position: relative;
   z-index: 5;
-}
-/* 像地址栏：连的是哪台、现在怎么样 */
-.addr {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  /* 左右留一样的边（右边原来只留 5px，是给旧的彩色编码胶囊让位的） */
-  padding: 0 13px;
-  border-radius: 16px;
-  background: var(--well);
-  border: 1px solid var(--edge);
-  font-size: 12.5px;
   container-type: inline-size;
 }
-/* 地址栏窄了：先藏编码方式（画质面板里也有），再藏分辨率 */
-@container (max-width: 560px) {
-  .addr .stat-codec {
+/* 左边：图标 + 对方名称 + 控制码 */
+.tb-brand {
+  flex: none;
+  max-width: 30%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.tb-brand > svg {
+  flex-shrink: 0;
+}
+/* 显示器：像标签一样切换 */
+.disp-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.disp-tabs::-webkit-scrollbar {
+  display: none;
+}
+.disp-tab {
+  height: 30px;
+  flex: none;
+  max-width: 240px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.disp-tab svg {
+  flex-shrink: 0;
+}
+.disp-tab:hover {
+  background: var(--hover-2);
+  color: var(--text);
+}
+.disp-tab.active {
+  background: var(--glass-3);
+  color: var(--text);
+  font-weight: 600;
+}
+.disp-tab .disp-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  color: var(--text-3);
+}
+/* 这块屏幕已经在另一个窗口里打开了 */
+/* 把显示器标签拖出窗口时跟着鼠标的提示 */
+/* 连上了但没有画面时的说明（画面中间偏下，不挡工具栏） */
+.stage-note {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(560px, calc(100% - 40px));
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: rgba(10, 12, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f2f2f7;
+  font-size: 12.5px;
+  line-height: 1.6;
+  pointer-events: none;
+}
+.stage-note svg {
+  flex: none;
+  color: #ffb020;
+}
+.stage-note .muted {
+  color: rgba(242, 242, 247, 0.62);
+}
+.pull-hint {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, 14px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: var(--pop);
+  border: 1px solid var(--edge-2);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  color: var(--text);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* ───────── 控制中心（会话工具栏的弹层：画质、声音、剪贴板、鼠标、全屏、断开……） ───────── */
+.control-center {
+  width: 320px;
+  max-height: var(--pop-max-h, calc(100vh - 120px));
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.control-center.wide {
+  width: 392px;
+}
+.cc-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px 7px;
+}
+/* 子页（画质、发送快捷键）左上角的返回 */
+.pop-back {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--text-2);
+}
+.pop-back:hover {
+  background: var(--hover-2);
+  color: var(--text);
+}
+.pop-back svg {
+  transform: rotate(180deg);
+}
+.cc-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.cc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  flex: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+}
+button.cc-row:hover,
+label.cc-row:hover {
+  background: var(--hover);
+}
+.cc-row.disabled {
+  opacity: 0.5;
+}
+.cc-row .cc-label {
+  flex: 1;
+  min-width: 0;
+}
+.cc-row .cc-value {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.cc-row.danger {
+  gap: 8px;
+  color: var(--bad);
+}
+.cc-foot {
+  flex: none;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+/* 画质面板整个放进控制中心：宽度跟着弹层走，滚动交给中间的 .qp-body */
+.control-center .quality-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+}
+/* 画质页的标题行：和 .cc-head 一样（左边一个返回） */
+.control-center .qp-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px 7px;
+}
+/* 工具栏窄了：先藏编码方式（画质面板里也有）、分辨率，最后藏显示器名字 */
+@container (max-width: 700px) {
+  .toolbar .stat-codec {
     display: none;
   }
 }
-@container (max-width: 400px) {
-  .addr .stat-res {
+@container (max-width: 620px) {
+  .toolbar .stat-res {
+    display: none;
+  }
+}
+@container (max-width: 520px) {
+  .toolbar .disp-name {
     display: none;
   }
 }
@@ -2510,32 +2809,6 @@ kbd {
 .addr-title .host {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.addr-switch {
-  min-width: 0;
-  display: flex;
-}
-.addr-title.switcher {
-  height: 26px;
-  margin-left: -8px;
-  padding: 0 6px 0 8px;
-  border-radius: 13px;
-  font-size: inherit;
-  color: var(--text);
-}
-.addr-title.switcher svg {
-  flex-shrink: 0;
-  color: var(--text-2);
-}
-.addr-title.switcher:hover,
-.addr-title.switcher.on {
-  background: var(--hover-2);
-}
-.addr-code {
-  flex: none;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 /* 放不下时统计信息先被裁掉（从右边裁，帧率和延迟留到最后），主机名最后才省略 */
@@ -2565,10 +2838,19 @@ kbd {
   display: flex;
   align-items: center;
   gap: 2px;
+  /* 右边留一点空：没有窗口按钮（网页版、全屏浮动的工具栏）时按钮不贴边 */
+  padding-right: 8px;
+}
+/* 工具栏里的窗口按钮：贴到窗口最右边（和系统的位置一样） */
+.toolbar .win-buttons {
+  margin-left: 2px;
+}
+.toolbar .win-btn {
+  width: 44px;
 }
 .tb-btn {
   position: relative;
-  height: 32px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2601,21 +2883,6 @@ kbd {
   margin: 0 4px;
   background: var(--line-2);
 }
-/* 工具栏按钮上的状态小圆点 */
-.tb-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-}
-/* 出了问题（例如对方无法采集声音），与画面上方的提示同一个颜色 */
-.tb-dot.warn {
-  background: var(--ok);
-}
-
 .stage {
   flex: 1;
   min-height: 0;
@@ -2718,7 +2985,7 @@ kbd {
   }
 }
 
-/* 全屏（沉浸模式）：标签栏隐藏，工具栏悬浮，鼠标移到屏幕顶端时出现（显示 / 收起见 SessionView 的 useToolbarReveal） */
+/* 全屏（沉浸模式）：标题栏（工具栏）悬浮在画面上，鼠标移到屏幕顶端时出现（显示 / 收起见 SessionView 的 useToolbarReveal） */
 .session-view.immersive .toolbar {
   position: absolute;
   top: 8px;
@@ -3611,4 +3878,463 @@ button.hv-item:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* ───────────────── 文件传输窗口（components/FileTransfer.tsx） ───────────────── */
+
+.ft {
+  flex-direction: column;
+  background: var(--bg);
+}
+.ft-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+/* 正在连接时的提示（不是错误，用中性色） */
+.ft-note {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--well);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.ft-problem {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(214, 60, 75, 0.35);
+  background: rgba(214, 60, 75, 0.08);
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+/* 两个目录面板（发送按钮在各自标题栏里，不占中间一列） */
+.ft-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.ft-pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass-1);
+  overflow: hidden;
+}
+.ft-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 6px;
+}
+.ft-pane-name {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-badge {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--well);
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+.spacer {
+  flex: 1;
+}
+.ft-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+.ft-tool {
+  width: 28px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ft-tool:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.ft-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* 路径栏：点开是"此电脑 / 盘 / 系统文件夹 / 最近"的下拉 */
+.ft-path-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.ft-path-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid var(--edge-2);
+  background: var(--well);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ft-path-bar:hover {
+  border-color: var(--edge-3);
+  color: var(--text);
+}
+.ft-path-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.ft-caret {
+  flex: none;
+  color: var(--text-3);
+  font-size: 11px;
+}
+.ft-places {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 240px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--edge-2);
+  border-radius: 8px;
+  /* 一定是实色：它盖在文件列表上面，半透明就成了"穿透" */
+  background: var(--pop);
+  box-shadow: 0 14px 34px rgba(20, 26, 40, 0.22);
+  overflow: hidden;
+}
+.ft-place-search {
+  flex: none;
+  margin: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--edge-2);
+  background: var(--well);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.ft-place-list {
+  overflow: auto;
+  padding: 0 4px 6px;
+}
+.ft-place-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.ft-place-row:hover {
+  background: var(--hover);
+}
+.ft-place-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-place-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+.ft-place-cap {
+  padding: 6px 8px 2px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+/* 表头 + 列表 */
+.ft-cols,
+.ft-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 118px 66px 78px;
+  gap: 8px;
+  align-items: center;
+  padding: 0 12px;
+}
+/* 勾选框（多选：选中的文件一起发） */
+.ft-check {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--edge-3);
+  background: var(--glass-1);
+  color: #fff;
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.ft-check.on {
+  border-color: var(--brand-2);
+  background: var(--brand-2);
+}
+.ft-cols {
+  height: 26px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--well);
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.ft-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0;
+}
+.ft-row {
+  height: 30px;
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+  user-select: none;
+}
+.ft-row:hover {
+  background: var(--hover);
+}
+.ft-row.picked {
+  background: rgba(91, 124, 255, 0.14);
+}
+.ft-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-cell.name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ft-icon {
+  flex: none;
+  width: 14px;
+  color: var(--text-3);
+  text-align: center;
+}
+.ft-icon.dir {
+  color: var(--brand-2);
+}
+.ft-empty {
+  padding: 12px;
+}
+
+/* 发送按钮（在两个面板各自的标题栏里） */
+.ft-send {
+  flex: none;
+  height: 28px;
+  margin-top: -2px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--edge-2);
+  background: var(--glass-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ft-send:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--edge-3);
+}
+.ft-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 底部：传输列表 */
+.ft-jobs {
+  flex: 0 0 auto;
+  max-height: 34%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass-1);
+  overflow: hidden;
+}
+.ft-jobs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ft-jobs-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.ft-link {
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ft-link:hover:not(:disabled) {
+  color: var(--text);
+}
+.ft-link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ft-jobs-cols,
+.ft-job {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 116px 88px minmax(0, 1fr) minmax(0, 1fr) 26px;
+  gap: 8px;
+  align-items: center;
+  padding: 0 12px;
+}
+.ft-jobs-cols {
+  height: 26px;
+  background: var(--well);
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.ft-jobs-list {
+  overflow: auto;
+  padding: 2px 0;
+}
+.ft-job {
+  height: 30px;
+  font-size: 12.5px;
+}
+.ft-job:hover {
+  background: var(--hover);
+}
+.ft-job-name,
+.ft-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-job-state {
+  color: var(--text-2);
+}
+.ft-job-state.done {
+  color: var(--good);
+}
+.ft-job-state.failed {
+  color: var(--danger);
+}
+.ft-job-state.paused {
+  color: var(--text-3);
+}
+.ft-job-state.cancelled,
+.ft-job-state.skipped {
+  color: var(--text-3);
+}
+.ft-job-state em {
+  font-style: normal;
+  color: var(--danger);
+  opacity: 0.85;
+}
+
+/* 传输列表行尾的操作（取消 / 移除） */
+.ft-op {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ft-op:hover {
+  background: var(--hover);
+  color: var(--danger);
+}
+
+/* 渲染出错时的兜底页面（components/ErrorBoundary.tsx） */
+.crash {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  overflow: auto;
+}
+.crash-title {
+  font-size: 16px;
+  font-weight: 650;
+}
+.crash-msg {
+  color: var(--danger);
+  font-size: 13px;
+}
+.crash-stack {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--well);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.crash-retry {
+  align-self: flex-start;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--edge-2);
+  background: var(--glass-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
 }

@@ -1,31 +1,21 @@
-import { type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { closeTab, fmtCode, toggleFullscreen } from "../lib/actions";
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { closeTab, toggleFullscreen } from "../lib/actions";
 import { api } from "../lib/api";
-import { type MsgKey, t, useT } from "../lib/i18n";
+import { t, useT } from "../lib/i18n";
 import { errorText, noticeText, problemText, sessionStateText } from "../lib/messages";
 import { CODEC_LABEL } from "../lib/presets";
 import type { RemoteSession } from "../lib/session";
-import { store, useSession, useSessionTitle, useStore } from "../lib/store";
+import { useSession, useSessionTitle, useStore } from "../lib/store";
 import {
-  IconChevron,
-  IconClipboard,
-  IconExpand,
-  IconFit,
-  IconKeyboard,
-  IconMic,
-  IconMicOff,
   IconMonitor,
-  IconMouse,
-  IconPower,
   IconRefresh,
-  IconShrink,
-  IconSliders,
-  IconVolume,
-  IconVolumeOff,
+  IconSettings,
   IconWarn,
 } from "./Icons";
-import { Popover } from "./Popover";
-import { QualityPanel, fmtKbps } from "./QualityPanel";
+import { ControlCenter } from "./ControlCenter";
+import { Logo } from "./Logo";
+import { fmtKbps } from "./QualityPanel";
+import { WindowButtons } from "./WindowButtons";
 
 /** 把会话的 canvas 挂到当前位置（同一时刻只会挂在一个地方） */
 export function CanvasHost({ s, interactive }: { s: RemoteSession; interactive: boolean }) {
@@ -42,21 +32,6 @@ export function CanvasHost({ s, interactive }: { s: RemoteSession; interactive: 
   }, [s, interactive]);
   return <div ref={ref} className={`canvas-host ${interactive && s.scaleMode === "native" ? "native" : ""}`} />;
 }
-
-type Combo = { label: MsgKey; keys: string[] };
-
-const WINDOWS_COMBOS: Combo[] = [
-  { label: "combo.winStart", keys: ["MetaLeft"] },
-  { label: "combo.altTab", keys: ["AltLeft", "Tab"] },
-  { label: "combo.winD", keys: ["MetaLeft", "KeyD"] },
-  { label: "combo.winE", keys: ["MetaLeft", "KeyE"] },
-  { label: "combo.winR", keys: ["MetaLeft", "KeyR"] },
-  { label: "combo.taskManager", keys: ["ControlLeft", "ShiftLeft", "Escape"] },
-  { label: "combo.altF4", keys: ["AltLeft", "F4"] },
-  { label: "combo.printScreen", keys: ["PrintScreen"] },
-];
-
-type Menu = null | "quality" | "keys" | "display" | "clipboard" | "audio" | "mic" | "sessions";
 
 /** 顶端热区的高度（和 .hot-edge 一致） */
 const HOT_EDGE = 6;
@@ -110,14 +85,14 @@ function useToolbarReveal(active: boolean, toolbar: RefObject<HTMLElement | null
   return revealed;
 }
 
-export function SessionView({ s }: { s: RemoteSession }) {
+export function SessionView({ s, pinnedDisplay = null }: { s: RemoteSession; pinnedDisplay?: number | null }) {
   // 订阅语言切换（文案直接用导入的 t）
   useT();
   useSession(s);
   const immersive = useStore((st) => st.immersive);
-  const multi = useStore((st) => st.sessions.length > 1);
   const title = useSessionTitle(s);
-  const [menu, setMenu] = useState<Menu>(null);
+  // 控制中心（画质、声音、剪贴板、鼠标、全屏、断开……）开着没有
+  const [center, setCenter] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // 对方要求配对码、或者对方的身份变了（要重新配对）时输入的配对码
   const [pairing, setPairing] = useState("");
@@ -129,12 +104,45 @@ export function SessionView({ s }: { s: RemoteSession }) {
       s.closedReason?.kind === "hostKeyChanged");
   const toolbarRef = useRef<HTMLElement>(null);
   const revealed = useToolbarReveal(immersive, toolbarRef);
-  // 菜单关掉后键盘回到远程画面（例如按 Esc 关掉画质面板后接着打字）
-  const closeMenu = useCallback(() => {
-    setMenu(null);
+  // 控制中心关掉后键盘回到远程画面（例如按 Esc 关掉后接着打字）
+  const closeCenter = useCallback(() => {
+    setCenter(false);
     s.focus();
   }, [s]);
-  const toggleMenu = (m: Menu) => setMenu((cur) => (cur === m ? null : m));
+
+  // 显示器标签：拖到窗口外 = 那块屏幕单独开一个窗口（见 popOut）
+  const pull = useRef<{ index: number; x: number; y: number; moved: boolean } | null>(null);
+  const skipClick = useRef(false);
+  const [pulled, setPulled] = useState<{ index: number; x: number; y: number } | null>(null);
+  /** 指针是不是已经在工具栏（标题栏）外面了 */
+  const outside = (x: number, y: number) => {
+    const r = toolbarRef.current?.getBoundingClientRect();
+    return !!r && (y < r.top - 2 || y > r.bottom + 2 || x < r.left - 2 || x > r.right + 2);
+  };
+
+  /** 这一块屏幕已经在另一个窗口里看（控制器左栏"会话中"那份列表） */
+  const openWindows = useStore((st) => st.open);
+  const openedElsewhere = (index: number) => openWindows.some((w) => w.code === s.code && w.display === index);
+
+  /**
+   * 这个窗口还要列出哪几块屏：一块屏只属于一个窗口。
+   * 已经单独开出去的不在这里重复出现（否则拖出去以后两个窗口都列着它）；
+   * 这个窗口自己固定看某块屏时，那就是它的全部，只剩一个也就没有标签栏了。
+   */
+  const tabs =
+    pinnedDisplay !== null ? s.displays.filter((d) => d.index === pinnedDisplay) : s.displays.filter((d) => !openedElsewhere(d.index));
+
+  /** 把一块屏幕拖成一个新窗口：画面是一路流，所以那是另一个会话（同一个控制码，固定看这个显示器） */
+  const popOut = (index: number) => {
+    void api
+      .openSessionWindow({ code: s.code, display: index, settings: s.settings, pairing: null })
+      .catch((e) => setToast(errorText(e)));
+    // 同一个画面不连两次：这个窗口原本就在看它，就换到另一块屏幕
+    if (s.currentDisplay === index) {
+      const other = s.displays.find((d) => d.index !== index);
+      if (other) s.selectDisplay(other.index);
+    }
+  };
 
   useEffect(() => {
     if (!toast) return;
@@ -153,62 +161,114 @@ export function SessionView({ s }: { s: RemoteSession }) {
   }, [pointerLocked]);
 
   const fullscreen = async () => {
-    setMenu(null);
+    setCenter(false);
     await toggleFullscreen();
-    s.focus();
-  };
-
-  const typeClipboard = async () => {
-    try {
-      const text = await api.localClipboardText();
-      if (!text) return setToast(t("session.noClipboard"));
-      s.sendText(text);
-      setToast(t("session.typed", { n: text.length }));
-    } catch (e) {
-      setToast(errorText(e));
-    }
     s.focus();
   };
 
   const st = s.stats;
   const live = s.state === "live";
   const rtt = st.rttMs != null ? Math.round(st.rttMs) : null;
+
+  /**
+   * 连上了但一直没有画面（对方一个帧都没编出来）：多半是被控端采不到画面（锁屏、没有显示器、
+   * 采集失败）。黑屏不给任何说明的话，只能靠猜是网络还是对方，所以这里主动说出来。
+   */
+  const [noPicture, setNoPicture] = useState(false);
+  useEffect(() => {
+    if (!live || st.width > 0) {
+      setNoPicture(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setNoPicture(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [live, st.width]);
   const rttClass = rtt == null ? "" : rtt < 60 ? "good" : rtt < 150 ? "ok" : "bad";
 
   return (
     <div className={`session-view ${immersive ? "immersive" : ""}`}>
       {immersive && <div className="hot-edge" />}
-      <header ref={toolbarRef} className={`toolbar ${revealed ? "revealed" : ""}`}>
-        {/* 像浏览器的地址栏：连的是哪台、现在怎么样 */}
-        <div className="addr">
-          {immersive && multi ? (
-            // 全屏时看不到标签栏：在这里切换到其它连接
-            <div className="menu-anchor addr-switch">
-              <button
-                className={`addr-title switcher ${menu === "sessions" ? "on" : ""}`}
-                title={t("session.switchSession")}
-                onClick={() => toggleMenu("sessions")}
-              >
-                <span className={`dot ${s.state}`} />
-                <span className="host">{title}</span>
-                <IconChevron size={14} />
-              </button>
-              {menu === "sessions" && <SessionSwitcher current={s} onClose={closeMenu} />}
-            </div>
-          ) : (
-            <div className="addr-title">
-              <span className={`dot ${s.state}`} />
-              <span className="host">{title}</span>
-            </div>
-          )}
-          <span
-            className="addr-code"
-            title={s.safety ? `${t("session.safety", { code: s.safety })} · ${t("session.safetyHint")}` : undefined}
-          >
-            {fmtCode(s.code)}
-          </span>
+      {/* 这一条就是窗口的标题栏（无边框，拖动、双击最大化由 Tauri 按 data-tauri-drag-region 处理） */}
+      <header ref={toolbarRef} className={`toolbar ${revealed ? "revealed" : ""}`} data-tauri-drag-region="deep">
+        {/* 左边：图标 + 对方名称 + 控制码（和图示一样，这些都在标题栏上） */}
+        <div className="tb-brand">
+          <Logo size={18} />
+          <div className="addr-title">
+            <span className={`dot ${s.state}`} />
+            <span
+              className="host"
+              title={s.safety ? `${title} · ${t("session.safety", { code: s.safety })}` : title}
+            >
+              {title}
+            </span>
+          </div>
+          {/* 界面上不显示控制码（只在"远程协助"页输入）；安全码挪到设备名上悬停看 */}
 
-          <div className="addr-stats">
+        </div>
+
+        {/* 显示器：像标签一样切换；拖到窗口外松手，这块屏幕就单独开一个窗口（见 popOut） */}
+        {tabs.length > 1 && (
+          <div className="disp-tabs" role="tablist" aria-label={t("session.switchDisplay")}>
+            {tabs.map((d) => (
+              <button
+                key={d.index}
+                role="tab"
+                aria-selected={d.index === s.currentDisplay}
+                className={`disp-tab ${d.index === s.currentDisplay ? "active" : ""}`}
+                title={[d.name, `${d.width}×${d.height}`, d.primary ? t("session.primary") : ""]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  pull.current = { index: d.index, x: e.clientX, y: e.clientY, moved: false };
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}
+                onPointerMove={(e) => {
+                  const p = pull.current;
+                  if (!p || p.index !== d.index) return;
+                  if (!p.moved && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) p.moved = true;
+                  const out = p.moved && outside(e.clientX, e.clientY);
+                  setPulled(out ? { index: d.index, x: e.clientX, y: e.clientY } : null);
+                }}
+                onPointerUp={(e) => {
+                  const p = pull.current;
+                  pull.current = null;
+                  setPulled(null);
+                  if (!p || p.index !== d.index) return;
+                  if (!p.moved) return; // 没拖动：交给 onClick 切换
+                  // 拖动之后也会有一次 click：这一下不算切换（下一轮再恢复）
+                  skipClick.current = true;
+                  window.setTimeout(() => (skipClick.current = false), 0);
+                  if (outside(e.clientX, e.clientY)) popOut(d.index);
+                  else {
+                    // 拖回栏内松手：当作点了一下
+                    s.selectDisplay(d.index);
+                    s.focus();
+                  }
+                }}
+                onPointerCancel={() => {
+                  pull.current = null;
+                  setPulled(null);
+                }}
+                onClick={() => {
+                  // 拖出去之后松手也会有一次 click：那一下不算切换
+                  if (skipClick.current) {
+                    skipClick.current = false;
+                    return;
+                  }
+                  s.selectDisplay(d.index);
+                  s.focus();
+                }}
+              >
+                <IconMonitor size={14} />
+                <span>{t("session.display", { n: d.index + 1 })}</span>
+                {d.name && <span className="disp-name">({d.name})</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="addr-stats">
             {live ? (
               <>
                 <span>{Math.round(st.fps)} fps</span>
@@ -240,247 +300,65 @@ export function SessionView({ s }: { s: RemoteSession }) {
               <span className="muted">{sessionStateText(s)}</span>
             )}
           </div>
-        </div>
 
+        {/* 右边只有"控制中心"：麦克风、声音、画质这些都在里面，标题栏不摆开关 */}
         <div className="tb-right">
-          {s.displays.length > 1 && (
-            <div className="menu-anchor">
-              <button className="tb-btn" onClick={() => toggleMenu("display")} title={t("session.switchDisplay")}>
-                <IconMonitor size={17} />
-                <span>{t("session.display", { n: s.currentDisplay + 1 })}</span>
-                <IconChevron size={14} />
-              </button>
-              {menu === "display" && (
-                <Dropdown onClose={closeMenu}>
-                  {s.displays.map((d) => (
-                    <button
-                      key={d.index}
-                      className={`dd-item ${d.index === s.currentDisplay ? "active" : ""}`}
-                      onClick={() => {
-                        s.selectDisplay(d.index);
-                        closeMenu();
-                        s.focus();
-                      }}
-                    >
-                      <span>
-                        {t("session.display", { n: d.index + 1 })}
-                        {d.primary ? t("session.primary") : ""}
-                      </span>
-                      <span className="muted small">
-                        {d.width}×{d.height}
-                      </span>
-                    </button>
-                  ))}
-                </Dropdown>
-              )}
-            </div>
-          )}
-
-          <div className="menu-anchor">
-            <button className={`tb-btn ${menu === "quality" ? "on" : ""}`} onClick={() => toggleMenu("quality")}>
-              <IconSliders size={17} />
-              <span>{t("session.quality")}</span>
-            </button>
-            {menu === "quality" && <QualityPanel s={s} onClose={closeMenu} />}
-          </div>
-
-          <div className="menu-anchor">
-            <button className={`tb-btn icon ${menu === "keys" ? "on" : ""}`} title={t("session.shortcuts")} onClick={() => toggleMenu("keys")}>
-              <IconKeyboard size={17} />
-            </button>
-            {menu === "keys" && (
-              <Dropdown onClose={closeMenu}>
-                {s.hostActions.length > 0
-                  ? // 手机：系统操作（返回、主页……），对方列出了哪些就显示哪些
-                    s.hostActions.map((a) => (
-                      <button
-                        key={a}
-                        className="dd-item"
-                        onClick={() => {
-                          s.sendSystem(a);
-                          closeMenu();
-                          s.focus();
-                        }}
-                      >
-                        {t(`action.${a}` as const)}
-                      </button>
-                    ))
-                  : WINDOWS_COMBOS.map((c) => (
-                      <button
-                        key={c.label}
-                        className="dd-item"
-                        onClick={() => {
-                          s.sendCombo(c.keys);
-                          closeMenu();
-                          s.focus();
-                        }}
-                      >
-                        {t(c.label)}
-                      </button>
-                    ))}
-              </Dropdown>
-            )}
-          </div>
-
           <div className="menu-anchor">
             <button
-              className={`tb-btn icon ${menu === "clipboard" ? "on" : ""}`}
-              title={t("session.clipboard")}
-              onClick={() => toggleMenu("clipboard")}
+              className={`tb-btn ${center ? "on" : ""}`}
+              title={t("session.controlCenter")}
+              aria-expanded={center}
+              onClick={() => setCenter((v) => !v)}
             >
-              <IconClipboard size={17} />
-              {s.clipboardSync && <span className="tb-dot" />}
+              <IconSettings size={17} />
+              <span>{t("session.controlCenter")}</span>
             </button>
-            {menu === "clipboard" && (
-              <Dropdown onClose={closeMenu}>
-                <label className="dd-item toggle">
-                  <span>
-                    {t("session.clipSync")}
-                    <span className="muted small block">
-                      {t(api.kind === "web" ? "session.clipSyncHintWeb" : "session.clipSyncHint")}
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="switch"
-                    checked={s.clipboardSync}
-                    onChange={(e) => s.setClipboardSync(e.target.checked)}
-                  />
-                </label>
-                <button
-                  className="dd-item"
-                  onClick={() => {
-                    closeMenu();
-                    void typeClipboard();
-                  }}
-                >
-                  <span>
-                    {t("session.clipType")}
-                    <span className="muted small block">{t("session.clipTypeHint")}</span>
-                  </span>
-                </button>
-              </Dropdown>
-            )}
+            {center && <ControlCenter s={s} onClose={closeCenter} onToast={setToast} onFullscreen={fullscreen} />}
           </div>
-          <div className="menu-anchor">
-            <button
-              className={`tb-btn icon ${menu === "audio" ? "on" : ""}`}
-              title={s.audioEnabled ? t("session.sound") : t("session.soundMuted")}
-              onClick={() => toggleMenu("audio")}
-            >
-              {s.audioEnabled ? <IconVolume size={17} /> : <IconVolumeOff size={17} />}
-              {s.audioEnabled && s.audioError !== null ? (
-                <span className="tb-dot warn" />
-              ) : (
-                s.audioEnabled && s.avSync && <span className="tb-dot" />
-              )}
-            </button>
-            {menu === "audio" && (
-              <Dropdown onClose={closeMenu} className="audio-menu">
-                <label className="dd-item toggle">
-                  <span>
-                    {t("session.playSound")}
-                    <span className="muted small block">{audioHint(s)}</span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="switch"
-                    checked={s.audioEnabled}
-                    onChange={(e) => s.setAudioEnabled(e.target.checked)}
-                  />
-                </label>
-                <label className={`dd-item toggle ${s.audioEnabled ? "" : "disabled"}`}>
-                  <span>
-                    {t("session.avSync")}
-                    <span className="muted small block">{t("session.avSyncHint")}</span>
-                    <span className="muted small block">{syncHint(s)}</span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="switch"
-                    checked={s.avSync}
-                    disabled={!s.audioEnabled}
-                    onChange={(e) => s.setAvSync(e.target.checked)}
-                  />
-                </label>
-              </Dropdown>
-            )}
-          </div>
-          {s.micState !== null && s.micState !== "unsupported" && (
-            // 本机的麦克风：对方能接（有虚拟麦克风）时才有
-            <div className="menu-anchor">
-              <button
-                className={`tb-btn icon ${menu === "mic" ? "on" : ""}`}
-                title={s.micLive ? t("session.micOn") : t("session.mic")}
-                onClick={() => toggleMenu("mic")}
-              >
-                {s.micEnabled ? <IconMic size={17} /> : <IconMicOff size={17} />}
-                {micProblem(s) ? <span className="tb-dot warn" /> : s.micLive && <span className="tb-dot" />}
-              </button>
-              {menu === "mic" && (
-                <Dropdown onClose={closeMenu} className="audio-menu">
-                  <label className="dd-item toggle">
-                    <span>
-                      {t("mic.send")}
-                      <span className="muted small block">{micHint(s)}</span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="switch"
-                      checked={s.micEnabled}
-                      onChange={(e) => s.setMicEnabled(e.target.checked)}
-                    />
-                  </label>
-                </Dropdown>
-              )}
-            </div>
-          )}
-          {/* 游戏：鼠标锁定在画面上、发相对移动（被控端隐藏光标时会自动这样做，这里是手动的） */}
-          <button
-            className={`tb-btn icon ${s.mouseLocked ? "on" : ""}`}
-            title={s.mouseLocked ? t("session.mouseUnlock") : t("session.mouseLock")}
-            onClick={() => {
-              setMenu(null);
-              s.toggleMouseLock();
-              if (s.mouseLocked) setToast(t("session.mouseLocked"));
-            }}
-          >
-            <IconMouse size={17} />
-          </button>
-          <button
-            className={`tb-btn icon ${s.scaleMode === "native" ? "on" : ""}`}
-            title={s.scaleMode === "fit" ? t("session.toNative") : t("session.toFit")}
-            onClick={() => {
-              s.setScaleMode(s.scaleMode === "fit" ? "native" : "fit");
-              s.focus();
-            }}
-          >
-            <IconFit size={17} />
-          </button>
-          <button
-            className={`tb-btn icon ${immersive ? "on" : ""}`}
-            title={immersive ? t("session.exitFullscreen") : t("session.fullscreen")}
-            onClick={fullscreen}
-          >
-            {immersive ? <IconShrink size={17} /> : <IconExpand size={17} />}
-          </button>
-          <span className="tb-sep" />
-          <button className="tb-btn icon danger" title={t("session.disconnect")} onClick={() => closeTab(s.id)}>
-            <IconPower size={17} />
-          </button>
         </div>
+        {/* 无边框窗口：最小化 / 最大化 / 关闭由界面画（全屏时浮动的工具栏里不摆窗口按钮） */}
+        {!immersive && <WindowButtons onClose={() => closeTab(s.id)} />}
       </header>
 
       <div className="stage">
         <CanvasHost s={s} interactive={s.state === "live"} />
+
+        {/* 连上了但对方没送画面：说清楚，别让人对着黑屏猜 */}
+        {noPicture && (
+          <div className="stage-note" role="status">
+            <IconWarn size={16} />
+            <div>
+              <div>{t("session.noPicture")}</div>
+              <div className="muted small">{t("session.noPictureHint")}</div>
+            </div>
+          </div>
+        )}
+
+        {/* 把显示器标签拖出窗口时跟着鼠标的提示 */}
+        {pulled && (
+          <div className="pull-hint" style={{ left: pulled.x, top: pulled.y }}>
+            <IconMonitor size={15} />
+            {t("session.pullOutHint", { n: pulled.index + 1 })}
+          </div>
+        )}
 
         {s.state !== "live" && (
           <div className="stage-overlay">
             {s.state === "closed" ? (
               <div className="overlay-card">
                 <IconWarn size={28} />
-                <div className="overlay-title">{s.retries > 0 ? t("session.reconnectFailed") : t("session.lost")}</div>
-                <div className="muted">{s.closedReason ? problemText(s.closedReason) : t("session.ended")}</div>
+                {/* 第一次连要配对码：只摆一个"配对码"输入框（表单式的表达，不写状态说明） */}
+                {s.closedReason?.kind !== "pairingRequired" && (
+                  <>
+                    <div className="overlay-title">
+                      {s.retries > 0 ? t("session.reconnectFailed") : t("session.lost")}
+                    </div>
+                    <div className="muted">{s.closedReason ? problemText(s.closedReason) : t("session.ended")}</div>
+                  </>
+                )}
+                {s.closedReason?.kind === "pairingRequired" && (
+                  <div className="overlay-title">{t("connect.pairing")}</div>
+                )}
                 {needsPairing && (
                   <input
                     className="pairing-input"
@@ -500,7 +378,7 @@ export function SessionView({ s }: { s: RemoteSession }) {
                   {needsPairing ? (
                     <button className="primary-btn small" disabled={pairing.length !== 6} onClick={() => s.pairWith(pairing)}>
                       <IconRefresh size={16} />
-                      {t("session.pairAndReconnect")}
+                      {t("connect.go")}
                     </button>
                   ) : (
                     <button className="primary-btn small" onClick={() => s.reconnect()}>
@@ -565,81 +443,3 @@ export function SessionView({ s }: { s: RemoteSession }) {
   );
 }
 
-function audioHint(s: RemoteSession): string {
-  if (!s.audioEnabled) return t("audio.muted");
-  if (s.audioError !== null) return t("notice.audioFailed", { detail: s.audioError });
-  const st = s.audio.stats;
-  return st ? t("audio.jitter", { ms: Math.round(st.targetMs) }) : t("audio.remote");
-}
-
-/** 麦克风打开了、但声音没发过去（本机采集不了，或者对方现在接不了） */
-function micProblem(s: RemoteSession): boolean {
-  return s.micError !== null || (s.micEnabled && s.micState !== "ready");
-}
-
-function micHint(s: RemoteSession): string {
-  if (s.micError !== null) return t(`mic.local.${s.micError}` as const);
-  switch (s.micState) {
-    case "noDevice":
-      return t("mic.noDevice");
-    case "busy":
-      return t("mic.busy");
-    case "failed":
-      return t("mic.failed", { detail: s.micDetail ?? "—" });
-    default:
-      return s.micLive ? t("mic.live") : t("mic.ready");
-  }
-}
-
-function syncHint(s: RemoteSession): string {
-  if (!s.audioEnabled) return t("sync.needSound");
-  const { skewMs, videoDelayMs, extraMs } = s.syncStats;
-  if (skewMs === null) return t("sync.waiting");
-  const skew = Math.round(skewMs);
-  if (!s.avSync) return skew >= 0 ? t("sync.audioLate", { ms: skew }) : t("sync.videoLate", { ms: -skew });
-  const before = skew >= 0 ? t("sync.wasAudioLate", { ms: skew }) : t("sync.wasVideoLate", { ms: -skew });
-  if (extraMs > 0) return t("sync.audioDelayed", { ms: Math.round(extraMs), before });
-  return t("sync.videoDelayed", { ms: Math.round(videoDelayMs), before });
-}
-
-/** 全屏时切换到其它连接（标签栏藏起来了），仍然保持全屏 */
-function SessionSwitcher({ current, onClose }: { current: RemoteSession; onClose: () => void }) {
-  const sessions = useStore((st) => st.sessions);
-  return (
-    <Dropdown onClose={onClose} className="left session-menu">
-      {sessions.map((x) => (
-        <SwitcherItem
-          key={x.id}
-          s={x}
-          active={x === current}
-          onPick={() => {
-            onClose();
-            store.setView(x.id);
-          }}
-        />
-      ))}
-    </Dropdown>
-  );
-}
-
-function SwitcherItem({ s, active, onPick }: { s: RemoteSession; active: boolean; onPick: () => void }) {
-  useSession(s);
-  const title = useSessionTitle(s);
-  return (
-    <button className={`dd-item ${active ? "active" : ""}`} onClick={onPick}>
-      <span className="dd-main">
-        <span className={`dot ${s.state}`} />
-        <span className="ellipsis">{title}</span>
-      </span>
-      <span className="muted small">{s.state === "live" ? fmtCode(s.code) : sessionStateText(s)}</span>
-    </button>
-  );
-}
-
-function Dropdown({ children, onClose, className = "" }: { children: ReactNode; onClose: () => void; className?: string }) {
-  return (
-    <Popover className={`dropdown ${className}`} onClose={onClose}>
-      {children}
-    </Popover>
-  );
-}

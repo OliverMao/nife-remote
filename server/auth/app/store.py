@@ -40,6 +40,9 @@ from . import security
 
 VERSION = 1
 
+# 心跳间隔 30 秒（客户端），超过这么久没消息就当作离线
+ONLINE_TTL = 90
+
 
 class StoreError(Exception):
     """账号层面的错误（重名、密码不对、凭证无效…），`str(e)` 直接给界面显示"""
@@ -59,6 +62,12 @@ class User:
     rounds: int
     created_at: int
     devices: list[str] = field(default_factory=list)
+    # 每台设备的控制台端到端公钥（64 位十六进制）：登录同一个账号的设备用它互相认，不用输配对码
+    device_keys: dict[str, str] = field(default_factory=dict)
+    # 每台设备最后一次心跳的时刻（控制码 -> Unix 秒）：HTTP 心跳的在线状态用它（见 ONLINE_TTL）
+    device_seen: dict[str, int] = field(default_factory=dict)
+    # 每台设备的说明（控制码 -> {name, os}）：界面列表里显示，随设备 WebSocket 报到更新
+    device_info: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -70,11 +79,38 @@ class User:
             "rounds": self.rounds,
             "createdAt": self.created_at,
             "devices": list(self.devices),
+            "deviceKeys": dict(self.device_keys),
+            "deviceSeen": dict(self.device_seen),
+            "deviceInfo": {c: dict(i) for c, i in self.device_info.items()},
         }
 
     def public(self) -> dict[str, Any]:
         """给界面看的（不含盐和摘要）"""
-        return {"id": self.id, "name": self.name, "createdAt": self.created_at, "devices": list(self.devices)}
+        return {
+            "id": self.id,
+            "name": self.name,
+            "createdAt": self.created_at,
+            "devices": self.devices,
+            "deviceKeys": dict(self.device_keys),
+        }
+
+    def device_entries(self) -> list[dict[str, str]]:
+        """`/auth/devices` 的形状：每台带上它的控制台公钥（没有就是空串）。
+
+        列表本身按登记顺序给（新的在最后），客户端只需要 control code 和公钥这两个字段。
+        """
+        now = int(time.time())
+        return [
+            {
+                "code": code,
+                "key": self.device_keys.get(code, ""),
+                "name": self.device_info.get(code, {}).get("name", ""),
+                "os": self.device_info.get(code, {}).get("os", ""),
+                # 设备 WebSocket 连着就是在线（见 presence）；旧客户端只发 HTTP 心跳时按心跳算
+                "online": now - self.device_seen.get(code, 0) < ONLINE_TTL,
+            }
+            for code in self.devices
+        ]
 
 
 @dataclass
@@ -128,6 +164,12 @@ class AccountStore:
                     rounds=int(u.get("rounds") or self.rounds),
                     created_at=int(u.get("createdAt") or 0),
                     devices=[str(d) for d in u.get("devices") or []],
+                    device_keys={str(k): str(v) for k, v in (u.get("deviceKeys") or {}).items()},
+                    device_seen={str(k): int(v) for k, v in (u.get("deviceSeen") or {}).items()},
+                    device_info={
+                        str(k): {str(a): str(b) for a, b in (v or {}).items()}
+                        for k, v in (u.get("deviceInfo") or {}).items()
+                    },
                 )
                 for u in raw.get("users") or []
             ]
@@ -270,12 +312,67 @@ class AccountStore:
 
     # ── 账号下的设备（"本账号设备"）──
 
-    def set_devices(self, user: User, devices: list[str]) -> User:
+    def device_owner(self, code: str) -> User | None:
+        """这个控制码属于哪个账号（没有就是 `None`）"""
+        with self._lock:
+            return next((u for u in self._users if code in u.devices), None)
+
+    def claim_device(self, user: User, code: str, name: str, os_name: str) -> User:
+        """设备通过 WebSocket 报到：把控制码绑到这个账号上，记下名字和系统。
+
+        一个控制码只属于一个账号（控制码由中转服务器全局分配，不会重复）：先报到的那个账号拥有它，
+        别的账号想用同一个码会被拒绝——接管只能由原账号先删掉那台设备。
+        """
+        codes = normalize_codes([code])
+        if not codes:
+            raise StoreError("bad_device", "device code must be 6 digits")
+        code = codes[0]
         with self._lock:
             target = next((u for u in self._users if u.id == user.id), None)
             if target is None:
                 raise StoreError("bad_token", "this login is no longer valid, sign in again")
-            target.devices = normalize_codes(devices)
+            owner = self.device_owner(code)
+            if owner is not None and owner.id != target.id:
+                raise StoreError("device_taken", "this device code belongs to another account")
+            if code not in target.devices:
+                target.devices.append(code)
+            target.device_seen[code] = int(time.time())
+            target.device_info[code] = {"name": name.strip()[:64], "os": os_name.strip()[:64]}
+            self._write()
+            return target
+
+    def heartbeat(self, user: User, code: str) -> list[dict[str, str]]:
+        """一台设备报到：记下它现在在线（顺带补进设备列表，旧版本客户端没登记过也能出现）"""
+        with self._lock:
+            target = next((u for u in self._users if u.id == user.id), None)
+            if target is None:
+                raise StoreError("bad_token", "this login is no longer valid, sign in again")
+            codes = normalize_codes([code])
+            if not codes:
+                raise StoreError("bad_device", "device code must be 6 digits")
+            code = codes[0]
+            if code not in target.devices:
+                target.devices.append(code)
+            target.device_seen[code] = int(time.time())
+            self._write()
+            return target.device_entries()
+
+    def set_devices(self, user: User, entries: list[dict]) -> User:
+        with self._lock:
+            target = next((u for u in self._users if u.id == user.id), None)
+            if target is None:
+                raise StoreError("bad_token", "this login is no longer valid, sign in again")
+            codes = normalize_codes([e["code"] for e in entries])
+            keys: dict[str, str] = {}
+            for e in entries:
+                code = normalize_codes([e["code"]])
+                key = normalize_key(e.get("key", ""))
+                if code and key:
+                    keys[code[0]] = key
+            target.devices = codes
+            target.device_keys = {c: k for c, k in keys.items() if c in codes}
+            target.device_seen = {c: t for c, t in target.device_seen.items() if c in codes}
+            target.device_info = {c: i for c, i in target.device_info.items() if c in codes}
             self._write()
             return target
 
@@ -299,6 +396,12 @@ def check_password(password: str) -> None:
     length = len(password or "")
     if not (PASSWORD_MIN <= length <= PASSWORD_MAX):
         raise StoreError("bad_password", f"password must be {PASSWORD_MIN} to {PASSWORD_MAX} characters")
+
+
+def normalize_key(key: str) -> str:
+    """只留 64 位十六进制的控制台公钥，别的当作没有"""
+    text = "".join(c for c in str(key).lower() if c in "0123456789abcdef")
+    return text if len(text) == 64 else ""
 
 
 def normalize_codes(codes: list[str]) -> list[str]:

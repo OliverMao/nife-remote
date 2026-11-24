@@ -7,8 +7,7 @@ import { api, type Problem } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { problemText } from "../lib/messages";
 import { store, useStore } from "../lib/store";
-import { deviceTitle } from "../lib/devices";
-import { fmtCode } from "../lib/actions";
+import { accountDevices, deviceTitle } from "../lib/devices";
 import { IconMonitor, IconShrink, IconWinMark } from "./Icons";
 
 /** 秒数 → 06:28:56 */
@@ -26,7 +25,7 @@ export function HostView() {
   const [error, setError] = useState<Problem | null>(null);
 
   // 每一路控制端是什么时候连上来的（状态里没有时间，本地记第一次看到它的时刻）
-  const devices = useStore((s) => s.devices);
+  const devices = accountDevices(useStore((s) => s.account), useStore((s) => s.devices));
   const controllers = host?.controllers ?? [];
   useEffect(() => {
     setSince((prev) => {
@@ -90,7 +89,6 @@ export function HostView() {
                 <div className="hv-item-name">{deviceTitle(d)}</div>
                 <div className="hv-item-meta">
                   <span className="hv-tag">{d.quality ? t("device.connectedOnce") : t("devices.unknown")}</span>
-                  <span className="muted small">{fmtCode(d.code)}</span>
                 </div>
               </div>
               <span className="hv-item-btn">{t("device.open")}</span>

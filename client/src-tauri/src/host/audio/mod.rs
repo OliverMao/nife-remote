@@ -11,15 +11,15 @@ pub(crate) mod wasapi;
 use wasapi as backend;
 
 /// 测试用：在本机默认输出设备上播放测试音
-
-
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::{Duration, Instant};
 
-use nife_remote_proto::media::{self, AUDIO_CHANNELS, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader};
 use anyhow::Result;
 use bytes::Bytes;
+use nife_remote_proto::media::{
+    self, AUDIO_CHANNELS, AUDIO_FRAME_MS, AUDIO_SAMPLE_RATE, AudioHeader,
+};
 use tokio::sync::{mpsc, watch};
 use tracing::{debug, info, warn};
 
@@ -308,7 +308,6 @@ fn broadcast(shared: &Shared, seq: u32, data: &[u8], start: bool, captured: Inst
 
 // ───────────────────────────── 采集线程 ─────────────────────────────
 
-
 fn capture_loop(shared: Arc<Shared>) {
     super::capture::raise_priority();
     let mut packetizer = match Packetizer::new() {
@@ -405,5 +404,3 @@ fn capture_loop(shared: Arc<Shared>) {
     }
     info!("audio capture stopped");
 }
-
-
