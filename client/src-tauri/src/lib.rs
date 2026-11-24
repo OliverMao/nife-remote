@@ -20,6 +20,7 @@ mod devices;
 mod ephemeral;
 mod fullscreen;
 pub mod host;
+mod peer;
 mod presence;
 mod profile;
 mod relay;
@@ -452,7 +453,7 @@ static LOCAL_FILES: LazyLock<Mutex<host::files::Jobs>> = LazyLock::new(Default::
 struct LocalList {
     path: String,
     parent: Option<String>,
-    entries: Vec<nife_remote_proto::session::FsEntry>,
+    entries: Vec<host::files::FsEntry>,
 }
 
 #[derive(Serialize)]
@@ -468,7 +469,7 @@ struct LocalData {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LocalRoots {
-    places: Vec<nife_remote_proto::session::FsPlace>,
+    places: Vec<host::files::FsPlace>,
     home: String,
 }
 
@@ -522,6 +523,26 @@ async fn local_fs_write(id: u32, offset: u64, data: String) -> Result<(), String
 #[tauri::command]
 async fn local_fs_close(id: u32) {
     LOCAL_FILES.lock().unwrap().close(id);
+}
+
+// ── 和同账号的另一台设备传文件（经账号服务转发，见 src/peer.rs） ──
+
+/// 开一条到某台设备（控制码）的文件传输隧道，返回隧道号
+#[tauri::command]
+async fn peer_fs_open(code: String) -> Result<u32, Problem> {
+    peer::open(&code).await.map_err(Problem::failed)
+}
+
+/// 往隧道里发一条请求（`data` 原样交给对面）
+#[tauri::command]
+fn peer_fs_send(tid: u32, data: serde_json::Value) -> Result<(), Problem> {
+    peer::send(tid, data).map_err(Problem::failed)
+}
+
+/// 关掉隧道
+#[tauri::command]
+fn peer_fs_close(tid: u32) {
+    peer::close(tid);
 }
 
 /// 打开一台电脑的**文件传输**窗口（见 src-tauri/src/viewer.rs 的 open_files）
@@ -857,6 +878,9 @@ pub fn run() {
             local_fs_read,
             local_fs_write,
             local_fs_close,
+            peer_fs_open,
+            peer_fs_send,
+            peer_fs_close,
             account_save_devices,
             controller_public_key,
             trust_controllers,

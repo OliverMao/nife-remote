@@ -249,7 +249,6 @@ const en: Record<MsgKey, Msg> = {
   "files.remote": "Remote",
   "files.thisComputer": "Local",
   "files.send": "Send",
-  "files.unsupported": "The remote computer's version doesn't support file transfer. Ask them to update Nife Remote",
   "files.name": "Name",
   "files.modified": "Modified",
   "files.type": "Type",
@@ -259,7 +258,6 @@ const en: Record<MsgKey, Msg> = {
   "files.home": "Default folder",
   "files.refresh": "Refresh",
   "files.empty": "This folder is empty",
-  "files.waitServer": "Connecting to the server…",
   "files.waitHost": "Connecting to the other computer…",
   "files.tooMany": "{n} more item(s) not shown (open a subfolder to see them)",
   "files.jobs": "Transfers",
@@ -447,6 +445,7 @@ const en: Record<MsgKey, Msg> = {
   "problem.noSession": "Session not found",
   "problem.noClipboardText": "No text on the local clipboard",
   "problem.failed": "That didn't work. Try again in a moment",
+  "problem.failedDetail": "Failed: {detail}",
   "problem.account": (p) => {
     switch (p.code) {
       case "wrong_password":

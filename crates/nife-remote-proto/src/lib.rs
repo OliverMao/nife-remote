@@ -323,12 +323,11 @@ pub mod features {
         /// 是 `HostMsg::Mic` 里的状态，不是能力位
         pub const MIC: Features = Features::from_bits(1 << 0);
 
-        /// 1 号位：文件传输（见 [`crate::session`] 的 `Fs*` 消息）。控制端只在被控端也有这一位时
-        /// 才提供文件传输窗口
-        pub const FILES: Features = Features::from_bits(1 << 1);
-
         /// 本端支持的
-        pub const SUPPORTED: Features = MIC.with(FILES);
+        ///
+        /// 文件传输不在这里：它走账号服务的 WebSocket 转发（见 `client/src-tauri/src/peer.rs`），
+        /// 和会话无关，也就不需要协商能力位了
+        pub const SUPPORTED: Features = MIC;
     }
 }
 

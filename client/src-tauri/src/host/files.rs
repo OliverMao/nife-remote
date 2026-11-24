@@ -1,11 +1,13 @@
-//! 文件传输（被控端这一半）：列盘符、列目录、读写文件。
+//! 本机文件的读写：列盘符 / 系统文件夹、列目录、按块读写文件。
 //!
-//! 产品上只做**单个文件**的传输（不做文件夹递归），所以这里没有目录树、没有断点续传的元数据：
-//! 一个任务就是一个打开着的文件句柄（`id` → 句柄），控制端按块读 / 按块写，
-//! 块大小由 [`MAX_FS_CHUNK`] 决定（见 `nife_remote_proto::session` 的 `Fs*` 消息）。
+//! 三方共用同一套代码：
 //!
-//! 块读写是磁盘 IO，可能慢（机械盘、网络盘）：调用方在 `spawn_blocking` 里跑，
-//! 不要挡住会话任务（输入、画面都在那条任务上）。
+//! * 文件传输窗口里"本机"那一栏（`lib.rs` 的 `local_fs_*` 命令）；
+//! * 文件传输的另一端——别的设备通过账号服务来读写这台电脑（`src/peer.rs`）；
+//! * 它们都只做**单个文件**（不递归文件夹），没有目录树、没有断点续传的元数据：
+//!   一个任务就是一个打开着的文件句柄（`id` → 句柄），对面按块读 / 按块写。
+//!
+//! 块读写是磁盘 IO，可能慢（机械盘、网络盘）：调用方在 `spawn_blocking` 里跑。
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -14,7 +16,28 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use nife_remote_proto::session::{FsEntry, FsPlace};
+/// 文件传输里的一条目录项
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsEntry {
+    pub name: String,
+    pub dir: bool,
+    pub size: u64,
+    /// 修改时间（Unix 秒；0 = 不知道）
+    pub modified: i64,
+}
+
+/// 能直接跳过去的一个"位置"：盘符、桌面、下载……
+///
+/// `kind` 给界面挑图标 / 翻译用（`drive`、`documents`、`downloads`……）；
+/// `name` 只有盘有卷标时才有值（`Data`），系统文件夹的名字由界面翻译。
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsPlace {
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+}
 
 /// 会话里打开着的文件
 #[derive(Default)]
@@ -77,6 +100,11 @@ impl Jobs {
             .map_err(|e| e.to_string())?;
         file.write_all(data).map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    /// 现在打开着哪些文件（隧道断开时要全部关掉）
+    pub fn ids(&self) -> Vec<u32> {
+        self.open.keys().copied().collect()
     }
 
     pub fn close(&mut self, id: u32) {

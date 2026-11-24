@@ -34,6 +34,18 @@ GET  /health                                    → {ok: true, users: n, version
 ```
 
 之后有设备上下线、改名、换控制码都会再推一次。设备可以发 `{"type": "ping"}` 保活（服务回 `{"type": "pong"}`）。
+
+文件传输也走这条连接（服务只转发，不看内容）：
+
+```json
+{"type": "fs-open",  "to": "951404", "use": 1}          → {"type": "fs-opened", "use": 1, "id": 7}
+                                                        → 对端 {"type": "fs-call", "id": 7, "from": "258374"}
+{"type": "fs-send",  "id": 7, "data": {...}}            → 对端 {"type": "fs-data", "id": 7, "data": {...}}
+{"type": "fs-close", "id": 7}                           → 对端 {"type": "fs-gone", "id": 7, "reason": "closed"}
+```
+
+`to` 不在这个账号里、或者不在线时回 `{"type": "fs-error", "use": 1, "code": "peerOffline"}`。
+一方掉线时它的隧道全部拆掉，对面收到 `fs-gone`（`reason` 是 `peerGone`）。
 报到的控制码属于别的账号时回 `{"type": "error", "code": "device_taken", ...}`，那条连接仍然留着（可以再报别的码）。
 """
 
@@ -202,6 +214,10 @@ def relay() -> dict[str, Any]:
     }
 
 
+# 这个服务支持的功能（部署之后用 `curl /health` 一眼看出跑的是不是新版）
+FEATURES = ["devices", "fs"]
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
@@ -210,6 +226,8 @@ def health() -> dict[str, Any]:
         "users": store.user_count,
         "registration": settings.registration,
         "relay": settings.relay_address or None,
+        # `fs` = 支持设备之间的文件传输转发（见 presence.py）；降级部署时这里会少一项
+        "features": FEATURES,
     }
 
 
@@ -298,6 +316,13 @@ async def device_socket(ws: WebSocket, token: str = Query("", description="登�
                 await HUB.broadcast(user.id, devices_payload(user))
             elif kind == "ping":
                 await ws.send_json({"type": "pong"})
+            elif kind == "fs-open":
+                # 和同账号的另一台设备传文件：服务只转发，内容不解析（见 presence.py）
+                await HUB.open_tunnel(conn, str(raw.get("to") or "").zfill(6), int(raw.get("use") or 0))
+            elif kind == "fs-send":
+                await HUB.relay(conn, int(raw.get("id") or 0), raw.get("data"))
+            elif kind == "fs-close":
+                await HUB.close_tunnel(conn, int(raw.get("id") or 0))
             elif kind == "bye":
                 conn.codes.clear()
                 await HUB.broadcast(user.id, devices_payload(user))

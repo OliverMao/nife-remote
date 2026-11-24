@@ -126,9 +126,13 @@ export function FileTransfer({ target }: { target: FilesTarget }) {
   const sessionRef = useRef<FileSession | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /** 正在做什么（"正在连接服务器…"），不是错误 */
-  const [stage, setStage] = useState<FileStage>("server");
+  const [stage, setStage] = useState<FileStage>("connect");
   /** 出错：本地错误是 Error，服务端给的是 Problem 对象，都转成同一句话显示 */
-  const fail = (e: unknown) => setProblem(problemText(toProblem(e)));
+  const fail = (e: unknown) => {
+    // 界面上的话是翻译过的，DevTools（F12）里留一份原样的，方便对着日志排查
+    console.error("file transfer failed:", e);
+    setProblem(problemText(toProblem(e)));
+  };
 
   const [hostName, setHostName] = useState("");
   const [local, setLocal] = useState<Dir>(EMPTY_DIR);
@@ -162,19 +166,15 @@ export function FileTransfer({ target }: { target: FilesTarget }) {
   }, []);
 
   useEffect(() => {
-    const s = new FileSession(target.code, {
+    const s = new FileSession(target.code, target.name, {
       onStage: setStage,
-      onProblem: (p) => setProblem(problemText(p)),
+      onProblem: (p) => setProblem(p ? problemText(p) : null),
     });
     sessionRef.current = s;
     setSession(s);
     void (async () => {
       try {
         await s.open();
-        if (!s.supported) {
-          setProblem(t("files.unsupported"));
-          return;
-        }
         const roots = await s.roots();
         setRemotePlaces([
           { name: "", path: "", kind: "this" },
@@ -415,7 +415,7 @@ export function FileTransfer({ target }: { target: FilesTarget }) {
         ) : (
           stage !== "ready" && (
             <div className="ft-note" role="status">
-              {t(stage === "server" ? "files.waitServer" : "files.waitHost")}
+              {t("files.waitHost")}
             </div>
           )
         )}

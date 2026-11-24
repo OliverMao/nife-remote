@@ -370,6 +370,18 @@ class WebConsole extends ConsoleLink implements Backend {
     else throw new Error("the browser blocked the new tab");
   }
 
+  // 网页版没有"设备常连接"（见 src-tauri/src/presence.rs）：文件传输窗口不提供
+  async peerFsOpen(): Promise<number> {
+    throw { kind: "failed", detail: "网页版不支持文件传输" };
+  }
+  async peerFsSend(): Promise<void> {
+    throw { kind: "failed", detail: "网页版不支持文件传输" };
+  }
+  peerFsClose() {}
+  onFsPeer(): () => void {
+    return () => {};
+  }
+
   // 网页版看不见本机的文件系统（浏览器的沙箱）：文件传输窗口里左边那一栏不显示
   async localRoots(): Promise<{ places: FsPlace[]; home: string }> {
     return { places: [], home: "" };

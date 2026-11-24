@@ -23,7 +23,7 @@ use nife_remote_proto::framing;
 use nife_remote_proto::handshake::{Confirm, Negotiated, PublicKey};
 use nife_remote_proto::session::{
     ControllerDatagram, ControllerMsg, DirectOffer, HostDatagram, InputEvent, MAX_CLIPBOARD_TEXT,
-    MAX_FS_CHUNK, QualitySettings, Codec};
+    QualitySettings, Codec};
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
 use tokio::sync::{Notify, mpsc, oneshot};
@@ -206,17 +206,6 @@ pub(crate) fn request(m: ControllerMsg) -> Option<Request> {
         ControllerMsg::Clipboard { text } => Request::Clipboard(text),
         ControllerMsg::Audio { enabled } => Request::Audio(enabled),
         ControllerMsg::Mic { enabled } => Request::Mic(enabled),
-        ControllerMsg::FsRoots { req } => Request::FsRoots { req },
-        ControllerMsg::FsList { req, path } => Request::FsList { req, path },
-        ControllerMsg::FsExists { req, path } => Request::FsExists { req, path },
-        ControllerMsg::FsOpen { id, path, write } => Request::FsOpen { id, path, write },
-        ControllerMsg::FsRead { id, offset, len } => Request::FsRead {
-            id,
-            offset,
-            len: len.min(MAX_FS_CHUNK),
-        },
-        ControllerMsg::FsWrite { id, offset, data } => Request::FsWrite { id, offset, data },
-        ControllerMsg::FsClose { id } => Request::FsClose { id },
         ControllerMsg::Direct(_) => return None,
     })
 }

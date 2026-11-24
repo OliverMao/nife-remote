@@ -121,36 +121,6 @@ pub enum Request {
     Audio(bool),
     /// 打开 / 关闭控制端的麦克风（见 [`MicSink`]）
     Mic(bool),
-    /// 文件传输（见 `nife_remote_proto::session` 的 `Fs*` 消息）
-    FsRoots {
-        req: u32,
-    },
-    FsList {
-        req: u32,
-        path: String,
-    },
-    FsExists {
-        req: u32,
-        path: String,
-    },
-    FsOpen {
-        id: u32,
-        path: String,
-        write: bool,
-    },
-    FsRead {
-        id: u32,
-        offset: u64,
-        len: u32,
-    },
-    FsWrite {
-        id: u32,
-        offset: u64,
-        data: Vec<u8>,
-    },
-    FsClose {
-        id: u32,
-    },
 }
 
 /// 会话怎么开始：握手里的画质和要不要声音，同意之前又收到的设置也算进来

@@ -256,7 +256,7 @@ export interface SessionInfo {
   hostKey: string;
   /** 安全码：对方托盘里显示的是同一个 */
   safety: string;
-  /** 双方都支持、界面用得上的会话能力：`"mic"`、`"files"`（见 nife_remote_proto::features::session） */
+  /** 双方都支持、界面用得上的会话能力：目前只有 `"mic"`（见 nife_remote_proto::features::session） */
   features: string[];
 }
 
@@ -337,25 +337,21 @@ export type SessionEvent =
   /** 被控端能不能接本机的麦克风：会话开始时一次，之后有变化再来；对方的版本旧时没有。detail：出错时的技术信息 */
   | { type: "mic"; state: MicState; detail: string | null }
   // ── 文件传输（见 lib/files.ts），`req` / `id` 对回命令里的 ──
-  | { type: "fsRoots"; req: number; places: FsPlace[]; home: string }
-  | {
-      type: "fsList";
-      req: number;
-      path: string;
-      parent: string | null;
-      entries: FsEntry[];
-      error: string | null;
-    }
-  | { type: "fsExists"; req: number; exists: boolean }
-  | { type: "fsOpened"; id: number; size: number; error: string | null }
-  /** 读到的一块（`data` 是 base64） */
-  | { type: "fsData"; id: number; offset: number; eof: boolean; data: string }
-  | { type: "fsWritten"; id: number; offset: number }
-  | { type: "fsError"; id: number; error: string }
   | { type: "closed"; reason: Problem; retry: boolean };
 
 /**
- * 文件传输窗口里能直接跳过去的位置（与 Rust 的 `nife_remote_proto::session::FsPlace` 对应）
+ * 文件传输：对面发来的一条消息（`fs-peer` 事件，见 src-tauri/src/peer.rs）
+ *
+ * `gone` 有值 = 隧道断了（对方关窗口、掉线），`data` 有值是这条回答。
+ */
+export interface FsPeerMessage {
+  tid: number;
+  data?: { req?: number; ok?: unknown; err?: string };
+  gone?: string;
+}
+
+/**
+ * 文件传输窗口里能直接跳过去的位置（与 `client/src-tauri/src/host/files.rs` 的 `FsPlace` 对应）
  *
  * `kind`：`drive` / `desktop` / `documents` / `downloads` / `pictures` / `videos` / `music`
  * （界面按它挑图标和名字，`name` 只有盘有卷标时才有值）。
@@ -413,14 +409,6 @@ export type Command =
   /** 收到了第 seq 帧画面（累积确认；控制台的 Worker 收到画面时自己发，走二进制，见 ack.ts） */
   | { cmd: "ack"; sid: number; seq: number }
   /** 文件传输：要被控端的盘符和默认目录（`req` 在回答里对回来） */
-  | { cmd: "fsRoots"; sid: number; req: number }
-  | { cmd: "fsList"; sid: number; req: number; path: string }
-  | { cmd: "fsExists"; sid: number; req: number; path: string }
-  /** 打开一个文件：`write` 为真时清空重写，否则读 */
-  | { cmd: "fsOpen"; sid: number; file: number; path: string; write: boolean }
-  | { cmd: "fsRead"; sid: number; file: number; offset: number; len: number }
-  | { cmd: "fsWrite"; sid: number; file: number; offset: number; data: string }
-  | { cmd: "fsClose"; sid: number; file: number }
   | { cmd: "disconnect"; sid: number };
 
 /** 控制台与控制端服务之间的通道。会话的部分两种运行方式共用（console.ts 的 ConsoleLink） */
@@ -501,6 +489,14 @@ export interface Backend {
 
   /** 打开一台电脑的**文件传输**窗口（一个控制码一个窗口；已经有了就切到前面） */
   openFilesWindow(target: { code: string; name: string }): Promise<void>;
+  /** 和同账号的另一台设备（控制码）开一条文件传输隧道，返回隧道号 */
+  peerFsOpen(code: string): Promise<number>;
+  /** 往隧道里发一条请求（`data` 原样交给对面） */
+  peerFsSend(tid: number, data: Record<string, unknown>): Promise<void>;
+  /** 关掉隧道 */
+  peerFsClose(tid: number): void;
+  /** 对面发来的回答 / 隧道断了。返回取消订阅的函数 */
+  onFsPeer(cb: (m: FsPeerMessage) => void): () => void;
 
   /** 账号的设备列表变了（账号服务推的：名字、系统、在线状态，见 src-tauri/src/presence.rs） */
   onAccountDevices(cb: (devices: AccountDevice[]) => void): () => void;

@@ -260,7 +260,6 @@ export default {
   "files.remote": "远程",
   "files.thisComputer": "本机",
   "files.send": "发送",
-  "files.unsupported": "对方电脑的版本不支持文件传输，请对方更新 Nife Remote",
   "files.name": "名称",
   "files.modified": "修改日期",
   "files.type": "类型",
@@ -270,7 +269,6 @@ export default {
   "files.home": "默认目录",
   "files.refresh": "刷新",
   "files.empty": "这个文件夹是空的",
-  "files.waitServer": "正在连接服务器…",
   "files.waitHost": "正在连接对方电脑…",
   "files.tooMany": "还有 {n} 项没显示（进入子目录查看）",
   "files.jobs": "传输列表",
@@ -461,6 +459,7 @@ export default {
   "problem.noSession": "会话不存在",
   "problem.noClipboardText": "本机剪贴板没有文本",
   "problem.failed": "操作失败，请稍后重试",
+  "problem.failedDetail": "操作失败：{detail}",
   "problem.account": (p) => {
     switch (p.code) {
       case "wrong_password":

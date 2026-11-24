@@ -69,7 +69,6 @@ export function ControlCenter({
 
   const preset = matchPreset(s.settings);
   /** 对方也支持文件传输（双方都有这一位能力）：老版本被控端没有 */
-  const hasFiles = s.features.includes("files");
 
   return (
     <Popover className={`control-center ${page === "root" ? "" : "wide"}`} onClose={onClose}>
@@ -200,19 +199,14 @@ export function ControlCenter({
             </div>
 
             {/* 文件传输：另开一个窗口（左边本机、右边对方），见 components/FileTransfer.tsx。
-                对方版本不支持时这一行照样显示，只是不能点（省得"为什么别人有这个按钮"） */}
+                走账号服务转发，不依赖这条会话（对方不在你的账号里时窗口里会说明） */}
             <button
-              className={`cc-row ${hasFiles ? "" : "disabled"}`}
-              disabled={!hasFiles}
-              title={hasFiles ? undefined : t("files.unsupported")}
+              className="cc-row"
               onClick={() =>
                 pick(() => void openFileTransfer(s.code, s.hostName).catch((e: unknown) => onToast(errorText(e))))
               }
             >
-              <span className="cc-label">
-                {t("files.title")}
-                {!hasFiles && <span className="muted small block">{t("files.unsupported")}</span>}
-              </span>
+              <span className="cc-label">{t("files.title")}</span>
               <span className="cc-value">
                 <IconChevron size={14} />
               </span>

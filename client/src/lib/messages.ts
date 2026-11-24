@@ -28,6 +28,8 @@ export function problemText(p: Problem): string {
   // 第一次连一台电脑要配对码：窗口里只有一个"配对码"输入框，不是一句状态说明，这里不写文字
   if (p.kind === "pairingRequired") return "";
   const { kind, ...params } = p;
+  // 失败带技术细节（对方给的原话，英文）时一并显示：不然只有一个"操作失败"，没法查
+  if (p.kind === "failed" && p.detail.trim()) return t("problem.failedDetail", { detail: p.detail });
   return t(`problem.${kind}` as const, params);
 }
 

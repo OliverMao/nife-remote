@@ -11,6 +11,7 @@ import type {
   AccountInfo,
   Backend,
   FsEntry,
+  FsPeerMessage,
   FsPlace,
   HostStatus,
   OpenSession,
@@ -161,6 +162,20 @@ class DesktopConsole extends ConsoleLink implements Backend {
 
   openFilesWindow(target: { code: string; name: string }) {
     return invoke<void>("files_open", { code: target.code, name: target.name });
+  }
+
+  // 和同账号的另一台设备传文件：经账号服务的 WebSocket 转发（见 src-tauri/src/peer.rs）
+  peerFsOpen(code: string) {
+    return invoke<number>("peer_fs_open", { code });
+  }
+  peerFsSend(tid: number, data: Record<string, unknown>) {
+    return invoke<void>("peer_fs_send", { tid, data });
+  }
+  peerFsClose(tid: number) {
+    void invoke<void>("peer_fs_close", { tid }).catch(() => {});
+  }
+  onFsPeer(cb: (m: FsPeerMessage) => void) {
+    return unlistenLater(listen<FsPeerMessage>("fs-peer", (e) => cb(e.payload)));
   }
 
   localRoots() {

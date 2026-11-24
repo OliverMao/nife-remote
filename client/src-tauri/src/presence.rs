@@ -13,6 +13,7 @@
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
+use tokio::sync::mpsc;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 use tokio_tungstenite::tungstenite::Message;
@@ -69,6 +70,9 @@ async fn serve(
     let url = socket_url(base, token);
     let (mut ws, _) = tokio_tungstenite::connect_async(&url).await?;
     info!(%base, "connected to the account service");
+    // 文件传输也走这条连接：别处（Tauri 命令、应答方）往这个通道里塞消息
+    let (out, mut outgoing) = mpsc::channel::<Value>(32);
+    crate::peer::connect(out);
     // 报到的控制码：没见过 / 变了就再报一次
     let mut told: Option<u32> = None;
     let mut ping = tokio::time::interval(PING_EVERY);
@@ -81,15 +85,19 @@ async fn serve(
         told = Some(code);
     }
 
-    loop {
+    let result = loop {
         tokio::select! {
+            // 文件传输的消息、控制台命令都从这里出去
+            Some(payload) = outgoing.recv() => {
+                ws.send(Message::Text(payload.to_string().into())).await?;
+            }
             message = ws.next() => match message {
                 Some(Ok(Message::Text(text))) => on_text(app, &text),
                 Some(Ok(Message::Close(_))) | None => {
                     debug!("the account service closed the device connection");
-                    return Ok(());
+                    break Ok(());
                 }
-                Some(Err(e)) => return Err(e.into()),
+                Some(Err(e)) => break Err(e.into()),
                 _ => {}
             },
             _ = host.changed() => {
@@ -105,11 +113,14 @@ async fn serve(
                 ws.send(Message::Text(json!({"type":"ping"}).to_string().into())).await?;
                 // 登录凭证换了（改密码之后服务会作废旧凭证）：断开重连
                 if accounts::token().as_deref() != Some(token) {
-                    return Ok(());
+                    break Ok(());
                 }
             }
         }
-    }
+    };
+    // 这条连接上的文件传输隧道全断了：让界面别再等
+    crate::peer::disconnect();
+    result
 }
 
 /// 报到：控制码、本机名字、系统
@@ -135,6 +146,10 @@ fn on_text(app: &AppHandle, text: &str) {
     let Ok(value) = serde_json::from_str::<Value>(text) else {
         return;
     };
+    // 文件传输的消息（fs-*）交给 peer 模块，别的不理
+    if crate::peer::handle(app, &value) {
+        return;
+    }
     match value.get("type").and_then(Value::as_str) {
         Some("devices") => {
             if let Err(e) = app.emit(EVENT, &value) {
